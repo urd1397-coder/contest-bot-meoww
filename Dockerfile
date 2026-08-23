@@ -1,1 +1,1 @@
-FROM ghcr.io/ammardev/contest-bot-meow:latest
+FROM docker.io/ammardev/contest-bot-final:latest
