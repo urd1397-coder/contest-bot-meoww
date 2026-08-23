@@ -12,7 +12,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.reply_to(message, "مرحباً بك! البوت يعمل الآن بنجاح سحابياً ومستقر 100% على السيرفر المجاني.")
+    bot.reply_to(message, "مرحبا بك في بوت ادارة المسبقات meow.")
 
 # خدعة برمجية لفتح منفذ وهمي يمنع الـ Timed Out
 class MyServer(BaseHTTPRequestHandler):
