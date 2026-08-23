@@ -1,1 +1,1 @@
-FROM docker.io/ammardev/contest-bot-meoww:latest
+FROM docker.io/ammardev/contest-bot-meow:latest
