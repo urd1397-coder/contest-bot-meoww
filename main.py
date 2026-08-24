@@ -58,14 +58,16 @@ def cmd_developer(message):
 @bot.message_handler(commands=['buy'])
 def cmd_buy(message):
     user_id = message.from_user.id
-    if user_id in paid_users or user_id == OWNER_ID:
-        bot.reply_to(message, "😸 أنت تملك رخصة تفعيل البوت الفخرية (مجانية للمطور)!")
+    if int(user_id) == int(OWNER_ID) or user_id in paid_users:
+               bot.reply_to(message, "😸 أنت تملك رخصة تفعيل البوت الفخرية (مجانية للمطور وبلاش)!")
         return
-       prices = [LabeledPrice(label="رخصة تفعيل شركس للمسابقات", amount=50)]
+
+
+    prices = [LabeledPrice(label="رخصة تفعيل شركس للمسابقات", amount=50)]
     bot.send_invoice(
         chat_id=message.chat.id,
         title="✨ تفعيل بوت شركس ✨",
-        description="اشترِ رخصة تشغيل البوت في قناتك للأبد بمبلغ زهيد ودع الحماس يبدأ! 😸🐾",
+        description="اشترِ رخصة تشغيل البوت في قناتك للأبد بمبلغ 50 نجمة فقط، وتتحول الأرباح مباشرة للمطور! 😸🐾",
         currency="XTR",  
         prices=prices,
         start_parameter="activate-cherkes",
