@@ -8,9 +8,9 @@ import threading
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 8000))
 
-# 👑 تفعيل هويتك كمالك ومطور رسمي للبوت بشكل دائم وثابت داخل الكود ليعمل ببلاش
-OWNER_ID = 5413970265  # الرقم البرمجي الخاص بحسابك الأساسي
-OWNER_USERNAME = "@z7xxy" # يوزر حسابك الفخم
+# 👑 تفعيل هويتك كمالك ومطور رسمي للبوت بشكل دائم وثابت داخل الكود
+OWNER_ID = 5413970265  
+OWNER_USERNAME = "@z7xxy" 
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -39,15 +39,14 @@ def handle_start(message):
         )
         bot.reply_to(message, commands_text, parse_mode="Markdown")
 
-# 👑 أمر المطور لإظهار هويتك الفخمة لجميع مستخدمي البوت
+# 👑 أمر المطور الآمن لحسابك
 @bot.message_handler(commands=['developer'])
 def cmd_developer(message):
-       dev_text = (
+    dev_text = (
         "👑 **بطاقة المطور الرسمي لشركس** 👑\n\n"
         f"👤 **المبرمج والمالك الفخم:** {OWNER_USERNAME}\n\n"
         "🐾 شكر خاص لكل من يدعم البوت ويساهم في نشر الحماس بالمسابقات اللطيفة! هيهي 😸✨"
     )
-
     bot.reply_to(message, dev_text, parse_mode="Markdown")
 
 # 💳 نظام الدفع والاشتراك بنجوم تليجرام للعامة
@@ -64,7 +63,7 @@ def cmd_buy(message):
         title="✨ تفعيل بوت شركس ✨",
         description="اشترِ رخصة تشغيل البوت في قناتك للأبد بمبلغ زهيد ودع الحماس يبدأ! 😸🐾",
         provider_token="",
-        currency="XTR",  # كود نجوم تليجرام
+        currency="XTR",  
         prices=prices,
         start_parameter="activate-cherkes",
         payload="cherkes_license"
@@ -133,7 +132,7 @@ def handle_join(call):
     if channel_id not in channel_contests:
         channel_contests[channel_id] = {}
         
-    if any(user_id in msg_data for msg_data in channel_contests[channel_id].values()):
+    if any(user_id == msg_data["user_id"] for msg_data in channel_contests[channel_id].values()):
         bot.answer_callback_query(call.id, text="عذراً، أنت مسجل في المسابقة بالفعل! 😸🐾", show_alert=True)
         return
         
@@ -221,7 +220,7 @@ def end_calculate_and_announce(message):
         try:
             photos = bot.get_user_profile_photos(top_winner["user_id"], limit=1)
             if photos.total_count > 0:
-                file_id = photos.photos[0][-1].file_id
+                file_id = photos.photos[0][0].file_id
                 bot.send_photo(chat_id=channel_id, photo=file_id, caption=result_text, parse_mode="Markdown")
             else:
                 bot.send_message(chat_id=channel_id, text=result_text, parse_mode="Markdown")
