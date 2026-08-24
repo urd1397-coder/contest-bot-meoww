@@ -1,94 +1,10 @@
-import os
-import telebot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import threading
-
-# قراءة التوكن والمنفذ السحابي من ريندر
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-PORT = int(os.getenv("PORT", 8000))
-
-# 👑 تفعيل هويتك كمالك ومطور رسمي للبوت بشكل دائم وثابت داخل الكود
-OWNER_ID = 79636720007  
-OWNER_USERNAME = "@z7xxq" 
-
-bot = telebot.TeleBot(BOT_TOKEN)
-
-# قواميس تتبع البيانات السحابية لشركس
-user_states = {}
-channel_contests = {}  # لحفظ أصوات المشتركين {channel_id: {msg_id: {user_id: {"name": x, "votes": 0}}}}
-paid_users = set()     # المستخدمين الذين اشتروا الخدمة بـ 50 نجمة
-
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    # تفاعل مباشر ونظيف للنص الكيوت المختار عند كتابة start فقط
-    welcome_text = (
-        "انت من ايقظني 🙀 ؟\n\n"
-        "يا أهلاً، أنا شركس بوت الفعاليات والمسابقات التفاعلية اللطيفة! 🐾🎈 "
-        "مهمتي زرع الحماس ومساعدتك على إشعال التحديات 🚀\n\n"
-        "اضغط على /help لترى كل أزراري وسحري المتاح! 😸🪐"
-    )
-    bot.reply_to(message, welcome_text)
-
-@bot.message_handler(commands=['help'])
-def handle_help(message):
-    # بث الأوامر ومعلومات النسخة التجريبية المرتبطة بأمر المطور
-    commands_text = (
-        "😸 **إليك قائمة أوامر شركس السحرية لإدارة المسابقات:**\n\n"
-        "💳 /buy ➔ شراء رخصة استخدام البوت لقناتك بـ 50 نجمة ⭐️\n"
-        "🎫 /redeem ➔ لإدخال كود ترويجي أو تجريبي مجاني 🎁\n"
-        "➕ /create ➔ لبدء إنشاء مسابقة جديدة داخل قناتك 🎯\n"
-        "🏁 /end ➔ إنهاء المسابقة الحالية واحتساب الأصوات وإعلان الفائزين 🏆\n"
-        "❌ /cancel ➔ لإلغاء أي عملية جارية 🫧\n\n"
-        "ℹ️ **تنبيه النسخة التجريبية:**\n"
-        "تتوفر نسخة تجريبية مجانية صالحة لمدة 3 أيام بكامل الميزات! للحصول عليها تواصل مع المطور الرسمي للبوت عن طريق كتابة أمر: /developer 🐾"
-    )
-    bot.reply_to(message, commands_text, parse_mode="Markdown")
-
-@bot.message_handler(commands=['developer'])
-def cmd_developer(message):
-    dev_text = (
-        "👑 **بطاقة المطور الرسمي لشركس** 👑\n\n"
-        f"👤 **المبرمج والمالك الفخم:** {OWNER_USERNAME}\n\n"
-        "🐾 شكر خاص لكل من يدعم البوت ويساهم في نشر الحماس بالمسابقات اللطيفة! هيهي 😸✨"
-    )
-    bot.reply_to(message, dev_text, parse_mode="Markdown")
-
-# 💳 نظام الدفع والاشتراك بنجوم تليجرام للعامة
-@bot.message_handler(commands=['buy'])
-def cmd_buy(message):
-    user_id = message.from_user.id
-    if int(user_id) == int(OWNER_ID) or user_id in paid_users:
-               bot.reply_to(message, "😸 أنت تملك رخصة تفعيل البوت الفخرية (مجانية للمطور وبلاش)!")
-        return
-
-
-    prices = [LabeledPrice(label="رخصة تفعيل شركس للمسابقات", amount=50)]
-    bot.send_invoice(
-        chat_id=message.chat.id,
-        title="✨ تفعيل بوت شركس ✨",
-        description="اشترِ رخصة تشغيل البوت في قناتك للأبد بمبلغ 50 نجمة فقط، وتتحول الأرباح مباشرة للمطور! 😸🐾",
-        currency="XTR",  
-        prices=prices,
-        start_parameter="activate-cherkes",
-        payload=f"cherkes_license_{user_id}"
-    )
-
-@bot.pre_checkout_query_handler(func=lambda query: True)
-def checkout(pre_checkout_query):
-    bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-@bot.message_handler(content_types=['successful_payment'])
-def got_payment(message):
-    user_id = message.from_user.id
-    paid_users.add(user_id)
-   # ➕ أمر بدء مسابقة جديدة (مدفوع ومحمي بقائمة المطور والمشتركين)
+# ➕ أمر بدء مسابقة جديدة (مدفوع ومحمي بقائمة المطور والمشتركين)
 @bot.message_handler(commands=['create'])
 def start_contest(message):
     user_id = message.from_user.id
     
-    # 👑 قائمة الأبطال المستثنين من الدفع (المطور الحالي + حسابك البديل المحدث)
-    allowed_devs = [7963720007, int(OWNER_ID)]
+    # 👑 قائمة الأبطال المستثنيين من الدفع (المطور الحالي والأساسي)
+    allowed_devs = [79636720007, int(OWNER_ID)]
     
     if int(user_id) not in allowed_devs and user_id not in paid_users:
         bot.reply_to(message, "⚠️ عذراً يا غالي، يجب تفعيل رخصة البوت أولاً عبر أمر /buy بـ 50 نجمة! 💳")
@@ -108,11 +24,11 @@ def check_admin_and_channel(message):
 
     try:
         member = bot.get_chat_member(channel_user, user_id)
-        if member.status in ['creator', 'administrator'] or int(user_id) == 796320007:
+        if member.status in ['creator', 'administrator'] or int(user_id) == 79636720007:
             user_states[user_id] = {"step": "contest_text", "channel": channel_user}
             bot.reply_to(message, f"✅ **تم التحقق من الصلاحيات بنجاح!**\n📡 القناة المستهدفة: **{channel_user}**\n\n📝 أرسل لي الآن نص وعنوان المسابقة الفخم:")
         else:
-            bot.reply_to(message, "❌ عذراً! الكود كشف أنك لست مسؤولاً (Admin) in هذه القناة حالياً.")
+            bot.reply_to(message, "❌ عذراً! الكود كشف أنك لست مسؤولاً (Admin) في هذه القناة حالياً.")
             user_states.pop(user_id, None)
     except Exception:
         bot.reply_to(message, "⚠️ البوت لم يستطع جلب بيانات القناة! تأكد من كتابة المعرف بشكل صحيح وإضافة البوت كـ Admin بالداخل أولاً، ثم أعد إرساله.")
@@ -183,7 +99,107 @@ def get_contest_text(message):
     except Exception:
         bot.reply_to(message, "❌ فشل بث المسابقة. تأكد من رتبة البوت كمسؤول داخل القناة أولاً.")
     user_states.pop(user_id, None)
+# ➕ أمر بدء مسابقة جديدة (مدفوع ومحمي بقائمة المطور والمشتركين)
+@bot.message_handler(commands=['create'])
+def start_contest(message):
+    user_id = message.from_user.id
+    
+    # 👑 قائمة الأبطال المستثنيين من الدفع (المطور الحالي والأساسي)
+    allowed_devs = [79636720007, int(OWNER_ID)]
+    
+    if int(user_id) not in allowed_devs and user_id not in paid_users:
+        bot.reply_to(message, "⚠️ عذراً يا غالي، يجب تفعيل رخصة البوت أولاً عبر أمر /buy بـ 50 نجمة! 💳")
+        return
+        
+    user_states[user_id] = {"step": "get_channel_for_contest"}
+    bot.reply_to(message, "📢 **أرسل لي معرف أو آيدي القناة التي تود إطلاق المسابقة فيها الآن:**\n*(مثال: `@my_channel` أو أرسل آيدي رقمي سري)*\n\n💡 *إذا كنت لا تعرف الآيدي، أرسل `/cancel` ثم استخدم أمر `/id_help` لمساعدتك!*")
 
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_channel_for_contest")
+def check_admin_and_channel(message):
+    user_id = message.from_user.id
+    channel_user = message.text.strip() if message.text else ""
+    
+    if channel_user in ["/cancel", "الغاء"]:
+        cmd_cancel(message)
+        return
+
+    try:
+        member = bot.get_chat_member(channel_user, user_id)
+        if member.status in ['creator', 'administrator'] or int(user_id) == 79636720007:
+            user_states[user_id] = {"step": "contest_text", "channel": channel_user}
+            bot.reply_to(message, f"✅ **تم التحقق من الصلاحيات بنجاح!**\n📡 القناة المستهدفة: **{channel_user}**\n\n📝 أرسل لي الآن نص وعنوان المسابقة الفخم:")
+        else:
+            bot.reply_to(message, "❌ عذراً! الكود كشف أنك لست مسؤولاً (Admin) في هذه القناة حالياً.")
+            user_states.pop(user_id, None)
+    except Exception:
+        bot.reply_to(message, "⚠️ البوت لم يستطع جلب بيانات القناة! تأكد من كتابة المعرف بشكل صحيح وإضافة البوت كـ Admin بالداخل أولاً، ثم أعد إرساله.")
+
+# 🕵️‍♂️ أمر جلب وتحصيل الآيدي التلقائي (مجاني تماماً ومفتوح بالكامل للعامة رغماً عن الدفع)
+@bot.message_handler(commands=['id_help'])
+def cmd_id_help(message):
+    user_id = message.from_user.id
+    user_states[user_id] = {"step": "get_channel_id_only"}
+    
+    guide_text = (
+        "🔍 **مرحباً بك في حارس الآيديات المجاني لشركس!**\n\n"
+        "👉 **كل ما عليك فعله الآن لمعرفة آيدي أي قناة:**\n"
+        "1️⃣ اذهب إلى القناة المطلوبة.\n"
+        "2️⃣ قم بعمل **توجيه (Forward)** لأي منشور، رسالة، أو صورة قديمة منها وأرسلها لي هنا فوراً!\n\n"
+        "🚀 سأقوم بقشط الآيدي الرقمي المخفي واستخراجه لك في أجزاء من الثانية مجاناً وببلّاش! 🐾\n"
+        "❌ *لإلغاء العملية أرسل: `الغاء`*"
+    )
+    bot.reply_to(message, guide_text, parse_mode="Markdown")
+
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_channel_id_only", 
+                     content_types=['text', 'photo', 'video', 'document', 'animation'])
+def process_id_fetching(message):
+    user_id = message.from_user.id
+    input_text = message.text.strip() if message.text else ""
+    
+    if input_text in ["/cancel", "الغاء"]:
+        cmd_cancel(message)
+        return
+
+    # استخراج الآيدي فوراً مهما كان نوع المحتوى الموجه
+    if message.forward_from_chat:
+        fetched_id = message.forward_from_chat.id
+        fetched_name = message.forward_from_chat.title or "القناة"
+        
+        success_text = (
+            f"✅ **تم تحصيل وقشط الآيدي السري بنجاح باهر!**\n\n"
+            f"📡 **اسم القناة:** {fetched_name}\n"
+            f"🆔 **الآيدي الرقمي المستخرج:** `{fetched_id}`\n\n"
+            f"👉 *انسخ الآيدي الرقمي الظاهر بالأعلى (بما في ذلك إشارة السالب -) واستخدمه لإدارة فعالياتك!* 🪐"
+        )
+        bot.reply_to(message, success_text, parse_mode="Markdown")
+        user_states.pop(user_id, None)
+    else:
+        bot.reply_to(message, "⚠️ أوه! هذه الرسالة ليست موجهة من قناة. لطفاً قم بعمل **توجيه (Forward)** حقيقي لمنشور من القناة لأقشط الآيدي، أو أرسل `الغاء`.")
+
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "contest_text")
+def get_contest_text(message):
+    user_id = message.from_user.id
+    input_text = message.text.strip() if message.text else ""
+    
+    if input_text in ["/cancel", "الغاء"]:
+        cmd_cancel(message)
+        return
+        
+    state = user_states.get(user_id)
+    if not state: return
+    channel_id = state["channel"]
+    contest_text = message.text
+    
+    channel_contests[channel_id] = {}
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("🎯 إشتراك 🎯", callback_data=f"join_{channel_id}"))
+    
+    try:
+        bot.send_message(chat_id=channel_id, text=f"🌌 **مسابقة جديدة في قناة درب التبانة!** 🏆\n\n{contest_text}", reply_markup=markup, parse_mode="Markdown")
+        bot.reply_to(message, f"🚀 طييرااان! تم نشر المسابقة بنجاح في القناة {channel_id}!")
+    except Exception:
+        bot.reply_to(message, "❌ فشل بث المسابقة. تأكد من رتبة البوت كمسؤول داخل القناة أولاً.")
+    user_states.pop(user_id, None)
 # التعامل مع زر الاشتراك المانع للتكرار في نفس القناة
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
 def handle_join(call):
@@ -231,6 +247,7 @@ def handle_reaction(message_reaction):
                         else:
                             total_votes += 1
                 channel_contests[ch_id][message_id]["votes"] = total_votes
+
 # 🏁 أمر إنهاء المسابقة وإعلان الفائزين بصور بروفايلاتهم في درب التبانة
 @bot.message_handler(commands=['end'])
 def end_contest(message):
@@ -248,12 +265,12 @@ def end_contest(message):
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "end_get_channel")
 def end_get_winners_count(message):
     user_id = message.from_user.id
+    input_text = message.text.strip() if message.text else ""
     
-    if message.text == "/cancel":
+    if input_text in ["/cancel", "الغاء"]:
         cmd_cancel(message)
         return
         
-    # استخراج تلقائي للآيدي عند إنهاء المسابقة عبر التوجيه أيضاً
     if message.forward_from_chat:
         channel_id = message.forward_from_chat.id
     else:
@@ -262,7 +279,7 @@ def end_get_winners_count(message):
             channel_id = int(channel_id)
     
     if channel_id not in channel_contests or not channel_contests[channel_id]:
-        bot.reply_to(message, "❌ لا توجد مسابقة نشطة مسجلة in ذاكرة شركس لهذه القناة حالياً!")
+        bot.reply_to(message, "❌ لا توجد مسابقة نشطة مسجلة في ذاكرة شركس لهذه القناة حالياً!")
         user_states.pop(user_id, None)
         return
         
@@ -276,7 +293,7 @@ def end_calculate_and_announce(message):
     channel_id = state.get("channel")
     input_text = message.text.strip()
     
-    if input_text == "/cancel":
+    if input_text in ["/cancel", "الغاء"]:
         cmd_cancel(message)
         return
     
@@ -355,8 +372,13 @@ def cmd_redeem(message):
 
 def process_redeem_code(message):
     user_id = message.from_user.id
-    input_code = message.text.strip()
+    input_code = message.text.strip() if message.text else ""
     
+    if input_code in ["/cancel", "الغاء"]:
+        user_states.pop(user_id, None)
+        bot.reply_to(message, "🫧 تم إلغاء شحن الكود بنجاح والعودة للوضع الطبيعي! 🐾")
+        return
+        
     if input_code in promo_codes:
         code_type = promo_codes[input_code]
         
@@ -371,7 +393,7 @@ def process_redeem_code(message):
                 user_trial_status[user_id] = "active_3days"
                 bot.reply_to(message, "✨ تهانينا! تم تفعيل الفترة التجريبية (3 أيام)\n\nأصبح بإمكانك الآن استخدام البوت بحرية كاملة لإدارة وتنظيم التحديات الفخمة. بالتوفيق! 🏆🪐")
     else:
-        bot.reply_to(message, "❌ أوه! الكود الذي أدخلته غير صحيح أو انتهت صلاحيته. تأكد من الحروف أو تواصل مع المطور @z7xxy مجدداً 🫧")
+        bot.reply_to(message, "❌ أوه! الكود الذي أدخلته غير صحيح أو انتهت صلاحيته. تأكد من الحروف أو تواصل مع المطور @z7xxq مجدداً 🫧")
 
 # =========================================================================
 
