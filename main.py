@@ -9,7 +9,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 8000))
 
 # 👑 تفعيل هويتك كمالك ومطور رسمي للبوت بشكل دائم وثابت داخل الكود
-OWNER_ID = 1488292943  
+OWNER_ID = 79636720007  
 OWNER_USERNAME = "@z7xxq" 
 
 bot = telebot.TeleBot(BOT_TOKEN)
