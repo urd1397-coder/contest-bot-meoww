@@ -87,7 +87,7 @@ def start_contest(message):
     user_id = message.from_user.id
     
     # 👑 قائمة الأبطال المستثنين من الدفع (المطور الحالي + حسابك البديل المحدث)
-    allowed_devs = [1488292943, int(OWNER_ID)]
+    allowed_devs = [7963720007, int(OWNER_ID)]
     
     if int(user_id) not in allowed_devs and user_id not in paid_users:
         bot.reply_to(message, "⚠️ عذراً يا غالي، يجب تفعيل رخصة البوت أولاً عبر أمر /buy بـ 50 نجمة! 💳")
@@ -107,7 +107,7 @@ def check_admin_and_channel(message):
 
     try:
         member = bot.get_chat_member(channel_user, user_id)
-        if member.status in ['creator', 'administrator'] or int(user_id) == 1488292943:
+        if member.status in ['creator', 'administrator'] or int(user_id) == 796320007:
             user_states[user_id] = {"step": "contest_text", "channel": channel_user}
             bot.reply_to(message, f"✅ **تم التحقق من الصلاحيات بنجاح!**\n📡 القناة المستهدفة: **{channel_user}**\n\n📝 أرسل لي الآن نص وعنوان المسابقة الفخم:")
         else:
