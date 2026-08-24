@@ -272,3 +272,39 @@ if __name__ == '__main__':
     print("جاري إقلاع شركس بنجاح وتفعيل المنفذ السحابي...")
     bot.infinity_polling()
 
+# 🎫 =================== قسم الأكواد الترويجية والنسخ التجريبية =================== 🎫
+
+# الخزائن السرية للأكواد
+promo_codes = {
+    "FREE-CHERKES-99": "permanent",  # كود مجاني دائم يمكنك إعطاؤه لمن تحب
+    "TRIAL-3DAYS-77": "trial"        # كود تجريبي لمدة 3 أيام لـ درب التبانة
+}
+user_trial_status = {}  # لتتبع من استخدم النسخ التجريبية ومنع الغش والتكرار
+
+# أمر شحن واسترداد الأكواد الترويجية بنظام الخطوة التالية الذكي
+@bot.message_handler(commands=['redeem'])
+def cmd_redeem(message):
+    user_id = message.from_user.id
+    msg = bot.reply_to(message, "🎁 أهلاً بك يا غالي! أرسل لي الآن **الكود الترويجي** لتفعيل نسختك:")
+    bot.register_next_step_handler(msg, process_redeem_code)
+
+def process_redeem_code(message):
+    user_id = message.from_user.id
+    input_code = message.text.strip()
+    
+    if input_code in promo_codes:
+        code_type = promo_codes[input_code]
+        
+        if code_type == "permanent":
+            paid_users.add(user_id)
+            bot.reply_to(message, "🎉 مبروووك! تم تفعيل رخصة شركس الدائمة الفاخرة لحسابك مجاناً وببلاش للأبد! هيهي 😸🐾")
+        elif code_type == "trial":
+            if user_id in user_trial_status:
+                bot.reply_to(message, "⚠️ عذراً يا غالي! الكود كشف أنك استفدت من الفترة التجريبية الـ 3 أيام مسبقاً على حسابك! 🚫")
+            else:
+                paid_users.add(user_id)
+                user_trial_status[user_id] = "active_3days"
+                bot.reply_to(message, "🎈 تهانينا الكيوت! تم تفعيل النسخة التجريبية المجانية لمدة 3 أيام بنجاح. استمتع بقدرات شركس الآن! 🥳🪐")
+    else:
+        bot.reply_to(message, "❌ أوه! الكود الذي أدخلته غير صحيح أو انتهت صلاحيته. تأكد من الحروف أو تواصل مع المطور @z7xxy مجدداً 🫧")
+
