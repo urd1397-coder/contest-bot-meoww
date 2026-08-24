@@ -89,51 +89,51 @@ def handle_all_commands(message):
         )
         bot.reply_to(message, guide_text, parse_mode="HTML")
         return
-# 📥 معالج الرسائل والنصوص المستقبلة لتتبع خطوات الأوامر (إنشاء، إنهاء، وجلب آيدي)
-@bot.message_handler(func=lambda msg: True, content_types=['text', 'photo', 'video', 'document', 'animation'])
-def handle_steps_and_forwarding(message):
+# 🕵️‍♂️ أمر جلب وتحصيل الآيدي التلقائي (مجاني تماماً ومفتوح بالكامل للعامة)
+@bot.message_handler(commands=['id_help'])
+def cmd_id_help(message):
+    user_id = message.from_user.id
+    user_states[user_id] = {"step": "get_channel_id_only"}
+    
+    guide_text = (
+        "🔍 <b>مرحباً بك في حارس الآيديات المجاني لشركس!</b>\n\n"
+        "👉 <b>كل ما عليك فعله الآن لمعرفة آيدي أي قناة:</b>\n"
+        "1️⃣ اذهب إلى القناة المطلوبة.\n"
+        "2️⃣ قم بعمل <b>توجيه (Forward)</b> لأي منشور، رسالة، أو صورة قديمة منها وأرسلها لي هنا فوراً!\n\n"
+        "🚀 سأقوم بقشط الآيدي الرقمي المخفي واستخراجه لك في أجزاء من الثانية مجاناً وببلّاش! 🐾\n"
+        "❌ <i>لإلغاء العملية أرسل: /cancel</i>"
+    )
+    bot.reply_to(message, guide_text, parse_mode="HTML")
+
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_channel_id_only", 
+                     content_types=['text', 'photo', 'video', 'document', 'animation'])
+def process_id_fetching(message):
     user_id = message.from_user.id
     input_text = message.text.strip() if message.text else ""
-    state = user_states.get(user_id, {})
-    current_step = state.get("step")
-
-    # 🚨 حماية الإلغاء المطلق الفوري بكلمة "الغاء" أو أمر التراجع في أي خطوة جارية
+    
+    # حماية الإلغاء إذا قرر المستخدم التراجع
     if input_text in ["/cancel", "الغاء"]:
         if user_id in user_states: user_states.pop(user_id, None)
-        bot.reply_to(message, "🫧 <b>تم إلغاء العملية الجارية فوراً وتصفير الخطوات وتطهير الذاكرة السحابية بنجاح!</b>", parse_mode="HTML")
+        bot.reply_to(message, "🫧 تم إلغاء عملية جلب الآيدي بنجاح وتصفير الخطوات! 🐾")
         return
 
-    if not current_step:
-        return
-
-    # 🕵️‍♂️ [مرحلة id_help]: قشط الآيدي الشامل (قنوات، مجموعات، حسابات أشخاص) مجاناً للجميع
-    if current_step == "get_any_id_only":
-        if message.forward_from_chat:
-            fetched_id = message.forward_from_chat.id
-            source_type = "قناة/مجموعة" if message.forward_from_chat.type == "channel" else "مجموعة سوبر"
-            fetched_name = message.forward_from_chat.title or "معرف سحابي"
-        elif message.forward_from:
-            fetched_id = message.forward_from.id
-            source_type = "حساب شخصي (أشخاص)"
-            fetched_name = message.forward_from.first_name or "مستخدم"
-        else:
-            if message.forward_sender_name:
-                bot.reply_to(message, f"⚠️ <b>المستخدم المقصد قفل خصوصية التوجيه في حسابه!</b>\n👤 الاسم الظاهر: <code>{message.forward_sender_name}</code>\n\n💡 <i>بسبب أمان تليجرام، لا يمكن قشط آيدي الحسابات المقفلة إلا إذا كتب معرفه علناً.</i>", parse_mode="HTML")
-                user_states.pop(user_id, None)
-                return
-            else:
-                bot.reply_to(message, "⚠️ لطفاً، قم بعمل <b>توجيه (Forward)</b> حقيقي لرسالة من (قناة، جروب، أو شخص) لأقشط الآيدي، أو أرسل <code>الغاء</code>.")
-                return
-
+    # استخراج الآيدي فوراً مهما كان نوع المحتوى الموجه (نص، صورة، فيديو إلخ)
+    if message.forward_from_chat:
+        fetched_id = message.forward_from_chat.id
+        fetched_name = message.forward_from_chat.title or "القناة"
+        
         success_text = (
-            f"✅ <b>تم تحصيل وقشط الآيدي بنجاح باهر!</b>\n\n"
-            f"📡 <b>نوع المصدر:</b> {source_type}\n"
-            f"👤 <b>الاسم/العنوان:</b> {fetched_name}\n"
+            f"✅ <b>تم تحصيل وقشط الآيدي السري بنجاح باهر!</b>\n\n"
+            f"📡 <b>اسم القناة:</b> {fetched_name}\n"
             f"🆔 <b>الآيدي الرقمي المستخرج:</b> <code>{fetched_id}</code>\n\n"
-            f"👉 <i>انسخ الآيدي الرقمي الظاهر بالأعلى (بما في ذلك إشارة السالب -) واستخدمه بحرية!</i> 🪐"
+            f"👉 <i>انسخ الآيدي الرقمي الظاهر بالأعلى (بما في ذلك إشارة السالب -) واستخدمه لإدارة فعالياتك!</i> 🪐"
         )
         bot.reply_to(message, success_text, parse_mode="HTML")
-        user_states.pop(user_id, None)
+        user_states.pop(user_id, None) # تنظيف الذاكرة
+    else:
+        bot.reply_to(message, "⚠️ أوه! هذه الرسالة ليست موجهة من قناة. لطفاً قم بعمل <b>توجيه (Forward)</b> حقيقي لمنشور من القناة لأقشط الآيدي، أو أرسل <code>الغاء</code>.")
+
+    if not current_step:
         return
 
     # ➕ [مرحلة create]: فحص رتبة منشئ المسابقة ومعرف القناة المستهدفة
