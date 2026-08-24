@@ -86,7 +86,11 @@ def got_payment(message):
 @bot.message_handler(commands=['create'])
 def start_contest(message):
     user_id = message.from_user.id
-    if user_id != OWNER_ID and user_id not in paid_users:
+       # 👑 قائمة الأبطال المستثنين من الدفع (المطور الحالي + حساباتك الاحتياطية)
+    allowed_devs = [1488292943] # يمكنك إضافة آيدي حسابك الثاني هنا وبجانبه فاصلة ,
+    
+    if int(user_id) not in allowed_devs and user_id not in paid_users:
+
         bot.reply_to(message, "⚠️ عذراً يا غالي، يجب تفعيل رخصة البوت أولاً عبر أمر /buy بـ 50 نجمة! 💳")
         return
         
