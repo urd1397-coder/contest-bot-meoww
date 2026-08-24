@@ -197,82 +197,7 @@ def end_get_winners_count(message):
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_prizes")
 def end_calculate_and_announce(message):
     user_id = message.from_user.id
-    state = user_states[user_id]
-    channel_id = state["channel"]
-    
-    try:
-        winners_count = int(message.text)
-        contest_data = channel_contests[channel_id]
-        
-        sorted_competitors = sorted(contest_data.values(), key=lambda x: x["votes"], reverse=True)
-        actual_winners = sorted_competitors[:winners_count]
-        
-        if not actual_winners:
-            bot.reply_to(message, "🛑 لم يقم أحد بالاشتراك في المسابقة ليتم حساب النتائج!")
-            user_states.pop(user_id, None)
-            return
-            
-        top_winner = actual_winners[0]
-        medals = ["🥇 الأول", "🥈 الثاني", "🥉 الثالث"]
-        
-        result_text = f"🥳 **شركس يعلن نتائج مسابقة قناة درب التبانة الرسمية!** 🥳\n\n"
-        for i, winner in enumerate(actual_winners):
-            medal = medals[i] if i < 3 else f"🔹 المركز {i+1}"
-            result_text += f"{medal}: {winner['mention']} بـ ({winner['votes']} صوت) ✨\n"
-            
-        result_text += "\n🎁 **تهانينا الحارة لجميع الأبطال الفائزين!** 🎉\n👉 *يُرجى من الفائزين التواصل مع الإدارة لاستلام الجوائز الفخمة فوراً!* 🐾"
-        
-        try:
-            photos = bot.get_user_profile_photos(top_winner["user_id"], limit=1)
-            if photos.total_count > 0:
-                file_id = photos.photos[0][0].file_id
-                bot.send_photo(chat_id=channel_id, photo=file_id, caption=result_text, parse_mode="Markdown")
-            else:
-                bot.send_message(chat_id=channel_id, text=result_text, parse_mode="Markdown")
-        except Exception:
-            bot.send_message(chat_id=channel_id, text=result_text, parse_mode="Markdown")
-            
-        bot.reply_to(message, "🏆 تم إنهاء المسابقة وحساب الأصوات التفاعلية وضخ لوحة الصدارة بنجاح في القناة!")
-        channel_contests.pop(channel_id, None)
-        user_states.pop(user_id, None)
-        
-    except ValueError:
-        bot.reply_to(message, "⚠️ لطفاً أرسل رقماً صحيحاً لعدد الفائزين:")
-
-# خادم وهمي لإبقاء البوت مستيقظاً ومستقراً مجاناً في ريندر
-class MyServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Cherkes Commercial Bot is Live!")
-
-def run_web_server():
-    server = HTTPServer(('0.0.0.0', PORT), MyServer)
-    server.serve_forever()
-
-if __name__ == '__main__':
-    threading.Thread(target=run_web_server, daemon=True).start()
-    print("جاري إقلاع شركس التجاري السحابي المطور...")
-    bot.infinity_polling()
-    # خادم وهمي متناسق لتغذية روابط ريندر والمراقبة الخارجية بنجاح
-class MyServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Cherkes Commercial Bot is Live and Ready!")
-
-def run_web_server():
-    server = HTTPServer(('0.0.0.0', PORT), MyServer)
-    server.serve_forever()
-
-if __name__ == '__main__':
-    threading.Thread(target=run_web_server, daemon=True).start()
-    print("جاري إقلاع شركس بنجاح وتفعيل المنفذ السحابي...")
-    bot.infinity_polling()
-
-# 🎫 =================== قسم الأكواد الترويجية والنسخ التجريبية =================== 🎫
+   # 🎫 =================== قسم الأكواد الترويجية والنسخ التجريبية =================== 🎫
 
 # الخزائن السرية للأكواد
 promo_codes = {
@@ -308,3 +233,21 @@ def process_redeem_code(message):
     else:
         bot.reply_to(message, "❌ أوه! الكود الذي أدخلته غير صحيح أو انتهت صلاحيته. تأكد من الحروف أو تواصل مع المطور @z7xxy مجدداً 🫧")
 
+# =========================================================================
+
+# خادم وهمي لإبقاء البوت مستيقظاً ومستقراً مجاناً في ريندر وعبر الحارس التلقائي
+class MyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Cherkes Commercial Bot is Live and Ready!")
+
+def run_web_server():
+    server = HTTPServer(('0.0.0.0', PORT), MyServer)
+    server.serve_forever()
+
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    print("جاري إقلاع شركس التجاري السحابي المطور وتفعيل الموانئ...")
+    bot.infinity_polling()
