@@ -179,24 +179,106 @@ def handle_reaction(message_reaction):
 def end_contest(message):
     user_id = message.from_user.id
     user_states[user_id] = {"step": "end_get_channel"}
-    bot.reply_to(message, "🏁 أرسل لي معرف القناة المراد إنهاء مسابقتها وحساب نتائجها:")
+    guide_text = (
+        "🏁 **أرسل لي معرف أو آيدي القناة المراد إنهاء مسابقتها وحساب نتائجها:**\n\n"
+        "💡 **كيف تجد المعرف أو الآيدي السري لقناتك؟**\n"
+        "• **القنوات العامة:** أرسل المعرف الظاهر بالرابط مباشرة (مثال: `@my_channel`)\n"
+        "• **القنوات الخاصة:** الآيدي الرقمي المبتدئ بـ `-100` (مثال: `-1004353400769`)\n\n"
+        "🛠️ **طريقة جلب الآيدي الرقمي بسهولة:**\n"
+        "1️⃣ قم بتوجيه أي منشور من قناتك إلى البوت: @GetChatID_Bot\n"
+        "2️⃣ انسخ الآيدي المبتدئ بـ -100 وأرسله لي هنا! 🪐\n\n"
+        "❌ *لإلغاء العملية في أي وقت أرسل: /cancel*"
+    )
+    bot.reply_to(message, guide_text, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "end_get_channel")
 def end_get_winners_count(message):
     user_id = message.from_user.id
     channel_id = message.text.strip()
     
+    if channel_id == "/cancel":
+        cmd_cancel(message)
+        return
+    
     if channel_id not in channel_contests or not channel_contests[channel_id]:
-        bot.reply_to(message, "❌ لا توجد مسابقة نشطة مسجلة في ذاكرة شركس لهذه القناة!")
+        bot.reply_to(message, "❌ لا توجد مسابقة نشطة مسجلة في ذاكرة شركس لهذه القناة حالياً!")
         user_states.pop(user_id, None)
         return
         
     user_states[user_id] = {"step": "get_prizes", "channel": channel_id}
-    bot.reply_to(message, "🔢 كم عدد المراكز الفائزة المطلوبة؟ (مثال اكتب: 3 واضغط إرسال):")
+    bot.reply_to(message, "🔢 **كم عدد المراكز الفائزة المطلوبة؟**\n*(اكتب رقماً مجرداً واضغط إرسال، مثال: 1)* 👇\n\n❌ *أو أرسل /cancel لإلغاء العملية*")
 
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_prizes")
 def end_calculate_and_announce(message):
     user_id = message.from_user.id
+    state = user_states.get(user_id, {})
+    channel_id = state.get("channel")
+    input_text = message.text.strip()
+    
+    if input_text == "/cancel":
+        cmd_cancel(message)
+        return
+    
+    try:
+        requested_winners = int(input_text)
+        contest_data = channel_contests.get(channel_id, {})
+        
+        sorted_competitors = sorted(contest_data.values(), key=lambda x: x["votes"], reverse=True)
+        total_participants = len(sorted_competitors)
+        
+        if total_participants == 0:
+            bot.reply_to(message, "🛑 لم يقم أحد بالاشتراك في المسابقة ليتم حساب النتائج!")
+            user_states.pop(user_id, None)
+            return
+            
+        if requested_winners > total_participants:
+            bot.reply_to(
+                message, 
+                f"⚠️ **العدد المطلوب أكبر من عدد المشاركين الفعليين!**\n\n"
+                f"• عدد المشتركين المسجلين: **{total_participants} متسابق**.\n"
+                f"• العدد المطلوب: **{requested_winners} مركز**.\n\n"
+                f"👉 أرسل رقماً يساوي أو أقل من ({total_participants})، أو أرسل `/cancel` للإلغاء 🐾"
+            )
+            return
+            
+        actual_winners = sorted_competitors[:requested_winners]
+        top_winner = actual_winners[0]
+        medals = ["🥇 الأول", "🥈 الثاني", "🥉 الثالث"]
+        
+        result_text = f"🥳 **نتائج مسابقة قناة درب التبانة الرسمية!** 🥳\n\n"
+        for i, winner in enumerate(actual_winners):
+            medal = medals[i] if i < 3 else f"🔹 المركز {i+1}"
+            result_text += f"{medal}: {winner['mention']} بـ ({winner['votes']} صوت) ✨\n"
+            
+        result_text += "\n🎁 **تهانينا للفائزين!** 🎉\n👉 *تواصلوا مع الإدارة لاستلام الجوائز!* 🐾"
+        
+        try:
+            photos = bot.get_user_profile_photos(top_winner["user_id"], limit=1)
+            if photos.total_count > 0:
+                file_id = photos.photos[0][0].file_id
+                bot.send_photo(chat_id=channel_id, photo=file_id, caption=result_text, parse_mode="Markdown")
+            else:
+                bot.send_message(chat_id=channel_id, text=result_text, parse_mode="Markdown")
+        except Exception:
+            bot.send_message(chat_id=channel_id, text=result_text, parse_mode="Markdown")
+            
+        bot.reply_to(message, f"🏆 تم إنهاء المسابقة وإعلان النتائج بنجاح في القناة!")
+        channel_contests.pop(channel_id, None)
+        user_states.pop(user_id, None)
+        
+    except ValueError:
+        bot.reply_to(message, "⚠️ لطفاً أرسل رقماً صحيحاً لعدد الفائزين:")
+
+# ❌ أمر إلغاء العمليات الجارية وتصفير الذاكرة السحابية
+@bot.message_handler(commands=['cancel'])
+def cmd_cancel(message):
+    user_id = message.from_user.id
+    if user_id in user_states:
+        user_states.pop(user_id, None)
+        bot.reply_to(message, "🫧 تم إلغاء العملية الحالية بنجاح وتصفير الخطوات. يمكنك البدء من جديد! 🐾")
+    else:
+        bot.reply_to(message, "😸 لا توجد أي عملية جارية حالياً لإلغائها.")
+
    # 🎫 =================== قسم الأكواد الترويجية والنسخ التجريبية =================== 🎫
 
 # الخزائن السرية للأكواد
