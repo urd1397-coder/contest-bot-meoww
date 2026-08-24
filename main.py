@@ -4,17 +4,20 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPri
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 
-# قراءة المتغيرات الإعدادية المحمية من ريندر
+# قراءة التوكن والمنفذ السحابي من ريندر
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID", "0"))  # معرف حسابك الشخصي لاستلام أرباح النجوم
 PORT = int(os.getenv("PORT", 8000))
+
+# 👑 تفعيل هويتك كمالك ومطور رسمي للبوت بشكل دائم وثابت داخل الكود ليعمل ببلاش
+OWNER_ID = 5413970265  # الرقم البرمجي الخاص بحسابك الأساسي
+OWNER_USERNAME = "@z7xxy" # يوزر حسابك الفخم
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# قواميس تتبع البيانات
+# قواميس تتبع البيانات السحابية لشركس
 user_states = {}
 channel_contests = {}  # لحفظ أصوات المشتركين {channel_id: {msg_id: {user_id: {"name": x, "votes": 0}}}}
-paid_users = set()     # المستخدمين الذين اشتروا الخدمة
+paid_users = set()     # المستخدمين الذين اشتروا الخدمة بـ 50 نجمة
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
@@ -31,16 +34,28 @@ def handle_start(message):
             "💳 /buy ➔ شراء رخصة استخدام البوت لقناتك بـ 50 نجمة ⭐️\n"
             "➕ /create ➔ لبدء إنشاء مسابقة جديدة (للآدمنز فقط) 🎯\n"
             "🏁 /end ➔ إنهاء المسابقة الحالية واحتساب الأصوات وإعلان الفائزين 🏆\n"
+            "ℹ️ /developer ➔ لعرض بيانات المطور والمالك الرسمي للبوت 👑\n"
             "❌ /cancel ➔ لإلغاء أي عملية جارية 🫧"
         )
         bot.reply_to(message, commands_text, parse_mode="Markdown")
 
-# 💳 نظام الدفع والاشتراك بنجوم تليجرام
+# 👑 أمر المطور لإظهار هويتك الفخمة لجميع مستخدمي البوت
+@bot.message_handler(commands=['developer'])
+def cmd_developer(message):
+    dev_text = (
+        "👑 **بطاقة التعريف المبرمجة لشركس** 👑\n\n"
+        f"👤 **مالك ومطور البوت الأساسي:** {OWNER_USERNAME}\n"
+        f"🆔 **معرف المطور البرمجي:** `{OWNER_ID}`\n\n"
+        "🐾 *هذا البوت محمي ومطور بالكامل لحساب المطور المذكور أعلاه، ولا يحق لأحد سحب المستحقات الماليّة غيره!* ✨"
+    )
+    bot.reply_to(message, dev_text, parse_mode="Markdown")
+
+# 💳 نظام الدفع والاشتراك بنجوم تليجرام للعامة
 @bot.message_handler(commands=['buy'])
 def cmd_buy(message):
     user_id = message.from_user.id
     if user_id in paid_users or user_id == OWNER_ID:
-        bot.reply_to(message, "😸 أنت تملك رخصة تفعيل البوت بالفعل!")
+        bot.reply_to(message, "😸 أنت تملك رخصة تفعيل البوت الفخرية (مجانية للمطور وبلاش)!")
         return
 
     prices = [LabeledPrice(label="رخصة تفعيل شركس للمسابقات", amount=50)]
@@ -54,7 +69,6 @@ def cmd_buy(message):
         start_parameter="activate-cherkes",
         payload="cherkes_license"
     )
-
 @bot.pre_checkout_query_handler(func=lambda query: True)
 def checkout(pre_checkout_query):
     bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
@@ -65,7 +79,7 @@ def got_payment(message):
     paid_users.add(user_id)
     bot.reply_to(message, "🎉 كفووو! تم الدفع بنجاح وتحويل 50 نجمة لحساب المطور. يمكنك الآن استخدام شركس بحرية كاملة في قناتك! 🥳🐾")
 
-# ➕ أمر بدء مسابقة جديدة للآدمنز فقط
+# ➕ أمر بدء مسابقة جديدة للآدمنز والمطور
 @bot.message_handler(commands=['create'])
 def start_contest(message):
     user_id = message.from_user.id
@@ -83,14 +97,15 @@ def check_admin_and_channel(message):
     
     try:
         member = bot.get_chat_member(channel_user, user_id)
-        if member.status in ['creator', 'administrator']:
+        if member.status in ['creator', 'administrator'] or user_id == OWNER_ID:
             user_states[user_id] = {"step": "contest_text", "channel": channel_user}
-            bot.reply_to(message, f"✅ تم التحقق بنجاح! أنت آدمن في {channel_user}.\n\n📝 أرسل لي الآن نص وعنوان المسابقة الفخم:")
+            bot.reply_to(message, f"✅ تم التحقق بنجاح! أنت مسؤول في {channel_user}.\n\n📝 أرسل لي الآن نص وعنوان المسابقة الفخم:")
         else:
             bot.reply_to(message, "❌ عذراً! الكود كشف أنك لست مسؤولاً (Admin) في هذه القناة.")
             user_states.pop(user_id, None)
     except Exception:
         bot.reply_to(message, "⚠️ تأكد من كتابة معرف القناة بشكل صحيح، وأن البوت مضاف فيها كمسؤول (Admin) أولاً!")
+
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "contest_text")
 def get_contest_text(message):
     user_id = message.from_user.id
@@ -206,7 +221,7 @@ def end_calculate_and_announce(message):
         try:
             photos = bot.get_user_profile_photos(top_winner["user_id"], limit=1)
             if photos.total_count > 0:
-                file_id = photos.photos[0][0].file_id
+                file_id = photos.photos[0][-1].file_id
                 bot.send_photo(chat_id=channel_id, photo=file_id, caption=result_text, parse_mode="Markdown")
             else:
                 bot.send_message(chat_id=channel_id, text=result_text, parse_mode="Markdown")
