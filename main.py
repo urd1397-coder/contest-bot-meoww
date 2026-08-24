@@ -8,9 +8,9 @@ import threading
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 8000))
 
-# 👑 تفعيل هويتك كمالك ومطور رسمي للبوت بشكل دائم وثابت داخل الكود ليعمل ببلاش
-OWNER_ID = 5413970265  # الرقم البرمجي الخاص بحسابك الأساسي
-OWNER_USERNAME = "@z7xxy" # يوزر حسابك الفخم
+# 👑 تفعيل هويتك كمالك ومطور رسمي للبوت بشكل دائم وثابت داخل الكود
+OWNER_ID = 5413970265  
+OWNER_USERNAME = "@z7xxy" 
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -34,12 +34,12 @@ def handle_start(message):
             "💳 /buy ➔ شراء رخصة استخدام البوت لقناتك بـ 50 نجمة ⭐️\n"
             "➕ /create ➔ لبدء إنشاء مسابقة جديدة (للآدمنز فقط) 🎯\n"
             "🏁 /end ➔ إنهاء المسابقة الحالية واحتساب الأصوات وإعلان الفائزين 🏆\n"
-            "ℹ️ /developer ➔ لعرض بيانات المطور والمالك الرسمي للبوت 👑\n"
+            "ℹ️ /developer ➔ لعرض بطاقة تعريف المالك الفخم 👑\n"
             "❌ /cancel ➔ لإلغاء أي عملية جارية 🫧"
         )
         bot.reply_to(message, commands_text, parse_mode="Markdown")
 
-# 👑 أمر السطور لإظهار هويتك الفخمة لجميع مستخدمي البوت
+# 👑 أمر المطور الآمن والمنقح بالكامل بدون إظهار الآيدي
 @bot.message_handler(commands=['developer'])
 def cmd_developer(message):
     dev_text = (
@@ -48,7 +48,6 @@ def cmd_developer(message):
         "🐾 شكر خاص لكل من يدعم البوت ويساهم في نشر الحماس بالمسابقات اللطيفة! هيهي 😸✨"
     )
     bot.reply_to(message, dev_text, parse_mode="Markdown")
-
 
 # 💳 نظام الدفع والاشتراك بنجوم تليجرام للعامة
 @bot.message_handler(commands=['buy'])
@@ -64,7 +63,7 @@ def cmd_buy(message):
         title="✨ تفعيل بوت شركس ✨",
         description="اشترِ رخصة تشغيل البوت في قناتك للأبد بمبلغ زهيد ودع الحماس يبدأ! 😸🐾",
         provider_token="",
-        currency="XTR",  # كود نجوم تليجرام
+        currency="XTR",  
         prices=prices,
         start_parameter="activate-cherkes",
         payload="cherkes_license"
@@ -118,7 +117,7 @@ def get_contest_text(message):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("🎯 إشتراك 🎯", callback_data=f"join_{channel_id}"))
     
-    bot.send_message(chat_id=channel_id, text=f"🏆 **مسابقة جديدة من شركس!** 🏆\n\n{contest_text}", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(chat_id=channel_id, text=f"🌌 **مسابقة جديدة في قناة درب التبانة!** 🏆\n\n{contest_text}", reply_markup=markup, parse_mode="Markdown")
     bot.reply_to(message, f"🚀 طييرااان! تم نشر المسابقة بنجاح في القناة {channel_id}!")
     user_states.pop(user_id, None)
 
@@ -133,8 +132,8 @@ def handle_join(call):
     if channel_id not in channel_contests:
         channel_contests[channel_id] = {}
         
-    if any(user_id in msg_data for msg_data in channel_contests[channel_id].values()):
-        bot.answer_callback_query(call.id, text="عذراً، أنت مسجل في المسابقة بالفعل! 😸🐾", show_alert=True)
+    if any(user_id == msg_data["user_id"] for msg_data in channel_contests[channel_id].values()):
+        bot.answer_callback_query(call.id, text="عذراً، أنت مسجل في المسابقة بالفعل! 2186139🐾", show_alert=True)
         return
         
     registered_users_count = len(channel_contests[channel_id]) + 1
@@ -150,7 +149,7 @@ def handle_join(call):
         "mention": user_mention,
         "votes": 0
     }
-    bot.answer_callback_query(call.id, text="😸 تم تسجيل انضمامك بنجاح وبدء التصويت علناً!", show_alert=False)
+    bot.answer_callback_query(call.id, text="2186139 تم تسجيل انضمامك بنجاح وبدء التصويت علناً!", show_alert=False)
 
 # تتبع التفاعلات وحساب الأصوات آلياً
 @bot.message_reaction_handler()
@@ -170,7 +169,7 @@ def handle_reaction(message_reaction):
                             total_votes += 1
                 channel_contests[ch_id][message_id]["votes"] = total_votes
 
-# 🏁 أمر إنهاء المسابقة وإعلان الفائزين بصور بروفايلاتهم
+# 🏁 أمر إنهاء المسابقة وإعلان الفائزين بصور بروفايلاتهم في درب التبانة
 @bot.message_handler(commands=['end'])
 def end_contest(message):
     user_id = message.from_user.id
@@ -211,7 +210,7 @@ def end_calculate_and_announce(message):
         top_winner = actual_winners[0]
         medals = ["🥇 الأول", "🥈 الثاني", "🥉 الثالث"]
         
-        result_text = f"🥳 **شركس يعلن نتائج المسابقة الرسمية لـ {channel_id}** 🥳\n\n"
+        result_text = f"🥳 **شركس يعلن نتائج مسابقة قناة درب التبانة الرسمية!** 🥳\n\n"
         for i, winner in enumerate(actual_winners):
             medal = medals[i] if i < 3 else f"🔹 المركز {i+1}"
             result_text += f"{medal}: {winner['mention']} بـ ({winner['votes']} صوت) ✨\n"
@@ -221,7 +220,7 @@ def end_calculate_and_announce(message):
         try:
             photos = bot.get_user_profile_photos(top_winner["user_id"], limit=1)
             if photos.total_count > 0:
-                file_id = photos.photos[0][-1].file_id
+                file_id = photos.photos[0][0].file_id
                 bot.send_photo(chat_id=channel_id, photo=file_id, caption=result_text, parse_mode="Markdown")
             else:
                 bot.send_message(chat_id=channel_id, text=result_text, parse_mode="Markdown")
