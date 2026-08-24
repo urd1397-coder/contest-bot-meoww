@@ -255,3 +255,20 @@ if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
     print("جاري إقلاع شركس التجاري السحابي المطور...")
     bot.infinity_polling()
+    # خادم وهمي متناسق لتغذية روابط ريندر والمراقبة الخارجية بنجاح
+class MyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Cherkes Commercial Bot is Live and Ready!")
+
+def run_web_server():
+    server = HTTPServer(('0.0.0.0', PORT), MyServer)
+    server.serve_forever()
+
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    print("جاري إقلاع شركس بنجاح وتفعيل المنفذ السحابي...")
+    bot.infinity_polling()
+
