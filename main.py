@@ -39,17 +39,16 @@ def handle_start(message):
         )
         bot.reply_to(message, commands_text, parse_mode="Markdown")
 
-# 👑 أمر المطور لإظهار هويتك الفخمة لجميع مستخدمي البوت
+# 👑 أمر السطور لإظهار هويتك الفخمة لجميع مستخدمي البوت
 @bot.message_handler(commands=['developer'])
 def cmd_developer(message):
-           dev_text = (
+    dev_text = (
         "👑 **بطاقة المطور الرسمي لشركس** 👑\n\n"
         f"👤 **المبرمج والمالك الفخم:** {OWNER_USERNAME}\n\n"
         "🐾 شكر خاص لكل من يدعم البوت ويساهم في نشر الحماس بالمسابقات اللطيفة! هيهي 😸✨"
     )
-
-
     bot.reply_to(message, dev_text, parse_mode="Markdown")
+
 
 # 💳 نظام الدفع والاشتراك بنجوم تليجرام للعامة
 @bot.message_handler(commands=['buy'])
