@@ -7,13 +7,13 @@ import threading
 # قراءة المتغيرات الإعدادية المحمية من ريندر
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_ID = os.getenv("CHANNEL_ID")
-GROUP_ID = os.getenv("GROUP_ID")  # معرف القروب الجديد الذي سنضيفه
 PORT = int(os.getenv("PORT", 8000))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# قاموس لتتبع حالة المستخدمين (الترحيب المزدوج)
+# قواميس تتبع الحالات وقائمة المسجلين بالمسابقة
 user_states = {}
+registered_users = set()  # خزانة سرية لحفظ المتسابقين ومنع التكرار
 
 @bot.message_handler(commands=['start'])
 def handle_start(message):
@@ -38,12 +38,15 @@ def handle_start(message):
 def start_contest(message):
     user_id = message.from_user.id
     user_states[f"contest_{user_id}"] = {"step": "text"}
-    bot.reply_to(message, "📝 أرسل لي الآن نص المسابقة الفخم والكيوت:")
+    bot.reply_to(message, "📝 أرسل لي الآن نص المسابقة الفخم لإنشائه في القناة:")
 
 @bot.message_handler(func=lambda msg: user_states.get(f"contest_{msg.from_user.id}", {}).get("step") == "text")
 def get_contest_text(message):
     user_id = message.from_user.id
     contest_text = message.text
+    
+    # تنظيف قائمة المسجلين القديمة عند بدء مسابقة جديدة تماماً
+    registered_users.clear()
     
     # إنشاء زر الاشتراك التفاعلي تحت رسالة المسابقة في القناة
     markup = InlineKeyboardMarkup()
@@ -52,56 +55,60 @@ def get_contest_text(message):
     # إرسال المسابقة إلى القناة
     bot.send_message(chat_id=CHANNEL_ID, text=f"🏆 **مسابقة جديدة من شركس!** 🏆\n\n{contest_text}", reply_markup=markup, parse_mode="Markdown")
     
-    bot.reply_to(message, "🚀 طييرااان! تم نشر المسابقة بنجاح في القناة مع زر الاشتراك! 🎉")
+    bot.reply_to(message, "🚀 طييرااان! تم نشر المسابقة بنجاح في قناتك مع زر الاشتراك الحصري! 🎉")
     user_states.pop(f"contest_{user_id}")
 
-# التعامل مع ضغطة زر "اشتراك" في القناة
+# التعامل مع ضغطة زر "اشتراك" والحماية من التكرار
 @bot.callback_query_handler(func=lambda call: call.data == "join_contest")
 def handle_join(call):
+    user_id = call.from_user.id
     username = call.from_user.username
     first_name = call.from_user.first_name
     
-    # تجهيز صيغة المناداة باليوزر نيم أو الاسم الأول إذا لم يكن لديه يوزر
+    # 🚫 خطوة الحماية: إذا كان المستخدم مسجلاً مسبقاً في القائمة
+    if user_id in registered_users:
+        bot.answer_callback_query(call.id, text="عذراً، أنت مسجل في المسابقة بالفعل! 😸🐾", show_alert=True)
+        return
+        
+    # 📝 إذا كان أول مرة يضغط: نقوم بإضافته فوراً للقائمة لمنعه مستقبلاً
+    registered_users.add(user_id)
+    
+    # تجهيز صيغة المناداة باليوزر نيم أو الاسم الأول
     user_mention = f"@{username}" if username else first_name
     
-    # إرسال الرسالة التفاعلية مباشرة إلى القروب
-    group_msg = bot.send_message(
-        chat_id=GROUP_ID,
-        text=f"🔥 {user_mention} انضم! هل يستحق؟\n\nصوتوا له الآن بالـ Reactions! 👇\n⭐ = صوتان\nأي تفاعل آخر = صوت واحد"
+    # إرسال الرسالة التفاعلية مباشرة إلى نفس القناة ليصوت عليها المتابعون
+    bot.send_message(
+        chat_id=CHANNEL_ID,
+        text=f"🔥 {user_mention} انضم للمسابقة! هل يستحق الفوز؟ 🤔✨\n\nصوتوا له بالـ Reactions أسفل هذه الرسالة! 👇\n⭐ = صوتان\nأي تفاعل آخر = صوت واحد"
     )
     
-    # إشعار سريع للمستخدم الذي ضغط على الزر
-    bot.answer_callback_query(call.id, text="😸 تم تسجيل انضمامك وإرساله للقروب للتصويت!", show_alert=False)
+    # إشعار منبثق لطيف يؤكد نجاح أول تسجيل
+    bot.answer_callback_query(call.id, text="😸 تم تسجيل انضمامك بنجاح ونشره للتصويت!", show_alert=False)
 
-# تتبع ومراقبة الريأكشنز في القروب لحساب الأصوات تلقائياً
+# تتبع ومراقبة الريأكشنز في القناة لحساب الأصوات تلقائياً لشركس
 @bot.message_reaction_handler()
 def handle_reaction(message_reaction):
     chat_id = message_reaction.chat.id
     message_id = message_reaction.message_id
     
-    # نتأكد أن التفاعل يحدث داخل القروب المخصص
-    if str(chat_id) == str(GROUP_ID):
+    if str(chat_id) == str(CHANNEL_ID):
         total_votes = 0
-        
-        # حساب الأصوات بناءً على نوع الريأكشن
         for react in message_reaction.new_reaction:
-            # إذا كان الريأكشن رمز تعبيري (Emoji)
             if react.type == 'emoji':
                 if react.emoji == '⭐':
-                    total_votes += 2  # النجمة تساوي صوتين
+                    total_votes += 2
                 else:
-                    total_votes += 1  # أي ريأكشن آخر يساوي صوتاً واحداً
+                    total_votes += 1
                     
-        # تحديث النتيجة أو طباعتها في سجل السيرفر (ويمكنك تطويرها لإرسال رسالة بالنتيجة عند انتهاء الوقت)
-        print(f"📊 رسالة المسابقة رقم {message_id} حصلت حالياً على مجموع أصوات: {total_votes}")
+        print(f"📊 الرسالة رقم {message_id} حصلت حالياً على مجموع أصوات: {total_votes}")
 
-# خادم وهمي لمنع توقف السيرفر المجاني (Timed Out)
+# خادم وهمي لإبقاء البوت مستيقظاً ومستقراً مجاناً في ريندر
 class MyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(b"Cherkes Bot is Live and Coding!")
+        self.wfile.write(b"Cherkes Anti-Duplicate Bot is Live!")
 
 def run_web_server():
     server = HTTPServer(('0.0.0.0', PORT), MyServer)
@@ -109,5 +116,5 @@ def run_web_server():
 
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
-    print("جاري تشغيل شركس الكيوت سحابياً...")
+    print("جاري تشغيل شركس المحمي من التكرار سحابياً...")
     bot.infinity_polling()
