@@ -81,72 +81,106 @@ def checkout(pre_checkout_query):
 def got_payment(message):
     user_id = message.from_user.id
     paid_users.add(user_id)
-    bot.reply_to(message, "🎉 كفووو! تم الدفع بنجاح وتحويل 50 نجمة لحساب المطور. يمكنك الآن استخدام شركس بحرية كاملة في قناتك! 🥳🐾")
-# ➕ أمر بدء مسابقة جديدة للآدمنز والمطور بنظام جلب المعرف التلقائي بالتوجيه
+   # ➕ أمر بدء مسابقة جديدة (مدفوع ومحمي بقائمة المطور والمشتركين)
 @bot.message_handler(commands=['create'])
 def start_contest(message):
     user_id = message.from_user.id
-       # 👑 قائمة الأبطال المستثنين من الدفع (المطور الحالي + حساباتك الاحتياطية)
-    allowed_devs = [7963720007] # يمكنك إضافة آيدي حسابك الثاني هنا وبجانبه فاصلة ,
+    
+    # 👑 قائمة الأبطال المستثنين من الدفع (المطور الحالي + حسابك البديل المحدث)
+    allowed_devs = [1488292943, int(OWNER_ID)]
     
     if int(user_id) not in allowed_devs and user_id not in paid_users:
-
         bot.reply_to(message, "⚠️ عذراً يا غالي، يجب تفعيل رخصة البوت أولاً عبر أمر /buy بـ 50 نجمة! 💳")
         return
         
-    user_states[user_id] = {"step": "get_channel"}
-    
-    guide_text = (
-        "📢 **أحتاج معرف القناة للبدء**\n\n"
-        "👉 **كل ما عليك فعله الآن:**\n"
-        "1️⃣ اذهب إلى قناتك المراد عمل المسابقة فيها.\n"
-        "2️⃣ قم بعمل **توجيه (Forward)** لأي منشور أو رسالة قديمة من القناة وأرسلها لي هنا فوراً!\n\n"
-        "• *أو يمكنك كتابة معرف القناة يدوياً إذا كانت عامة (مثال: `@my_channel`)*\n"
-        "❌ *لإلغاء العملية أرسل: /cancel*"
-    )
-    bot.reply_to(message, guide_text, parse_mode="Markdown")
+    user_states[user_id] = {"step": "get_channel_for_contest"}
+    bot.reply_to(message, "📢 **أرسل لي معرف أو آيدي القناة التي تود إطلاق المسابقة فيها الآن:**\n*(مثال: `@my_channel` أو أرسل آيدي رقمي سري)*\n\n💡 *إذا كنت لا تعرف الآيدي، أرسل `/cancel` ثم استخدم أمر `/id_help` لمساعدتك!*")
 
-@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_channel")
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_channel_for_contest")
 def check_admin_and_channel(message):
     user_id = message.from_user.id
+    channel_user = message.text.strip() if message.text else ""
     
-    if message.text == "/cancel":
+    if channel_user in ["/cancel", "الغاء"]:
         cmd_cancel(message)
         return
 
-    # 🕵️‍♂️ ذكاء شركس: استخراج آيدي القناة تلقائياً من الرسالة الموجهة
-    if message.forward_from_chat:
-        channel_user = message.forward_from_chat.id
-        channel_name = message.forward_from_chat.title or "قناتك"
-    else:
-        channel_user = message.text.strip()
-        channel_name = channel_user
-
     try:
         member = bot.get_chat_member(channel_user, user_id)
-        if member.status in ['creator', 'administrator'] or user_id == OWNER_ID:
+        if member.status in ['creator', 'administrator'] or int(user_id) == 1488292943:
             user_states[user_id] = {"step": "contest_text", "channel": channel_user}
-            bot.reply_to(message, f"✅ **تم جلب القناة والتحقق بنجاح!**\n📡 تم الروابط التلقائي بـ: **{channel_name}**\n\n📝 أرسل لي الآن نص وعنوان المسابقة الفخم:")
+            bot.reply_to(message, f"✅ **تم التحقق من الصلاحيات بنجاح!**\n📡 القناة المستهدفة: **{channel_user}**\n\n📝 أرسل لي الآن نص وعنوان المسابقة الفخم:")
         else:
-            bot.reply_to(message, "❌ عذراً! الكود كشف أنك لست مسؤولاً (Admin) في هذه القناة.")
+            bot.reply_to(message, "❌ عذراً! الكود كشف أنك لست مسؤولاً (Admin) in هذه القناة حالياً.")
             user_states.pop(user_id, None)
     except Exception:
-        bot.reply_to(message, "⚠️ البوت لم يستطع جلب القناة! تأكد من إضافة البوت كـ مسؤول (Admin) داخل القناة أولاً لتنجح الميزة، ثم أعد التوجيه.")
+        bot.reply_to(message, "⚠️ البوت لم يستطع جلب بيانات القناة! تأكد من كتابة المعرف بشكل صحيح وإضافة البوت كـ Admin بالداخل أولاً، ثم أعد إرساله.")
+
+# 🕵️‍♂️ أمر جلب وتحصيل الآيدي التلقائي (مجاني تماماً ومفتوح بالكامل للعامة رغماً عن الدفع)
+@bot.message_handler(commands=['id_help'])
+def cmd_id_help(message):
+    user_id = message.from_user.id
+    user_states[user_id] = {"step": "get_channel_id_only"}
+    
+    guide_text = (
+        "🔍 **مرحباً بك في حارس الآيديات المجاني لشركس!**\n\n"
+        "👉 **كل ما عليك فعله الآن لمعرفة آيدي أي قناة:**\n"
+        "1️⃣ اذهب إلى القناة المطلوبة.\n"
+        "2️⃣ قم بعمل **توجيه (Forward)** لأي منشور، رسالة، أو صورة قديمة منها وأرسلها لي هنا فوراً!\n\n"
+        "🚀 سأقوم بقشط الآيدي الرقمي المخفي واستخراجه لك في أجزاء من الثانية مجاناً وببلّاش! 🐾\n"
+        "❌ *لإلغاء العملية أرسل: `الغاء`*"
+    )
+    bot.reply_to(message, guide_text, parse_mode="Markdown")
+
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_channel_id_only", 
+                     content_types=['text', 'photo', 'video', 'document', 'animation'])
+def process_id_fetching(message):
+    user_id = message.from_user.id
+    input_text = message.text.strip() if message.text else ""
+    
+    if input_text in ["/cancel", "الغاء"]:
+        cmd_cancel(message)
+        return
+
+    # استخراج الآيدي فوراً مهما كان نوع المحتوى الموجه
+    if message.forward_from_chat:
+        fetched_id = message.forward_from_chat.id
+        fetched_name = message.forward_from_chat.title or "القناة"
+        
+        success_text = (
+            f"✅ **تم تحصيل وقشط الآيدي السري بنجاح باهر!**\n\n"
+            f"📡 **اسم القناة:** {fetched_name}\n"
+            f"🆔 **الآيدي الرقمي المستخرج:** `{fetched_id}`\n\n"
+            f"👉 *انسخ الآيدي الرقمي الظاهر بالأعلى (بما في ذلك إشارة السالب -) واستخدمه لإدارة فعالياتك!* 🪐"
+        )
+        bot.reply_to(message, success_text, parse_mode="Markdown")
+        user_states.pop(user_id, None)
+    else:
+        bot.reply_to(message, "⚠️ أوه! هذه الرسالة ليست موجهة من قناة. لطفاً قم بعمل **توجيه (Forward)** حقيقي لمنشور من القناة لأقشط الآيدي، أو أرسل `الغاء`.")
 
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "contest_text")
 def get_contest_text(message):
     user_id = message.from_user.id
-    state = user_states[user_id]
+    input_text = message.text.strip() if message.text else ""
+    
+    if input_text in ["/cancel", "الغاء"]:
+        cmd_cancel(message)
+        return
+        
+    state = user_states.get(user_id)
+    if not state: return
     channel_id = state["channel"]
     contest_text = message.text
     
     channel_contests[channel_id] = {}
-    
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("🎯 إشتراك 🎯", callback_data=f"join_{channel_id}"))
     
-    bot.send_message(chat_id=channel_id, text=f"🌌 **مسابقة جديدة في قناة درب التبانة!** 🏆\n\n{contest_text}", reply_markup=markup, parse_mode="Markdown")
-    bot.reply_to(message, f"🚀 طييرااان! تم نشر المسابقة بنجاح في القناة {channel_id}!")
+    try:
+        bot.send_message(chat_id=channel_id, text=f"🌌 **مسابقة جديدة في قناة درب التبانة!** 🏆\n\n{contest_text}", reply_markup=markup, parse_mode="Markdown")
+        bot.reply_to(message, f"🚀 طييرااان! تم نشر المسابقة بنجاح في القناة {channel_id}!")
+    except Exception:
+        bot.reply_to(message, "❌ فشل بث المسابقة. تأكد من رتبة البوت كمسؤول داخل القناة أولاً.")
     user_states.pop(user_id, None)
 
 # التعامل مع زر الاشتراك المانع للتكرار في نفس القناة
