@@ -374,8 +374,16 @@ def handle_user_subscription(call):
         
     contest_node = channel_contests[channel_id]
     
-       # منع التكرار البرمجي الصارم: البحث في عمق القاموس لقفل الدخول المتعدد للأعضاء
-    if any(u_data["user_id"] == user_id for u_data in contest_node["participants"].values()):
+        # 🕵️‍♂️ حارس الـ set() الذكي الذي صممته بيدك لمنع تكرار الاشتراك نهائياً
+    if "processed_users" not in contest_node:
+        contest_node["processed_users"] = set()
+
+    if user_id in contest_node["processed_users"]:
+        bot.answer_callback_query(call.id, text="عذراً، أنت مسجل في هذه الفعالية بالفعل ولا يمكنك الاشتراك مرتين! 🐾", show_alert=True)
+        return
+        
+    contest_node["processed_users"].add(user_id)
+
         
     registered_count = len(contest_node["participants"]) + 1
     user_mention = f"@{username}" if username else first_name
