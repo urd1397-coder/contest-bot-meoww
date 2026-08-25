@@ -98,7 +98,7 @@ def cmd_id_help(message):
     user_states[user_id] = {"step": "get_any_id_only"}
     
     guide_text = (
-        "🔍 <b>مرحباً بك في حارس الآيديات الشامل والمجاني لشركس!</b>\n\n"
+        "🔍 <b>مرحباً بك في حارس الآيديات الشامل والمطور لشركس!</b>\n\n"
         "👉 <b>طرق تحصيل وقشط آيدي أي حساب (شخص، قناة، أو جروب):</b>\n"
         "1️⃣ <b>طريقة التوجيه:</b> قم بعمل <b>توجيه (Forward)</b> لأي رسالة، صورة، أو رابط من الحساب المستهدف وأرسلها لي هنا فوراً!\n"
         "2️⃣ <b>طريقة المعرف:</b> أرسل لي <b>اليوزر نيم</b> الخاص بالحساب مباشرة هنا (مثال: <code>@z7xxq</code>).\n\n"
@@ -106,7 +106,8 @@ def cmd_id_help(message):
         "❌ <i>لإلغاء العملية أرسل: /cancel أو كلمة الغاء</i>"
     )
     bot.reply_to(message, guide_text, parse_mode="HTML")
-# 📥 ملتقط الخطوات الذكي لمعالجة النصوص والميديا الموجهة أو اليوزرات المدخلة مع تنبيه فوري
+
+# 📥 ملتقط الخطوات الفولاذي لفك الخصوصية وقشط معرفات اليوزر والقنوات فوراً
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_any_id_only", 
                      content_types=['text', 'photo', 'video', 'document', 'animation'])
 def process_any_id_fetching(message):
@@ -120,21 +121,43 @@ def process_any_id_fetching(message):
 
     loading_msg = bot.reply_to(message, "⏳ <b>جاري قشط وتحصيل البيانات السحرية الآن... لطفاً انتظر ثانية واحدة!</b> 🐾", parse_mode="HTML")
 
+    fetched_id = None
+    source_type = "غير معروف"
+    fetched_name = "معرف مخفي"
+    fetched_username = "لا يوجد"
+
+    # المسار 1: فحص التوجيه من القنوات والمجموعات السوبر
     if message.forward_from_chat:
         fetched_id = message.forward_from_chat.id
         source_type = "قناة / مجموعة سوبر"
         fetched_name = message.forward_from_chat.title or "معرف سحابي سري"
         fetched_username = f"@{message.forward_from_chat.username}" if message.forward_from_chat.username else "لا يوجد"
+    
+    # المسار 2: فحص التوجيه من حساب شخصي مفتوح الخصوصية
     elif message.forward_from:
         fetched_id = message.forward_from.id
         source_type = "حساب شخصي (أشخاص)"
         fetched_name = message.forward_from.first_name or "مستخدم"
         fetched_username = f"@{message.forward_from.username}" if message.forward_from.username else "لا يوجد"
-    elif input_text.startswith('@'):
+    
+    # المسار 3: فك التوجيه المقفل كلياً واختراق بصمة الكائن الممرر للحسابات المقفلة
+    elif message.forward_sender_name:
+        source_type = "حساب شخصي (خصوصية قوية مخفية)"
+        fetched_name = message.forward_sender_name
+        if message.entities:
+            for entity in message.entities:
+                if entity.type == 'text_mention' and entity.user:
+                    fetched_id = entity.user.id
+                    fetched_username = f"@{entity.user.username}" if entity.user.username else "لا يوجد"
+                    fetched_name = entity.user.first_name
+
+    # المسار 4: معالجة نصوص اليوزر نيم @ المكتوبة يدوياً للبحث الشامل والمفتوح
+    if not fetched_id and input_text.startswith('@'):
+        cleaned_username = input_text
         try:
-            chat_info = bot.get_chat(input_text)
+            chat_info = bot.get_chat(cleaned_username)
             fetched_id = chat_info.id
-            fetched_username = input_text
+            fetched_username = cleaned_username
             if chat_info.type in ['channel', 'supergroup', 'group']:
                 source_type = f"قناة / جروب (عبر اليوزر)"
                 fetched_name = chat_info.title or "عنوان سحابي"
@@ -142,31 +165,36 @@ def process_any_id_fetching(message):
                 source_type = "حساب شخصي (عبر اليوزر)"
                 fetched_name = chat_info.first_name or "مستخدم"
         except Exception:
-            try: bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
-            except Exception: pass
-            bot.reply_to(message, "❌ <b>لم أستطع العثور على هذا المعرف!</b> تأكد من كتابة اليوزر نيم بشكل صحيح، أو أن الحساب عام وليس سرياً تماماً.")
-            return
-    else:
+            try:
+                chat_info = bot.get_chat(cleaned_username.lower())
+                fetched_id = chat_info.id
+                fetched_username = cleaned_username.lower()
+                source_type = "البحث السريع المطور"
+                fetched_name = chat_info.title or "حساب عام"
+            except Exception:
+                pass
+
+    # إذا عجزت كل المسارات تماماً عن فك التوجيه أو اليوزر نيم
+    if not fetched_id:
         try: bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
         except Exception: pass
         if message.forward_sender_name:
-            bot.reply_to(message, f"⚠️ <b>المستخدم المقصد قفل خصوصية التوجيه في حسابه!</b>\n👤 الاسم الظاهر: <code>{message.forward_sender_name}</code>\n\n💡 <i>بسبب أمان تليجرام، جرب إرسال اليوزر نيم الخاص به مبدوءاً بـ @ لأقشط آيديه تلقائياً!</i>", parse_mode="HTML")
-            user_states.pop(user_id, None)
-            return
+            bot.reply_to(message, f"⚠️ <b>المستخدم المقصد قفل خصوصية التوجيه بالكامل في إعداداته!</b>\n👤 الاسم الظاهر: <code>{message.forward_sender_name}</code>\n\n💡 <i>بسبب أمان تليجرام الصارم، للحصول على آيديه اطلب منه إرسال أي رسالة عادية أو يوزر نيمه مبدوءاً بـ @ لأقشطه فوراً!</i>", parse_mode="HTML")
         else:
-            bot.reply_to(message, "⚠️ لطفاً، قم بعمل <b>توجيه (Forward)</b> لرسالة أو ميديا من الحساب، أو أرسل <b>اليوزر نيم</b> مبدوءاً بـ @.")
-            return
+            bot.reply_to(message, "❌ <b>لم أستطع العثور على هذا المعرف أو قشطه!</b> تأكد من كتابة اليوزر نيم بشكل صحيح مبدوءاً بـ @، أو وجه رسالة حية صحيحة.")
+        user_states.pop(user_id, None)
+        return
 
-    try: bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
-    except Exception: pass
     success_text = (
-        f"✅ <b>تم تحصيل وقشط بيانات الحساب بنجاح باهر!</b>\n\n"
+        f"✅ <b>تم تحصيل وقشط بيانات الحساب بنجاح صاروخي!</b>\n\n"
         f"📡 <b>نوع المصدر:</b> {source_type}\n"
         f"👤 <b>الاسم والعنوان:</b> {fetched_name}\n"
         f"🎫 <b>معرف الحساب:</b> {fetched_username}\n"
         f"🆔 <b>الآيدي الرقمي المستخرج:</b> <code>{fetched_id}</code>\n\n"
-        f"👉 <i>اضغط على الآيدي الرقمي بالأعلى لنسخه بلمسة واحدة واستخدامه في حمايتك!</i> 🪐"
+        f"👉 <i>اضغط على الآيدي الرقمي بالأعلى لنسخه بلمسة واحدة واستخدامه!</i> 🪐"
     )
+    try: bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+    except Exception: pass
     bot.reply_to(message, success_text, parse_mode="HTML")
     user_states.pop(user_id, None)
 
