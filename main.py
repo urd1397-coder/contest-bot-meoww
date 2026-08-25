@@ -55,6 +55,23 @@ def run_web_server():
     server = HTTPServer(('0.0.0.0', PORT), MyServer)
     server.serve_forever()
     
+    # 🕵️‍♂️ أمر جلب وتحصيل الآيدي الشامل والمفتوح (قنوات، مجموعات، وأشخاص) للعامة مجاناً
+@bot.message_handler(commands=['id_help'])
+def cmd_id_help(message):
+    user_id = message.from_user.id
+    # تفعيل الخطوة السحرية في الذاكرة لتشغيل الدالة المكتوبة أسفلها بلقطة الشاشة
+    user_states[user_id] = {"step": "get_any_id_only"}
+    
+    guide_text = (
+        "🔍 <b>مرحباً بك في حارس الآيديات الشامل والمجاني لشركس!</b>\n\n"
+        "👉 <b>طرق تحصيل وقشط آيدي أي حساب (شخص، قناة، أو جروب):</b>\n"
+        "1️⃣ <b>طريقة التوجيه:</b> قم بعمل <b>توجيه (Forward)</b> لأي رسالة، صورة، أو رابط من الحساب المستهدف وأرسلها لي هنا فوراً!\n"
+        "2️⃣ <b>طريقة المعرف:</b> أرسل لي <b>اليوزر نيم</b> الخاص بالحساب مباشرة هنا (مثال: <code>@z7xxq</code>).\n\n"
+        "🚀 سأقوم بقشط واستخراج الآيدي الرقمي المخفي في أجزاء من الثانية مجاناً وببلّاش! 🐾\n"
+        "❌ <i>لإلغاء العملية أرسل: /cancel أو كلمة الغاء</i>"
+    )
+    bot.reply_to(message, guide_text, parse_mode="HTML")
+
 # 📥 ملتقط الخطوات الذكي لمعالجة النصوص والميديا الموجهة أو اليوزرات المدخلة مع تنبيه فوري
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_any_id_only", 
                      content_types=['text', 'photo', 'video', 'document', 'animation'])
