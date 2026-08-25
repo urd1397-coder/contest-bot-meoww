@@ -509,6 +509,102 @@ def cmd_global_cancel(message):
             user_states.pop(user_id, None)
             bot.reply_to(message, "🫧 تم إلغاء العملية الجارية وتصفير خطوات البدء بسلام.")
 
+import json
+
+# 💾 محرك الحفظ السحابي الدائم لضمان استمرار المسابقات لأسابيع دون فقدان الأصوات عند إعادة تشغيل ريندر
+DB_FILE = "channel_contests.json"
+
+def save_contests_to_storage():
+    try:
+        serializable_data = {}
+        for ch_id, c_data in channel_contests.items():
+            serializable_data[str(ch_id)] = {
+                "config": c_data["config"],
+                "participants": c_data["participants"],
+                "processed_users": list(c_data.get("processed_users", set()))
+            }
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(serializable_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"خطأ أثناء الحفظ السحابي الدائم: {e}")
+
+def load_contests_from_storage():
+    global channel_contests
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                raw_data = json.load(f)
+                for ch_id, c_data in raw_data.items():
+                    channel_contests[int(ch_id)] = {
+                        "config": c_data["config"],
+                        "participants": {int(msg_id): p_data for msg_id, p_data in c_data["participants"].items()},
+                        "processed_users": set(c_data.get("processed_users", []))
+                    }
+            print("📦 تم استرجاع كافة فعاليات ومسابقات وأصوات شركس السحابية بنجاح صخري!")
+        except Exception as e:
+            print(f"خطأ أثناء استرجاع الحفظ السحابي: {e}")
+
+# استدعاء فوري لاسترجاع البيانات المخزنة فور إقلاع السيرفر من جديد للدوام أسابيع
+load_contests_from_storage()
+
+# 🏆 معالجة الفرز النهائي وجلب صورة بروفايل الفائز الأول وبث التهنئة الكبرى مع البصمة
+def finalize_contest_results(message, channel_id, requested_winners, input_text, state, user_id):
+    contest_node = channel_contests.get(channel_id, {})
+    participants_dict = contest_node.get("participants", {})
+    
+    sorted_competitors = sorted(participants_dict.values(), key=lambda x: x["votes"], reverse=True)
+    total_participants = len(sorted_competitors)
+    
+    if total_participants == 0:
+        bot.reply_to(message, "🛑 لم يقم أحد بالاشتراك في هذه المسابقة ليتم احتساب النتائج!")
+        user_states.pop(user_id, None)
+        return
+        
+    if requested_winners > total_participants:
+        requested_winners = total_participants
+        
+    actual_winners = sorted_competitors[:requested_winners]
+    winner_hero = actual_winners[0] # البطل الفائز بالمركز الأول حصرياً لإطلاق الاحتفال بصورته
+    
+    medals = ["🥇 المركز الأول", "🥈 المركز الثاني", "🥉 المركز الثالث"]
+    
+    # 📜 1. تصميم لوحة الصدارة الشاملة للمراكز المطلوبة
+    result_text = f"🥳 <b>نتائج المسابقة الرسمية وقفل باب التصويت السحابي!</b> 🏆\n\n"
+    for i, winner in enumerate(actual_winners):
+        medal = medals[i] if i < 3 else f"🔹 المركز {i+1}"
+        result_text += f"{medal}: {winner['mention']} بـ ({winner['votes']} صوت) ✨\n"
+    
+    # 👑 2. تصميم رسالة التهنئة الفخمة والضخمة المخصصة للبطل الأول بالبصمة الشرسية
+    celebration_msg = (
+        f"👑 <b>تتويج البطل الفائز باللقب الأعلى للمسابقة!</b> 👑\n\n"
+        f"🎯 <b>ألف ألف مبروك للفائز بالمركز الأول:</b> {winner_hero['mention']} 🎯\n"
+        f"🔥 <b>اكتسح الساحة وحصد:</b> <code>{winner_hero['votes']}</code> صوت من تفاعلاتكم المشتعلة ونجومكم الفخمة! 🏆⭐\n\n"
+        f"🎁 تواصل مع الإدارة فوراً لاستلام جائزتك الكبرى يا ملك! 🎉✨\n\n"
+        f"🐾 <b>بصمة شركس الحتمية للفعالية:</b> مياووو 🐾😸"
+    )
+
+    try:
+        # 📸 محاولة سحب صورة البروفايل الحية للبطل الأول من سيرفرات تليجرام وبثها ككارتبوست ملكي
+        winner_id = winner_hero["user_id"]
+        user_photos = bot.get_user_profile_photos(winner_id, limit=1)
+        
+        if user_photos.total_count > 0:
+            bot.send_photo(chat_id=channel_id, photo=user_photos.photos[0].file_id, caption=celebration_msg, parse_mode="HTML")
+            bot.send_message(chat_id=channel_id, text=result_text, parse_mode="HTML")
+        else:
+            bot.send_message(chat_id=channel_id, text=celebration_msg, parse_mode="HTML")
+            bot.send_message(chat_id=channel_id, text=result_text, parse_mode="HTML")
+    except Exception:
+        try:
+            bot.send_message(chat_id=channel_id, text=celebration_msg, parse_mode="HTML")
+            bot.send_message(chat_id=channel_id, text=result_text, parse_mode="HTML")
+        except Exception: pass
+        
+    bot.reply_to(message, f"🏆 <b>تم قفل الفعالية وتتويج البطل بصورته بنجاح، وبث كارت التهنئة الضخم داخل قناتك!</b>", parse_mode="HTML")
+    channel_contests.pop(channel_id, None)
+    save_contests_to_storage() # تصفير القناة من ملف الحفظ لمسابقة جديدة
+    user_states.pop(user_id, None)
+
 # =========================================================================
 # 🏁 جذع التشغيل الحتمي الموحد والوحيد الذي يغلق الملف بالكامل في القاع إجبارياً
 if __name__ == '__main__':
