@@ -20,41 +20,66 @@ bot = telebot.TeleBot(BOT_TOKEN)
 user_states = {}
 channel_contests = {}
 
-# 💾 محرك الحفظ السحابي الدائم لضمان استمرار المسابقات لأسابيع دون فقدان الأصوات عند إعادة تشغيل ريندر
-DB_FILE = "channel_contests.json"
+# 📡 محرك قاعدة البيانات السحابية الخارجية MongoDB لضمان الدوام لأسابيع وشهور
+try:
+    from pymongo import MongoClient
+    HAS_MONGO = True
+except ImportError:
+    HAS_MONGO = False
+
+# 🛠️ قراءة الرابط السري إجبارياً الممرر من إعدادات ريندر
+MONGO_URI = os.getenv("MONGO_URI")
+
+# 🔒 تهيئة الاتصال بالخزنة السحابية الخارجية المحمية ضد الحذف
+mongo_db = None
+mongo_collection = None
+
+if HAS_MONGO and MONGO_URI:
+    try:
+        client = MongoClient(MONGO_URI)
+        mongo_db = client["cherkes_database"]
+        mongo_collection = mongo_db["contests"]
+        print("🌐 تم الاتصال بنجاح ساحق بخزنة MongoDB السحابية الخارجية الدائمة!")
+    except Exception as e:
+        print(f"⚠️ فشل الاتصال بخزنة MongoDB، سيتم استخدام الذاكرة المؤقتة: {e}")
 
 def save_contests_to_storage():
     try:
-        serializable_data = {}
-        for ch_id, c_data in channel_contests.items():
-            serializable_data[str(ch_id)] = {
-                "config": c_data["config"],
-                "participants": c_data["participants"],
-                "processed_users": list(c_data.get("processed_users", set()))
-            }
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(serializable_data, f, ensure_ascii=False, indent=4)
+        if mongo_collection is not None:
+            # صهر البيانات السحابية وتحديثها فوراً في الخزنة الخارجية الدائمة
+            for ch_id, c_data in channel_contests.items():
+                serializable_data = {
+                    "config": c_data["config"],
+                    "participants": c_data["participants"],
+                    "processed_users": list(c_data.get("processed_users", set()))
+                }
+                mongo_collection.update_one(
+                    {"channel_id": str(ch_id)},
+                    {"$set": serializable_data},
+                    upsert=True
+                )
     except Exception as e:
         print(f"خطأ أثناء الحفظ السحابي الدائم: {e}")
 
 def load_contests_from_storage():
     global channel_contests
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                raw_data = json.load(f)
-                for ch_id, c_data in raw_data.items():
-                    channel_contests[int(ch_id)] = {
-                        "config": c_data["config"],
-                        "participants": {int(msg_id): p_data for msg_id, p_data in c_data["participants"].items()},
-                        "processed_users": set(c_data.get("processed_users", []))
-                    }
-            print("📦 تم استرجاع كافة فعاليات ومسابقات وأصوات شركس السحابية بنجاح صخري!")
-        except Exception as e:
-            print(f"خطأ أثناء استرجاع الحفظ السحابي: {e}")
+    try:
+        if mongo_collection is not None:
+            all_docs = mongo_collection.find()
+            for doc in all_docs:
+                ch_id = int(doc["channel_id"])
+                channel_contests[ch_id] = {
+                    "config": doc["config"],
+                    "participants": {int(msg_id): p_data for msg_id, p_data in doc["participants"].items()},
+                    "processed_users": set(doc.get("processed_users", []))
+                }
+            print("📦 تم استرجاع كافة فعاليات ومسابقات وأصوات شركس من الخزنة الخارجية بنجاح!")
+    except Exception as e:
+        print(f"خطأ أثناء استرجاع الحفظ السحابي: {e}")
 
-# استدعاء فوري لاسترجاع البيانات المخزنة فور إقلاع السيرفر من جديد للدوام أسابيع
+# استدعاء فوري لاسترجاع البيانات المخزنة من الكلاود فور إقلاع السيرفر من جديد
 load_contests_from_storage()
+
 # =========================================================================
 # 🌐 خادم الويب (Web Server) الصامت لفتح المنفذ وإرضاء فحص ريندر الأمني وحل المشكلة
 class MyServer(BaseHTTPRequestHandler):
