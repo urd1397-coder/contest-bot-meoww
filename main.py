@@ -175,18 +175,18 @@ def cmd_create_contest(message):
     )
     bot.reply_to(message, guide_create, parse_mode="HTML")
 
-# 📥 ملتقط الرسائل لتتبع خطوات هندسة وإنشاء الفعالية بالكامل خطوة بخطوة
-@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") in ["get_channel_target", "get_contest_banner", "get_custom_alert_text", "ask_attach_username"])
+# 📥 ملتقط الرسائل المطور للاستماع لخطوات الإنشاء والإنهاء معاً لمنع التجمد
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") in ["get_channel_target", "get_contest_banner", "get_custom_alert_text", "ask_attach_username", "end_get_contest_msg", "get_prizes_count"], content_types=['text', 'photo', 'video', 'document', 'animation'])
 def process_contest_creation_steps(message):
     user_id = message.from_user.id
     input_text = message.text.strip() if message.text else ""
     state = user_states.get(user_id, {})
     current_step = state.get("step")
 
-    # 🚨 صمام حماية الإلغاء المطلق الفوري لكسر خطوة الإنشاء المعلقة
+       # 🚨 صمام حماية الإلغاء المطلق الفوري لكسر خطوة الإنشاء أو الإنهاء في أي وقت
     if input_text in ["/cancel", "الغاء"]:
-        if user_id in user_states: user_states.pop(user_id, None)
-        bot.reply_to(message, "🫧 تم إلغاء عملية إنشاء المسابقة وتصفير الخطوات بنجاح! 🐾")
+        user_states.pop(user_id, None)
+        bot.reply_to(message, "🫧 <b>هيهي 😸! تم إلغاء العملية الجارية فوراً وتصفير الخطوات المعلقة كلياً وتطهير الذاكرة السحابية بنجاح!</b>", parse_mode="HTML")
         return
 
     # 1️⃣ [الخطوة الأولى]: استخراج وقشط معرف القناة سواء بالتوجيه أو الكتابة اليدوية
@@ -246,9 +246,65 @@ def process_contest_creation_steps(message):
         bot.reply_to(message, "❓ <b>هل تود أن يقوم شركس بإرفاق ودمج المعرف النصي (@username) الخاص بالعضو تلقائياً داخل رسالة التنبيه المخصصة؟</b>", reply_markup=markup_ask, parse_mode="HTML")
         return
 
-# 🎯 معالجة ضغط أزرار تخصيص اليوزر وبث المسابقة الفعلية داخل القناة المستهدفة
-@bot.callback_query_handler(func=lambda call: call.data.startswith("attach_"))
-def handle_customize_username_and_broadcast(call):
+    # 🏁 [مرحلة /end]: قشط آيدي القناة من الرسالة الموجهة لحساب النتائج
+    elif current_step == "end_get_contest_msg":
+        if message.forward_from_chat:
+            channel_id = message.forward_from_chat.id
+        else:
+            bot.reply_to(message, "⚠️ أوه! هذه الرسالة ليست موجهة من القناة التي تحتوي على المسابقة. لطفاً وجه رسالة المسابقة نفسها.")
+            return
+
+        try: channel_id = int(channel_id)
+        except ValueError: pass
+
+        if channel_id not in channel_contests:
+            bot.reply_to(message, f"❌ <b>لا توجد مسابقة نشطة مسجلة في ذاكرة شركس لهذه القناة حالياً!</b>")
+            user_states.pop(user_id, None)
+            return
+
+        user_states[user_id] = {"step": "get_prizes_count", "channel": channel_id}
+        bot.reply_to(message, "🔢 <b>كم عدد المراكز الفائزة المطلوبة؟</b>\n*(اكتب رقماً مجرداً واضغط إرسال، مثال: 3)* 👇")
+        return
+
+    # 🏆 [فرز وحساب الفائزين للمسابقات المخصصة]: معالجة الصدارة والترتيب التنازلي التلقائي
+    elif current_step == "get_prizes_count":
+        channel_id = state.get("channel")
+        try:
+            requested_winners = int(input_text)
+            contest_node = channel_contests.get(channel_id, {})
+            participants_dict = contest_node.get("participants", {})
+            
+            sorted_competitors = sorted(participants_dict.values(), key=lambda x: x["votes"], reverse=True)
+            total_participants = len(sorted_competitors)
+            
+            if total_participants == 0:
+                bot.reply_to(message, "🛑 لم يقم أحد بالاشتراك في هذه المسابقة ليتم احتساب النتائج!")
+                user_states.pop(user_id, None)
+                return
+                
+            if requested_winners > total_participants:
+                requested_winners = total_participants
+                
+            actual_winners = sorted_competitors[:requested_winners]
+            medals = ["🥇 المركز الأول", "🥈 المركز الثاني", "🥉 المركز الثالث"]
+            
+            result_text = f"🥳 <b>نتائج المسابقة الرسمية وقفل باب التصويت السحابي!</b> 🏆\n\n"
+            for i, winner in enumerate(actual_winners):
+                medal = medals[i] if i < 3 else f"🔹 المركز {i+1}"
+                result_text += f"{medal}: {winner['mention']} بـ ({winner['votes']} صوت) ✨\n"
+                
+            result_text += "\n🎁 <b>تهانينا الحارة لجميع الأبطال الفائزين باللقب! تواصلوا مع الإدارة.</b> 🎉"
+            
+            try: bot.send_message(chat_id=channel_id, text=result_text, parse_mode="HTML")
+            except Exception: pass
+                
+            bot.reply_to(message, f"🏆 <b>تم قفل الفعالية واحتساب الفائزين بنجاح، وبث النتيجة داخل قناتك!</b>", parse_mode="HTML")
+            channel_contests.pop(channel_id, None) 
+            user_states.pop(user_id, None)
+            
+        except ValueError:
+            bot.reply_to(message, "⚠️ لطفاً، اكتب رقماً صحيحاً مجرداً لعدد المراكز المطلوبة:")
+
     user_id = call.from_user.id
     state = user_states.get(user_id, {})
     
