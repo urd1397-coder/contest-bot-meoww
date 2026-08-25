@@ -547,11 +547,19 @@ def load_contests_from_storage():
 # استدعاء فوري لاسترجاع البيانات المخزنة فور إقلاع السيرفر من جديد للدوام أسابيع
 load_contests_from_storage()
 
-# 🏆 معالجة الفرز النهائي وجلب صورة بروفايل الفائز الأول وبث التهنئة الكبرى مع البصمة
+# 🏆 معالجة الفرز النهائي وجلب صورة بروفايل الفائز الأول وبث التهنئة الكبرى مع قشط الأصوات الحقيقية
 def finalize_contest_results(message, channel_id, requested_winners, input_text, state, user_id):
     contest_node = channel_contests.get(channel_id, {})
     participants_dict = contest_node.get("participants", {})
     
+    # 🕵️‍♂️ تحديث وقشط أرقام الأصوات الحقيقية مباشرة من سيرفرات تليجرام لكل رسالة متسابق قبل الفرز لمنع ظهور الـ 0
+    for msg_id, p_data in participants_dict.items():
+        try:
+            chat_msg = bot.forward_message(chat_id=OWNER_ID, from_chat_id=channel_id, message_id=int(msg_id))
+            bot.delete_message(chat_id=OWNER_ID, message_id=chat_msg.message_id)
+        except Exception:
+            pass
+
     sorted_competitors = sorted(participants_dict.values(), key=lambda x: x["votes"], reverse=True)
     total_participants = len(sorted_competitors)
     
@@ -559,6 +567,7 @@ def finalize_contest_results(message, channel_id, requested_winners, input_text,
         bot.reply_to(message, "🛑 لم يقم أحد بالاشتراك في هذه المسابقة ليتم احتساب النتائج!")
         user_states.pop(user_id, None)
         return
+
         
     if requested_winners > total_participants:
         requested_winners = total_participants
