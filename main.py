@@ -383,7 +383,6 @@ def handle_user_subscription(call):
         return
         
     contest_node["processed_users"].add(user_id)
-
         
     registered_count = len(contest_node["participants"]) + 1
     user_mention = f"@{username}" if username else first_name
