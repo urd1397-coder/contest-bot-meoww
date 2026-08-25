@@ -60,7 +60,6 @@ if __name__ == '__main__':
     # تشغيل خادم الويب في مسار صامت منفصل لتخطي فحص ريندر بنجاح
     threading.Thread(target=run_web_server, daemon=True).start()
     print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
-    bot.infinity_polling()
 # 📥 ملتقط الخطوات الذكي لمعالجة النصوص والميديا الموجهة أو اليوزرات المدخلة مع تنبيه فوري
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_any_id_only", 
                      content_types=['text', 'photo', 'video', 'document', 'animation'])
