@@ -305,6 +305,10 @@ def process_contest_creation_steps(message):
         except ValueError:
             bot.reply_to(message, "⚠️ لطفاً، اكتب رقماً صحيحاً مجرداً لعدد المراكز المطلوبة:")
 
+# 🎯 معالجة ضغط أزرار تخصيص اليوزر وبث المسابقة الفعلية داخل القناة المستهدفة
+@bot.callback_query_handler(func=lambda call: call.data.startswith("attach_"))
+def handle_customize_username_and_broadcast(call):
+
     user_id = call.from_user.id
     state = user_states.get(user_id, {})
     
