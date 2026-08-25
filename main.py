@@ -54,7 +54,8 @@ class MyServer(BaseHTTPRequestHandler):
 def run_web_server():
     server = HTTPServer(('0.0.0.0', PORT), MyServer)
     server.serve_forever()
-
+    
+# 📥 ملتقط الخطوات الذكي لمعالجة النصوص والميديا الموجهة أو اليوزرات المدخلة مع تنبيه فوري
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_any_id_only", 
                      content_types=['text', 'photo', 'video', 'document', 'animation'])
 def process_any_id_fetching(message):
