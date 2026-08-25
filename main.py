@@ -55,12 +55,6 @@ def run_web_server():
     server = HTTPServer(('0.0.0.0', PORT), MyServer)
     server.serve_forever()
 
-# 🏁 جذع التشغيل الحتمي وإطلاق البوت والخادم بمسارات متوازية لمنع التجمد
-if __name__ == '__main__':
-    # تشغيل خادم الويب في مسار صامت منفصل لتخطي فحص ريندر بنجاح
-    threading.Thread(target=run_web_server, daemon=True).start()
-    print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
-# 📥 ملتقط الخطوات الذكي لمعالجة النصوص والميديا الموجهة أو اليوزرات المدخلة مع تنبيه فوري
 @bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_any_id_only", 
                      content_types=['text', 'photo', 'video', 'document', 'animation'])
 def process_any_id_fetching(message):
