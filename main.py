@@ -61,3 +61,96 @@ if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
     print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
     bot.infinity_polling()
+# 📥 ملتقط الخطوات الذكي لمعالجة النصوص والميديا الموجهة أو اليوزرات المدخلة مع تنبيه فوري
+@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") == "get_any_id_only", 
+                     content_types=['text', 'photo', 'video', 'document', 'animation'])
+def process_any_id_fetching(message):
+    user_id = message.from_user.id
+    input_text = message.text.strip() if message.text else ""
+    
+    # 🚨 صمام حماية الإلغاء المطلق الفوري في مرحلة جلب الآيدي
+    if input_text in ["/cancel", "الغاء"]:
+        if user_id in user_states: user_states.pop(user_id, None)
+        bot.reply_to(message, "🫧 تم إلغاء عملية جلب الآيدي بنجاح وتصفير الخطوات معاً! 🐾")
+        return
+
+    # ⏳ إرسال التنبيه الفوري الحركي في محادثة البوت لتأكيد بدء القشط السحري
+    loading_msg = bot.reply_to(message, "⏳ <b>جاري قشط وتحصيل البيانات السحرية الآن... لطفاً انتظر ثانية واحدة!</b> 🐾", parse_mode="HTML")
+
+    # المسار 1️⃣: إذا قام المستخدم بعمل توجيه (Forward) حقيقي لأي نوع ميديا أو نص
+    if message.forward_from_chat:
+        fetched_id = message.forward_from_chat.id
+        source_type = "قناة / مجموعة سوبر"
+        fetched_name = message.forward_from_chat.title or "معرف سحابي سري"
+        fetched_username = f"@{message.forward_from_chat.username}" if message.forward_from_chat.username else "لا يوجد"
+    elif message.forward_from:
+        fetched_id = message.forward_from.id
+        source_type = "حساب شخصي (أشخاص)"
+        fetched_name = message.forward_from.first_name or "مستخدم"
+        fetched_username = f"@{message.forward_from.username}" if message.forward_from.username else "لا يوجد"
+    
+    # المسار 2️⃣: إذا كتب المستخدم يوزر نيم فقط لقناة أو شخص أو قروب (يبدأ بـ @)
+    elif input_text.startswith('@'):
+        try:
+            # استخدام دالة البحث الداخلي لتليجرام لجلب الكائن من المعرف النصي
+            chat_info = bot.get_chat(input_text)
+            fetched_id = chat_info.id
+            fetched_username = input_text
+            
+            if chat_info.type in ['channel', 'supergroup', 'group']:
+                source_type = f"قناة / جروب (عبر اليوزر)"
+                fetched_name = chat_info.title or "عنوان سحابي"
+            else:
+                source_type = "حساب شخصي (عبر اليوزر)"
+                fetched_name = chat_info.first_name or "مستخدم"
+        except Exception:
+            try: bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+            except Exception: pass
+            bot.reply_to(message, "❌ <b>لم أستطع العثور على هذا المعرف!</b> تأكد من كتابة اليوزر نيم بشكل صحيح، أو أن الحساب عام وليس سرياً تماماً.")
+            return
+    else:
+        # مسح رسالة التحميل المؤقتة في حال حدوث خطأ إدخال
+        try: bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+        except Exception: pass
+        
+        # حماية في حال قفل خصوصية التوجيه للأشخاص
+        if message.forward_sender_name:
+            bot.reply_to(message, f"⚠️ <b>المستخدم المقصد قفل خصوصية التوجيه في حسابه!</b>\n👤 الاسم الظاهر: <code>{message.forward_sender_name}</code>\n\n💡 <i>بسبب أمان تليجرام، جرب إرسال اليوزر نيم الخاص به مبدوءاً بـ @ لأقشط آيديه تلقائياً!</i>", parse_mode="HTML")
+            user_states.pop(user_id, None)
+            return
+        else:
+            bot.reply_to(message, "⚠️ لطفاً، قم بعمل <b>توجيه (Forward)</b> لرسالة أو ميديا من الحساب، أو أرسل <b>اليوزر نيم</b> مبدوءاً بـ @ (مثال: <code>@z7xxq</code>).")
+            return
+
+    # صياغة لوحة البيانات الفخمة المستخرجة بنظام HTML والنسخ بلمسة واحدة <code>
+    success_text = (
+        f"✅ <b>تم تحصيل وقشط بيانات الحساب بنجاح باهر!</b>\n\n"
+        f"📡 <b>نوع المصدر:</b> {source_type}\n"
+        f"👤 <b>الاسم والعنوان:</b> {fetched_name}\n"
+        f"🎫 <b>معرف الحساب:</b> {fetched_username}\n"
+        f"🆔 <b>الآيدي الرقمي المستخرج:</b> <code>{fetched_id}</code>\n\n"
+        f"👉 <i>اضغط على الآيدي الرقمي بالأعلى لنسخه بلمسة واحدة واستخدامه في حمايتك!</i> 🪐"
+    )
+    
+    # حذف رسالة الجاري التحميل وبث النتيجة الصافية الفخمة مكان الطلب فوراً
+    try: bot.delete_message(chat_id=message.chat.id, message_id=loading_msg.message_id)
+    except Exception: pass
+    
+    bot.reply_to(message, success_text, parse_mode="HTML")
+    user_states.pop(user_id, None) # تطهير ذاكرة خطوة المستخدم الحالية فوراً
+# 🌐 خادم الويب (Web Server) الصامت لفتح المنفذ وإرضاء فحص ريندر الأمني وحل المشكلة
+class MyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Port is open! Cherkes is listening to Telegram.")
+
+def run_web_server():
+    server = HTTPServer(('0.0.0.0', PORT), MyServer)
+    server.serve_forever()
+
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
+    bot.infinity_polling()
