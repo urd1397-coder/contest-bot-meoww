@@ -28,7 +28,7 @@ except ImportError:
     HAS_MONGO = False
 
 # 🛠️ قراءة الرابط السري إجبارياً الممرر من إعدادات ريندر
-MONGO_URI = os.getenv("MONGO_URI")
+MONGO_URI = "mongodb+srv://urd1397_db_user:kZVy6VzEBymJqHqP@cluster0.sqnl2gg.mongodb.net/?appName=Cluster0"
 
 # 🔒 تهيئة الاتصال بالخزنة السحابية الخارجية المحمية ضد الحذف
 mongo_db = None
