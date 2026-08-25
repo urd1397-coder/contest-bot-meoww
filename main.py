@@ -347,6 +347,109 @@ def handle_user_subscription(call):
     except Exception:
         bot.answer_callback_query(call.id, text="⚠️ فشل بث رسالة تصويتك، تأكد من صلاحيات البوت الإدارية بالقناة أولاً.", show_alert=True)
 
+# 🔍 تتبع التفاعلات وحساب الأصوات آلياً بنظام العدالة الشاملة وحماية الـ CPU
+@bot.message_reaction_handler()
+def handle_contest_reactions(message_reaction):
+    chat_id = message_reaction.chat.id
+    message_id = message_reaction.message_id
+    
+    if channel_id := next((ch for ch in channel_contests if ch == chat_id or f"@{bot.get_chat(ch).username}" == f"@{message_reaction.chat.username}"), None):
+        if message_id in channel_contests[channel_id]["participants"]:
+            competitor = channel_contests[channel_id]["participants"][message_id]
+            voter_id = message_reaction.user.id if message_reaction.user else None
+            if not voter_id: return
+
+            # 1️⃣ نجوم تليجرام المدفوعة: مفتوحة للجميع وصوتين (2) على كل نجمة
+            paid_stars_count = 0
+            if message_reaction.new_reaction:
+                for r in message_reaction.new_reaction:
+                    if getattr(r, 'type', None) == 'paid':
+                        paid_stars_count += getattr(r, 'count', 1)
+            competitor["votes"] += (paid_stars_count * 2)
+
+            # 2️⃣ التفاعلات العادية: صوت واحد مجاني (1) فقط لكل بصمة مستخدم (الجميع متساوٍ)
+            has_regular_reaction = False
+            if message_reaction.new_reaction:
+                for r in message_reaction.new_reaction:
+                    if getattr(r, 'type', None) != 'paid':
+                        has_regular_reaction = True
+                        break
+
+            if has_regular_reaction:
+                if voter_id not in competitor["voted_users"]:
+                    competitor["voted_users"].add(voter_id)
+                    competitor["votes"] += 1
+
+            # 🚨 حامي شركس الذكي للذاكرة والـ CPU عند حد الـ 1000 صوت
+            if competitor["votes"] >= 1000:
+                alert_text = (
+                    f"🚨 <b>تنبيه حامي شركس السحابي لحفظ التقدم!</b> 🚨\n\n"
+                    f"🔥 المتسابق الفخم: {competitor['mention']} حرق العداد ووصل لحد الذاكرة المؤقتة المسموح!\n"
+                    f"⭐️ <b>حصد حالياً:</b> <code>1000</code> صوت من النجوم والتفاعلات الحية.\n\n"
+                    f"💬 <b>البوت بيقولكم:</b>\n"
+                    f"<i>\"أوف تعبت يرحم أبوك هدي ههههه.. فلان حصل 1000 نجمة يعني 2000 صوت رجاءً من المشرفين التثبيت!\"</i> 😾💨\n\n"
+                    f"📌 <b>يا أدمنز يا فخمين:</b> ثبتوا هذه الرسالة فوراً لتوثيق نقاطه بسلام!\n"
+                    f"🫧 <i>تم تصفير عداد الذاكرة للمتسابق لتخفيف الحمل عن الـ CPU ومتابعة صعود الحماس بأمان!</i>"
+                )
+                try: bot.send_message(chat_id=channel_id, text=alert_text, parse_mode="HTML")
+                except Exception: pass
+                competitor["votes"] = competitor["votes"] % 1000
+
+# 🏁 أمر إنهاء الفعالية وفرز حساب الفائزين الفوري
+@bot.message_handler(commands=['end'])
+def cmd_end_contest_trigger(message):
+    user_id = message.from_user.id
+    user_states[user_id] = {"step": "end_get_contest_msg"}
+    guide_text = (
+        "🏁 <b>مرحباً بك في وحدة حساب الفائزين لشركس!</b>\n\n"
+        "👉 <b>كل ما عليك فعله الآن لحساب النتائج:</b>\n"
+        "قم بعمل <b>توجيه (Forward)</b> لرسالة المسابقة الأساسية نفسها التي تحتوي على زر الاشتراك وأرسلها لي هنا فوراً!\n\n"
+        "❌ <i>لإلغاء العملية أرسل: /cancel أو كلمة الغاء</i>"
+    )
+    bot.reply_to(message, guide_text, parse_mode="HTML")
+
+# ❌ أمر إلغاء العمليات الجارية المطور والمحمي بصلاحيات ورتب الإنتاج والإدارة
+@bot.message_handler(commands=['cancel'])
+def cmd_global_cancel(message):
+    user_id = message.from_user.id
+    state = user_states.get(user_id, {})
+    current_step = state.get("step")
+    
+    if not current_step:
+        bot.reply_to(message, "😸 لا توجد أي عملية جارية حالياً في حسابك لإلغائها، البوت مستقر وجاهز!")
+        return
+
+    if current_step == "get_any_id_only":
+        user_states.pop(user_id, None)
+        bot.reply_to(message, "🫧 <b>تم إلغاء عملية جلب الآيدي بنجاح وتصفير الخطوات معاً!</b>", parse_mode="HTML")
+        return
+    else:
+        channel_target = state.get("channel")
+        if int(user_id) == 79636720007:
+            user_states.pop(user_id, None)
+            bot.reply_to(message, "🫧 <b>أهلاً بالمطور الأعلى! تم إلغاء عملية إنشاء المسابقة وتطهير الذاكرة فوراً!</b>", parse_mode="HTML")
+            return
+        if channel_target:
+            try:
+                member = bot.get_chat_member(channel_target, user_id)
+                if member.status in ['creator', 'administrator']:
+                    user_states.pop(user_id, None)
+                    bot.reply_to(message, "🫧 <b>تم إلغاء عملية إنشاء المسابقة وتصفير الخطوات بنجاح من قِبَل المشرف!</b>", parse_mode="HTML")
+                else:
+                    bot.reply_to(message, "⚠️ <b>عذراً! لا تملك صلاحية إرسال أمر إلغاء لهذه المسابقة الخاصة بالإدارة.</b>", parse_mode="HTML")
+            except Exception:
+                user_states.pop(user_id, None)
+                bot.reply_to(message, "🫧 تم التراجع وإلغاء الجلسة المعلقة بنجاح.")
+        else:
+            user_states.pop(user_id, None)
+            bot.reply_to(message, "🫧 تم إلغاء العملية الجارية وتصفير خطوات البدء بسلام.")
+
+# =========================================================================
+# 🏁 جذع التشغيل الحتمي الموحد والوحيد الذي يغلق الملف بالكامل في القاع إجبارياً
+if __name__ == '__main__':
+    threading.Thread(target=run_web_server, daemon=True).start()
+    print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
+    bot.infinity_polling()
 
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
