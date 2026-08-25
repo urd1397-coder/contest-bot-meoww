@@ -450,8 +450,3 @@ if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
     print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
     bot.infinity_polling()
-
-if __name__ == '__main__':
-    threading.Thread(target=run_web_server, daemon=True).start()
-    print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
-    bot.infinity_polling()
