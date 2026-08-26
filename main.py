@@ -382,17 +382,14 @@ def handle_customize_username_and_broadcast(call):
     user_states.pop(user_id, None)
 
 
-# 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي للعدالة الشاملة وقفل التكرار الحازم
+# 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي وقفل التكرار الحازم
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
 def handle_user_subscription(call):
-    """حارس الاشتراك الصامت المطور: يكسر تعليق التحميل فوراً ويمنع الغش والتكرار بنافذة Alert منبثقة"""
-    # 1. إغلاق لمبة التحميل الدائرية المزعجة فوراً في أول جزء من الثانية لمنع التعليق
-    bot.answer_callback_query(call.id)
-    
+    """حارس الاشتراك الصامت المطور: يمنع الغش والتكرار بـ Alert منبثق ويتحقق من الذاكرة المحلية"""
     try:
-        group_chat_id = int(call.data.split("_"))
-    except:
-        bot.answer_callback_query(call.id, text="⚠️ خطأ في قراءة بيانات مفتاح الفعالية!", show_alert=True)
+        group_chat_id = int(call.data.split("_")[1])
+    except Exception as e:
+        bot.answer_callback_query(call.id, text="⚠️ خطأ في قراءة بيانات مفتاح الفعالية الرقمي!", show_alert=True)
         return
         
     if group_chat_id not in channel_contests:
@@ -432,17 +429,17 @@ def handle_user_subscription(call):
         # بث الرسالة فوراً داخل قناتك ليراها الجميع علناً وينشر اسم المشترك
         vote_msg = bot.send_message(chat_id=target_channel, text=final_alert_msg)
         
-        # حفر وتثبيت بصمة المشترك لمنع غش التكرار للأبد
-        if "registered_users" not in contest: contest["registered_users"] = set()
-        if "participants" not in contest: contest["participants"] = {}
+                # حفر وتثبيت بصمة المشترك لمنع غش التكرار للأبد بمقاييس الـ JSON
+        if "registered_users" not in contest: 
+            contest["registered_users"] = set()
+        if "participants" not in contest: 
+            contest["participants"] = {}
         
         contest["registered_users"].add(user_id)
-        contest["participants"][vote_msg.message_id] = {"user_id": user_id, "name": first_name}
-        
-        # ترحيل سحابي فوري وموفر للمساحة لقائمة المسجلين فقط لحمايتها ضد الريستارت
+          # ترحيل محلي فوري وموفر للمساحة لقائمة المسجلين فقط لحمايتها ضد الريستارت
         save_contests_to_storage()
         
-        # نافذة منبثقة تفرح المشترك بنجاح تسجيله
+        # نافذة منبثقة تفرح المشترك بنجاح تسجيله وبث منشور تصويته
         bot.answer_callback_query(call.id, text="🎉 كفو! تم تسجيل انضمامك بنجاح وبث منشور تصويتك داخل القناة الحين! 🚀", show_alert=True)
     except Exception as e:
         bot.answer_callback_query(call.id, text=f"⚠️ عذراً، فشل بث رسالتك بالقناة: {e}", show_alert=True)
