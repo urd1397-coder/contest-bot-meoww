@@ -268,7 +268,7 @@ def process_contest_creation_steps(message):
     """المعالج المتتالي لاستلام معطيات المنشئ خطوة بخطوة بنصوص حيوية"""
     user_id = message.from_user.id
     state = user_states[user_id]
-  current_step = state["step"]
+      current_step = state["step"]
   input_text = message.text.strip() if message.text else ""
 
     # 🛑 حل المشكلة 3: خيار إلغاء العملية فوراً وبشكل قاطع ومنع التداخل
