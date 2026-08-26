@@ -247,23 +247,16 @@ def process_any_id_fetching(message):
 # 📦 تخزين مؤقت لحالات منشئي المسابقات أثناء التجهيز
 user_states = {}
 
+# 📦 تخزين مؤقت لحالات منشئي المسابقات أثناء التجهيز
+user_states = {}
+
 @bot.message_handler(commands=['create'])
 def cmd_create_contest(message):
-    """الخطوة 0: التحقق من الآدمن وإطلاق مرشد شركس التفاعلي"""
+    """الخطوة 0: فتح مرشد شركس التفاعلي فوراً لجميع المستخدمين بدون فحص مسبق"""
     user_id = message.from_user.id
     chat_id = message.chat.id
-    
-    # 🔒 جدار حماية الصلاحيات الإلزامي لحظر الأعضاء العاديين
-    try:
-        member_status = bot.get_chat_member(chat_id, user_id).status
-        if member_status not in ['administrator', 'creator']:
-            bot.reply_to(message, "❌ **أوه يا غالي! عذراً، هالبوابة محصورة فقط للآدمنز والمسؤولين المؤهلين لإطلاق الفعاليات الكبرى!** 🐾")
-            return
-    except Exception as e:
-        print(f"خطأ فحص الصلاحية: {e}")
-        return
 
-    # فتح حالة التجهيز والربط بجروب الإطلاق
+    # فتح حالة التجهيز والربط بجروب الإطلاق فوراً وبحرية كاملة
     user_states[user_id] = {"step": "get_channel_target", "creator_id": user_id, "group_chat_id": chat_id}
     
     guide_msg = (
@@ -287,26 +280,30 @@ def process_contest_creation_steps(message):
         bot.reply_to(message, "⚙️ **تم إلغاء خطوات الإنشاء بطلبك، وتطهير غرف التجهيز بسلام!**")
         return
 
-    # 📡 الخطوة 1: استلام المعرف وفك الرسائل الموجهة تلقائياً
+    # 📡 الخطوة 1: استلام المعرف وفك الرسائل الموجهة تلقائياً + فحص الصلاحية داخل القناة المستهدفة
     if current_step == "get_channel_target":
         target_channel = None
-        # السحر هنا: لو أرسل رسالة موجهة يقشط آيدي القناة فوراً وبذكاء
         if message.forward_from_chat:
             target_channel = message.forward_from_chat.id
         else:
             target_channel = input_text
 
-        # فحص صلاحية البوت داخل القناة المستهدفة
         try:
             cleaned_channel = int(target_channel) if str(target_channel).replace('-', '').isdigit() else target_channel
-            bot.get_chat_administrators(cleaned_channel)
-            state["target_channel"] = cleaned_channel
             
-            # الانتقال للسؤال الثاني
+            # 🔒 جدار حماية الصلاحيات الحقيقي: التحقق أن المستخدم هو آدمن داخل القناة المستهدفة بالذات!
+            member_status = bot.get_chat_member(cleaned_channel, user_id).status
+            if member_status not in ['administrator', 'creator']:
+                bot.reply_to(message, "❌ **أوه يا غالي! عذراً، تبين لي أنك لست مشرفاً أو مسؤولاً داخل هذه القناة المحددة! هالبوابة محصورة فقط للآدمنز المؤهلين للتحكم بالفعالية!** 🐾")
+                user_states.pop(user_id, None) # تطهير الحالة لطرده كلياً
+                return
+                
+            # إذا نجح الفحص واستبان أنه آدمن، نثبت القناة وننتقل للسؤال التالي
+            state["target_channel"] = cleaned_channel
             state["step"] = "get_contest_text"
-            bot.reply_to(message, "✅ **كفو! تم التقاط القناة وتأمين خط العبور بنجاح ساحق!** 🚀\n\n📝 الحين ارسل لي **نص رسالة أو منشور المسابقة** الفخم الذي تود بثه علناً داخل القناة لكي نصنع زر الاشتراك أسفله:")
+            bot.reply_to(message, "✅ **كفو! تم التحقق من هويتك كمسؤول، والتقاط القناة بنجاح ساحق!** 🚀\n\n📝 الحين ارسل لي **نص رسالة أو منشور المسابقة** الفخم الذي تود بثه علناً داخل القناة لكي نصنع زر الاشتراك أسفله:")
         except Exception as e:
-            bot.reply_to(message, "⚠️ **تنبيه سريع:** يبدو أنني لست مشرفاً في هذه القناة حالياً! تأكد من إضافتي كمشرف أولاً، ثم ارسل المعرف أو وجه لي أي رسالة مجدداً الحين:")
+            bot.reply_to(message, "⚠️ **تنبيه سريع:** تأكد من إضافة البوت كمشرف أولاً داخل القناة المستهدفة، وأنك أرسلت المعرف الصواب، ثم جرب مجدداً الحين:")
         return
 
     # 🎯 الخطوة 2: استلام نص المنشور الرئيسي للمسابقة
@@ -316,9 +313,7 @@ def process_contest_creation_steps(message):
             return
         state["contest_text"] = input_text
         
-        # الانتقال للسؤال الثالث بـ ريبلاي كيبورد سريع
         state["step"] = "get_custom_alert_choice"
-        
         markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         markup.add("نعم", "لا")
         bot.send_message(
@@ -362,12 +357,10 @@ def process_contest_creation_steps(message):
         creator_id = state["creator_id"]
         group_chat_id = state["group_chat_id"]
         
-        # صياغة زر الاشتراك التفاعلي الفوري للمتسابقين
         inline_markup = telebot.types.InlineKeyboardMarkup()
         btn_subscribe = telebot.types.InlineKeyboardButton("🎯 زر الاشتراك في الفعالية 🎯", callback_data=f"join_{group_chat_id}")
         inline_markup.add(btn_subscribe)
         
-        # 🪐 الفوتر التوضيحي الإجباري والمثالي لتسهيل فهم قوانين النجوم على الأعضاء علناً
         example_footer = (
             f"\n\n━━━━━━━━━━━━━━━\n"
             f"📊 **ميزان شركس العادل لاحتساب النقاط:**\n"
@@ -380,7 +373,6 @@ def process_contest_creation_steps(message):
         try:
             deployed_msg = bot.send_message(chat_id=target_channel, text=full_post_text, reply_markup=inline_markup, parse_mode="Markdown")
             
-            # 💾 التخليد الفوري لهوية المسابقة في مصفوفة الحراسة السحابية لمنع التصفير بالريستارت
             channel_contests[group_chat_id] = {
                 "config": {
                     "status": "active",
@@ -390,11 +382,10 @@ def process_contest_creation_steps(message):
                     "custom_alert": custom_alert,
                     "include_username": include_username
                 },
-                "registered_users": set(),  # سجل الحراسة الفولاذي لمنع تكرار الاشتراكات
-                "participants": {}          # لربط المنشورات بهويات المشاركين عند الفرز
+                "registered_users": set(),
+                "participants": {}
             }
             
-            # الحفظ السحابي الفوري الرشيق (يحفظ الهوية فقط دون استهلاك مساحتك المجانية كلياً)
             save_contests_to_storage()
             
             bot.send_message(message.chat.id, "🚀 **مياووو! تم تفجير وإطلاق المسابقة بنجاح باهر داخل قناتك الحين!**\n\nالبيانات محفورة في صخر السحاب ولن تختفي مطلقاً بمسح الكاش، والتحكم بالفرز محصور لك وللمشرفين فقط عبر أمر `/end` الحاسم عند النهاية! انطلقوا! 🔥🐾", reply_markup=hide_markup)
