@@ -244,147 +244,165 @@ def process_any_id_fetching(message):
     bot.reply_to(message, success_text, parse_mode="HTML")
     user_states.pop(user_id, None)
 
-# ➕ أمر بدء إنشاء مسابقة تفاعلية مخصصة بالكامل (Customizable Callback)
+# 📦 تخزين مؤقت لحالات منشئي المسابقات أثناء التجهيز
+user_states = {}
+
 @bot.message_handler(commands=['create'])
 def cmd_create_contest(message):
+    """الخطوة 0: التحقق من الآدمن وإطلاق مرشد شركس التفاعلي"""
     user_id = message.from_user.id
-    user_states[user_id] = {"step": "get_channel_target"}
+    chat_id = message.chat.id
     
-    guide_create = (
-        "📢 <b>مرحباً بك في وحدة إنشاء المسابقات الذكية لشركس!</b>\n\n"
-        "👉 <b>أرسل لي الآن معرف أو آيدي القناة المراد بث المسابقة داخلها:</b>\n"
-        "• <b>التعيين اليدوي:</b> اكتب معرف القناة العام هنا (مثال: <code>@my_channel</code>).\n"
-        "• <b>التوجيه التلقائي الفخم:</b> إذا كنت لا تعرف الآيدي السري، قم بعمل <b>توجيه (Forward)</b> لأي رسالة قديمة من قناتك هنا فوراً وأنا سأتكفل بالباقي وقشط المعرف تلقائياً! 📡🐾\n\n"
-        "❌ <i>لإلغاء العملية في أي وقت أرسل: /cancel أو كلمة الغاء</i>"
-    )
-    bot.reply_to(message, guide_create, parse_mode="HTML")
-
-# 📥 ملتقط الرسائل لتتبع خطوات هندسة وإنشاء الفعالية بالكامل خطوة بخطوة
-@bot.message_handler(func=lambda msg: user_states.get(msg.from_user.id, {}).get("step") in ["get_channel_target", "get_contest_banner", "get_custom_alert_text", "ask_attach_username", "end_get_contest_msg", "get_prizes_count"], content_types=['text', 'photo', 'video', 'document', 'animation'])
-def process_contest_creation_steps(message):
-    user_id = message.from_user.id
-    input_text = message.text.strip() if message.text else ""
-    state = user_states.get(user_id, {})
-    current_step = state.get("step")
-
-    if input_text in ["/cancel", "الغاء"]:
-        user_states.pop(user_id, None)
-        bot.reply_to(message, "🫧 <b>هيهي 😸! تم إلغاء العملية الجارية فوراً وتصفير الخطوات المعلقة كلياً وتطهير الذاكرة السحابية بنجاح!</b>", parse_mode="HTML")
+    # 🔒 جدار حماية الصلاحيات الإلزامي لحظر الأعضاء العاديين
+    try:
+        member_status = bot.get_chat_member(chat_id, user_id).status
+        if member_status not in ['administrator', 'creator']:
+            bot.reply_to(message, "❌ **أوه يا غالي! عذراً، هالبوابة محصورة فقط للآدمنز والمسؤولين المؤهلين لإطلاق الفعاليات الكبرى!** 🐾")
+            return
+    except Exception as e:
+        print(f"خطأ فحص الصلاحية: {e}")
         return
 
+    # فتح حالة التجهيز والربط بجروب الإطلاق
+    user_states[user_id] = {"step": "get_channel_target", "creator_id": user_id, "group_chat_id": chat_id}
+    
+    guide_msg = (
+        "🪐 **مياووو! أهلاً بك في عرين شركس لإطلاق المسابقات الأسطورية!** 🐾🔥\n\n"
+        "يسعدني جداً وبكل حماس بدء مسابقة جديدة تحت إشرافك، لكن لكي نربط البوابات أحتاج أولاً **معرف القناة أو آيدي القناة المستهدفة**! 📡\n\n"
+        "💡 _إذا كنت لا تعرف كيف تجلب معرف القناة، ببساطة اذهب لقناتك وسوي إعادة توجيه (Forward) لأي منشور أو رسالة منها إليّ هنا مباشرة.. وأنا سأتولى قشط المعرف وتأمين الاتصال بالباقي كلياً!_ 👇"
+    )
+    bot.reply_to(message, guide_msg, parse_mode="Markdown")
+
+@bot.message_handler(func=lambda msg: msg.from_user.id in user_states)
+def process_contest_creation_steps(message):
+    """المعالج المتتالي لاستلام معطيات المنشئ خطوة بخطوة بنصوص حيوية"""
+    user_id = message.from_user.id
+    state = user_states[user_id]
+    current_step = state["step"]
+    input_text = message.text.strip() if message.text else ""
+
+    # خيار إلغاء العملية unconditionally في أي وقت
+    if input_text.lower() in ["/cancel", "إلغاء"]:
+        user_states.pop(user_id, None)
+        bot.reply_to(message, "⚙️ **تم إلغاء خطوات الإنشاء بطلبك، وتطهير غرف التجهيز بسلام!**")
+        return
+
+    # 📡 الخطوة 1: استلام المعرف وفك الرسائل الموجهة تلقائياً
     if current_step == "get_channel_target":
+        target_channel = None
+        # السحر هنا: لو أرسل رسالة موجهة يقشط آيدي القناة فوراً وبذكاء
         if message.forward_from_chat:
             target_channel = message.forward_from_chat.id
         else:
             target_channel = input_text
-            if target_channel.replace('-', '').isdigit():
-                target_channel = int(target_channel)
 
+        # فحص صلاحية البوت داخل القناة المستهدفة
         try:
-            target_channel = int(target_channel) if str(target_channel).replace('-', '').isdigit() else target_channel
-            member = bot.get_chat_member(target_channel, user_id)
-            if member.status in ['creator', 'administrator'] or int(user_id) == 79636720007:
-                user_states[user_id] = {"step": "get_contest_banner", "channel": target_channel}
-                bot.reply_to(message, "✅ <b>تم التحقق من الصلاحيات السحابية بنجاح!</b>\n\n📝 أرسل لي الآن <b>نص ومنشور المسابقة الفخم</b> الذي سيتم بثه وعرضه للأعضاء في القناة:")
-            else:
-                bot.reply_to(message, "❌ عذراً! الكود الكشف أنك لست مسؤولاً (Admin) in هذه القناة حالياً ولا تملك صلاحية الإدارة.")
-                user_states.pop(user_id, None)
-        except Exception:
-            bot.reply_to(message, "⚠️ <b>البوت لم يستطع جلب بيانات القناة!</b> تأكد من إضافة البوت كـ مسؤول داخل القناة أولاً، ثم أعد إرسال المعرف أو التوجيه:")
+            cleaned_channel = int(target_channel) if str(target_channel).replace('-', '').isdigit() else target_channel
+            bot.get_chat_administrators(cleaned_channel)
+            state["target_channel"] = cleaned_channel
+            
+            # الانتقال للسؤال الثاني
+            state["step"] = "get_contest_text"
+            bot.reply_to(message, "✅ **كفو! تم التقاط القناة وتأمين خط العبور بنجاح ساحق!** 🚀\n\n📝 الحين ارسل لي **نص رسالة أو منشور المسابقة** الفخم الذي تود بثه علناً داخل القناة لكي نصنع زر الاشتراك أسفله:")
+        except Exception as e:
+            bot.reply_to(message, "⚠️ **تنبيه سريع:** يبدو أنني لست مشرفاً في هذه القناة حالياً! تأكد من إضافتي كمشرف أولاً، ثم ارسل المعرف أو وجه لي أي رسالة مجدداً الحين:")
         return
 
-    elif current_step == "get_contest_banner":
+    # 🎯 الخطوة 2: استلام نص المنشور الرئيسي للمسابقة
+    elif current_step == "get_contest_text":
         if not message.text:
-            bot.reply_to(message, "⚠️ لطفاً، أرسل منشور المسابقة كـ نص مكتوب:")
+            bot.reply_to(message, "❌ **يرجى إرسال نص برمي واضح للمسابقة يا بطل!**")
             return
-        user_states[user_id]["banner"] = message.text
-        user_states[user_id]["step"] = "get_custom_alert_text"
-        guide_alert = (
-            "⚙️ <b>نظام لوحة التحكم التفاعلية المخصصة (Customizable Callback)</b>\n\n"
-            "📝 أرسل لي الآن <b>الرسالة والنص المخصص</b> الذي ترغب في أن يرسله البوت في القناة كـ تنبيه فوري كلما قام عضو بالضغط على زر الاشتراك المشتعل:\n"
-            "*(مثال: انضم للتحدي وبدأ التصويت له علناً، صوتوا له بالأسفل!)* 👇"
+        state["contest_text"] = input_text
+        
+        # الانتقال للسؤال الثالث بـ ريبلاي كيبورد سريع
+        state["step"] = "get_custom_alert_choice"
+        
+        markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+        markup.add("نعم", "لا")
+        bot.send_message(
+            message.chat.id, 
+            "💬 **السؤال الثالث والأهم:** هل تحب إرفاق رسالة مخصصة (أنت تصممها بيدك) يرسلها البوت تلقائياً في القناة كلما ضغط متسابق جديد على زر الاشتراك؟", 
+            reply_markup=markup
         )
-        bot.reply_to(message, guide_alert, parse_mode="HTML")
         return
 
-    elif current_step == "get_custom_alert_text":
-        if not message.text:
-            bot.reply_to(message, "⚠️ لطفاً، أرسل نص التنبيه المخصص كـ نص مكتوب:")
-            return
-        user_states[user_id]["custom_alert"] = message.text
-        user_states[user_id]["step"] = "ask_attach_username"
-        markup_ask = InlineKeyboardMarkup()
-        markup_ask.add(
-            InlineKeyboardButton("✅ نعم، ارفق اليوزر", callback_data="attach_yes"),
-            InlineKeyboardButton("❌ لا، بدون يوزر", callback_data="attach_no")
-        )
-        bot.reply_to(message, "❓ <b>هل تود أن يقوم شركس بإرفاق ودمج المعرف النصي (@username) الخاص بالعضو تلقائياً داخل رسالة التنبيه المخصصة؟</b>", reply_markup=markup_ask, parse_mode="HTML")
-        return
-
-    elif current_step == "end_get_contest_msg":
-        if message.forward_from_chat:
-            channel_id = message.forward_from_chat.id
+    # 💬 الخطوة 3: معالجة خيار تفعيل الرسالة المخصصة للاشتراك
+    elif current_step == "get_custom_alert_choice":
+        if input_text == "نعم":
+            state["step"] = "get_custom_alert_text"
+            hide_markup = telebot.types.ReplyKeyboardRemove()
+            bot.send_message(message.chat.id, "📝 **على راسي!** ارسل لي الحين الجملة أو الرسالة التنبيهية التي تريدني أن أبثها فوراً كلما انضم بطل جديد للسباق:", reply_markup=hide_markup)
         else:
-            bot.reply_to(message, "⚠️ أوه! هذه الرسالة ليست موجهة من القناة التي تحتوي على المسابقة. لطفاً وجه رسالة المسابقة نفسها.")
-            return
-
-        try: channel_id = int(channel_id)
-        except ValueError: pass
-
-        if channel_id not in channel_contests:
-            bot.reply_to(message, f"❌ <b>لا توجد مسابقة نشطة مسجلة في ذاكرة شركس لهذه القناة حالياً!</b>")
-            user_states.pop(user_id, None)
-            return
-
-        user_states[user_id] = {"step": "get_prizes_count", "channel": channel_id}
-        bot.reply_to(message, "🔢 <b>كم عدد المراكز الفائزة المطلوبة؟</b>\n*(اكتب رقماً مجرداً واضغط إرسال، مثال: 3)* 👇")
+            state["custom_alert_text"] = ""
+            state["step"] = "get_username_choice"
+            markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+            markup.add("نعم", "لا")
+            bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً؟", reply_markup=markup)
         return
 
-    elif current_step == "get_prizes_count":
-        channel_id = state.get("channel")
+    # استلام نص التنبيه المخصص
+    elif current_step == "get_custom_alert_text":
+        state["custom_alert_text"] = input_text
+        state["step"] = "get_username_choice"
+        markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
+        markup.add("نعم", "لا")
+        bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً؟", reply_markup=markup)
+        return
+
+    # 👤 الخطوة 4: حسم خيار مناداة الحساب وإطلاق الفعالية الفوري والمزامنة السحابية لحمايتها
+    elif current_step == "get_username_choice":
+        include_username = True if input_text == "نعم" else False
+        hide_markup = telebot.types.ReplyKeyboardRemove()
+        
+        target_channel = state["target_channel"]
+        contest_text = state["contest_text"]
+        custom_alert = state["custom_alert_text"]
+        creator_id = state["creator_id"]
+        group_chat_id = state["group_chat_id"]
+        
+        # صياغة زر الاشتراك التفاعلي الفوري للمتسابقين
+        inline_markup = telebot.types.InlineKeyboardMarkup()
+        btn_subscribe = telebot.types.InlineKeyboardButton("🎯 زر الاشتراك في الفعالية 🎯", callback_data=f"join_{group_chat_id}")
+        inline_markup.add(btn_subscribe)
+        
+        # 🪐 الفوتر التوضيحي الإجباري والمثالي لتسهيل فهم قوانين النجوم على الأعضاء علناً
+        example_footer = (
+            f"\n\n━━━━━━━━━━━━━━━\n"
+            f"📊 **ميزان شركس العادل لاحتساب النقاط:**\n"
+            f"👍 **الريأكشن العادي** = صوت واحد فقط (ممنوع التكرار والغش).\n"
+            f"⭐ **الريأكشن المدفوع (نجوم تليجرام المرسلة)** = **صوتين (2) على كل نجمة** (المجال مفتوح للتكرار وبدون قيود لدعم متسابقك المفضّل!)."
+        )
+        
+        full_post_text = contest_text + example_footer
+        
         try:
-            requested_winners = int(input_text)
-            finalize_contest_results(message, channel_id, requested_winners, input_text, state, user_id)
-        except ValueError:
-            bot.reply_to(message, "⚠️ لطفاً، اكتب رقماً صحيحاً مجرداً لعدد المراكز المطلوبة:")
-# 🎯 معالجة ضغط أزرار تخصيص اليوزر وبث المسابقة الفعلية داخل القناة المستهدفة
-@bot.callback_query_handler(func=lambda call: call.data.startswith("attach_"))
-def handle_customize_username_and_broadcast(call):
-    user_id = call.from_user.id
-    state = user_states.get(user_id, {})
-    
-    if not state or state.get("step") != "ask_attach_username":
-        bot.answer_callback_query(call.id, text="⚠️ انتهت صلاحية الجلسة أو تم إلغاؤها مسبقاً.")
+            deployed_msg = bot.send_message(chat_id=target_channel, text=full_post_text, reply_markup=inline_markup, parse_mode="Markdown")
+            
+            # 💾 التخليد الفوري لهوية المسابقة في مصفوفة الحراسة السحابية لمنع التصفير بالريستارت
+            channel_contests[group_chat_id] = {
+                "config": {
+                    "status": "active",
+                    "creator": creator_id,
+                    "target_channel": target_channel,
+                    "msg_id": deployed_msg.message_id,
+                    "custom_alert": custom_alert,
+                    "include_username": include_username
+                },
+                "registered_users": set(),  # سجل الحراسة الفولاذي لمنع تكرار الاشتراكات
+                "participants": {}          # لربط المنشورات بهويات المشاركين عند الفرز
+            }
+            
+            # الحفظ السحابي الفوري الرشيق (يحفظ الهوية فقط دون استهلاك مساحتك المجانية كلياً)
+            save_contests_to_storage()
+            
+            bot.send_message(message.chat.id, "🚀 **مياووو! تم تفجير وإطلاق المسابقة بنجاح باهر داخل قناتك الحين!**\n\nالبيانات محفورة في صخر السحاب ولن تختفي مطلقاً بمسح الكاش، والتحكم بالفرز محصور لك وللمشرفين فقط عبر أمر `/end` الحاسم عند النهاية! انطلقوا! 🔥🐾", reply_markup=hide_markup)
+            user_states.pop(user_id, None)
+        except Exception as e:
+            bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
+            user_states.pop(user_id, None)
         return
-        
-    attach_choice = call.data.replace("attach_", "")
-    channel_id = state["channel"]
-    contest_banner = state["banner"]
-    custom_alert = state["custom_alert"]
-    
-    try: channel_id = int(channel_id)
-    except ValueError: pass
-    
-    channel_contests[channel_id] = {
-        "config": {
-            "custom_alert": custom_alert,
-            "attach_username": (attach_choice == "yes")
-        },
-        "participants": {},
-        "processed_users": set()
-    }
-    
-    markup_contest = InlineKeyboardMarkup()
-    markup_contest.add(InlineKeyboardButton("🎯 إشتراك 🎯", callback_data=f"join_{channel_id}"))
-    
-    try:
-        bot.send_message(chat_id=channel_id, text=f"🌌 <b>مسابقة جديدة في قناة درب التبانة!</b> 🏆\n\n{contest_banner}", reply_markup=markup_contest, parse_mode="HTML")
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=f"🚀 <b>طيييييرااان! تم تصميم وبث مسابقتك التفاعلية المخصصة بنجاح ساحق داخل القناة: {channel_id}!</b>", parse_mode="HTML")
-    except Exception:
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="❌ <b>فشل بث المسابقة برمجياً!</b> تأكد من رتبة البوت كمسؤول بالداخل أولاً.", parse_mode="HTML")
-        channel_contests.pop(channel_id, None)
-        
-    user_states.pop(user_id, None)
 
 # 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي للعدالة الشاملة وقفل التكرار الحازم
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
