@@ -401,7 +401,9 @@ def handle_user_subscription(call):
         
     contest = channel_contests[group_chat_id]
     user_id = call.from_user.id
-    target_channel = contest["config"]["target_channel"]
+    raw_channel = contest["config"]["target_channel"]
+    # 🔒 تأمين العبور: تحويل معرف القناة إلى رقم int إجبارياً إذا كان آيدي رقمي سلبي طويل ليفهمه تليجرام فوراً!
+    target_channel = int(raw_channel) if str(raw_channel).replace('-', '').isdigit() else raw_channel
     
     # 🛡️ 2. الفخ الفولاذي: التحقق من سجل المسجلين وقذف الشاشة المنبثقة (Alert) قسرياً لمنع التكرار
     if user_id in contest.get("registered_users", set()):
