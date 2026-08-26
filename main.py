@@ -369,7 +369,7 @@ def process_contest_creation_steps(message):
         
         full_post_text = contest_text + example_footer
         
-              try:
+                  try:
             deployed_msg = bot.send_message(chat_id=target_channel, text=full_post_text, reply_markup=inline_markup)
             
             channel_contests[group_chat_id] = {
