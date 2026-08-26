@@ -334,7 +334,7 @@ def process_contest_creation_steps(message):
             state["step"] = "get_username_choice"
             markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
             markup.add("نعم", "لا")
-            bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً? ", reply_markup=markup)
+            bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً؟", reply_markup=markup)
         return
 
     elif current_step == "get_custom_alert_text":
@@ -342,7 +342,7 @@ def process_contest_creation_steps(message):
         state["step"] = "get_username_choice"
         markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         markup.add("نعم", "لا")
-        bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً? ", reply_markup=markup)
+        bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً؟", reply_markup=markup)
         return
 
     elif current_step == "get_username_choice":
@@ -392,6 +392,7 @@ def process_contest_creation_steps(message):
             bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
             user_states.pop(user_id, None)
         return
+
 
 # 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي للعدالة الشاملة وقفل التكرار الحازم
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
