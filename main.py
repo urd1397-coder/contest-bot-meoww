@@ -260,7 +260,7 @@ def cmd_create_contest(message):
         "🪐 **مياووو! أهلاً بك في عرين شركس لإطلاق المسابقات الأسطورية!** 🐾🔥\n\n"
         "يسعدني جداً وبكل حماس بدء مسابقة جديدة تحت إشرافك، لكن لكي نربط البوابات أحتاج أولاً **معرف القناة أو آيدي القناة المستهدفة**! 📡\n\n"
         "💡 _ارسل لي معرف قناتك المسبوق بـ @ (مثل @channel_name) أو الآيدي الرقمي تبعه.. أو ببساطة وجه لي أي منشور أو رسالة من القناة الحين وأنا سأتولى قشط المعرف وتأمين الاتصال بالباقي كلياً!_ 👇"
-    
+    )
     bot.reply_to(message, guide_msg, parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: msg.from_user.id in user_states)
@@ -334,7 +334,7 @@ def process_contest_creation_steps(message):
             state["step"] = "get_username_choice"
             markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
             markup.add("نعم", "لا")
-            bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً؟", reply_markup=markup)
+            bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً? ", reply_markup=markup)
         return
 
     elif current_step == "get_custom_alert_text":
@@ -342,7 +342,7 @@ def process_contest_creation_steps(message):
         state["step"] = "get_username_choice"
         markup = telebot.types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
         markup.add("نعم", "لا")
-        bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً؟", reply_markup=markup)
+        bot.send_message(message.chat.id, "👤 **السؤال الرابع:** هل تود إرفاق ومناداة اليوزر نيم (@Username) الخاص بمن يضغط على الزر لتوجيه التحية له علناً? ", reply_markup=markup)
         return
 
     elif current_step == "get_username_choice":
@@ -392,66 +392,6 @@ def process_contest_creation_steps(message):
             bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
             user_states.pop(user_id, None)
         return
-@bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
-def handle_user_subscription(call):
-    """حارس الاشتراك الصامت المطور: يكسر تعليق التحميل فوراً وينشر رسالة المتسابق بانتظام"""
-    # 1. كسر وإغلاق لمبة التحميل الدائرية في أول جزء من الثانية لمنع التعليق
-    bot.answer_callback_query(call.id)
-    
-    try:
-        group_chat_id = int(call.data.split("_"))
-    except:
-        bot.answer_callback_query(call.id, text="⚠️ خطأ في قراءة بيانات مفتاح الفعالية!", show_alert=True)
-        return
-        
-    if group_chat_id not in channel_contests:
-        bot.answer_callback_query(call.id, text="⚠️ عذراً، لا توجد مسابقة نشطة حالياً مخصصة لهذا المفتاح!", show_alert=True)
-        return
-        
-    contest = channel_contests[group_chat_id]
-    user_id = call.from_user.id
-    target_channel = contest["config"]["target_channel"]
-    
-    # 🛡️ التحقق من منع تكرار الاشتراك بـ نافذة صغيرة (Alert) قسرية مئة بالمئة!
-    if user_id in contest.get("registered_users", set()):
-        bot.answer_callback_query(call.id, text="❌ أنت موجود بالمسابقة بالفعل ومستحيل تشترك مرتين! 🐾", show_alert=True)
-        return
-        
-    # بناء نص رسالة المتسابق حسب خيارات المنشئ الحيوية (سواء بالاسم أو اليوزر نيم)
-    first_name = call.from_user.first_name
-    username = call.from_user.username
-    
-    # مناداة الهوية حسب خيار المنشئ
-    if contest["config"]["include_username"] and username:
-        user_mention = f"[{first_name}](tg://user?id={user_id}) (@{username})"
-    else:
-        user_mention = f"[{first_name}](tg://user?id={user_id})"
-        
-    # جلب نص التنبيه المخصص أو استخدام النص الافتراضي الحيوي لشركس
-    custom_alert = contest["config"]["custom_alert"]
-    if custom_alert:
-        final_alert_msg = f"🎯 **{custom_alert}**\n\n👤 المتسابق البطل: {user_mention}"
-    else:
-        final_alert_msg = f"🎯 **منشور تصويت جديد لإنعاش الساحة!**\n\n👤 صوّتوا للحساب الموثق: {user_mention}\n\n💡 _👍 الريأكشن العادي صوت واحد | ⭐ الريأكشن المدفوع بصوتين! انطلقوا!_ 🔥🐾"
-        
-    try:
-        # بث الرسالة فوراً داخل القناة ليراها الجميع علناً وينشر اسم المشترك
-        vote_msg = bot.send_message(chat_id=target_channel, text=final_alert_msg, parse_mode="Markdown")
-        
-        # حفر وتثبيت المشترك في جدول الحراسة لمنع الغش والتكرار للأبد
-        if "registered_users" not in contest: contest["registered_users"] = set()
-        if "participants" not in contest: contest["participants"] = {}
-        
-        contest["registered_users"].add(user_id)
-        contest["participants"][vote_msg.message_id] = {"user_id": user_id, "name": first_name}
-        
-        # مزامنة سحابية فورية لقائمة المسجلين فقط لحمايتها ضد الفرمتة العظمى
-        save_contests_to_storage()
-        
-        bot.answer_callback_query(call.id, text="🎉 كفو! تم تسجيل انضمامك بنجاح وبث منشور تصويتك داخل القناة الحين! 🚀", show_alert=True)
-    except Exception as e:
-        bot.answer_callback_query(call.id, text=f"⚠️ عذراً، فشل بث رسالتك بالقناة: {e}", show_alert=True)
-
 
 # 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي للعدالة الشاملة وقفل التكرار الحازم
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
