@@ -249,7 +249,7 @@ def cmd_create_contest(message):
 
 @bot.message_handler(func=lambda msg: msg.from_user.id in user_states)
 def process_contest_creation_steps(message):
-    """المعالج المتتالي المطور: التقاط معطيات الفعالية وحفظها بمفتاح موحد صخر"""
+    """المعالج المتتالي المطور: التقاط معطيات الفعالية وحفظها بمفتاح موحد صخر وتأمين الفحص الذكي"""
     user_id = message.from_user.id
     state = user_states[user_id]
     current_step = state["step"]
@@ -262,7 +262,7 @@ def process_contest_creation_steps(message):
         bot.send_message(message.chat.id, "⚙️ تم إلغاء خطوات إنشاء المسابقة بطلبك، وتطهير غرف التجهيز بسلام كامل!", reply_markup=hide_markup)
         return
 
-    # 📡 الخطوة 1: استلام المعرف ذكياً (سواء بالتوجيه، أو المعرف)
+    # 📡 الخطوة 1: استلام المعرف ذكياً (سواء بالتوجيه، أو المعرف) وضبط صيغته الرقمية تلقائياً
     if current_step == "get_channel_target":
         target_channel = None
         if message.forward_from_chat:
@@ -274,23 +274,26 @@ def process_contest_creation_steps(message):
             target_channel = input_text
 
         try:
+            # تنظيف المعرف وضبط صيغته الرقمية أو النصية بدقة بالغة لمنع انهيار الفحص
             if str(target_channel).replace('-', '').isdigit():
                 cleaned_channel = int(target_channel)
+                if cleaned_channel > 0:
+                    cleaned_channel = int(f"-100{cleaned_channel}")
             else:
                 cleaned_channel = target_channel if str(target_channel).startswith('@') else f"@{target_channel}"
             
-            # 🔒 جدار حماية الصلاحيات: الفحص داخل القناة المستهدفة
+            # 🔒 جدار حماية الصلاحيات التلقائي والنظيف 100% لأي مستخدم
             member_status = bot.get_chat_member(cleaned_channel, user_id).status
             if member_status not in ['administrator', 'creator']:
-                bot.reply_to(message, "❌ عذراً، تبين لي أنك لست مشرفاً داخل هذه القناة المحددة! هالبوابة محصورة فقط للآدمنز المؤهلين! 🐾")
+                bot.reply_to(message, "❌ عذراً يا بطل! تبين لي أن حسابك الحالي ليس مشرفاً أو مسؤولاً داخل هذه القناة المحددة! هالبوابة محصورة للآدمنز فقط! 🐾")
                 user_states.pop(user_id, None)
                 return
                 
             state["target_channel"] = cleaned_channel
             state["step"] = "get_contest_text"
-            bot.reply_to(message, "✅ كفو! تم التقاط القناة بنجاح ساحق! 🚀\n\n📝 الحين ارسل لي نص رسالة أو منشور المسابقة الفخم الذي تود بثه علناً داخل القناة لكي نصنع زر الاشتراك أسفله:")
+            bot.reply_to(message, "✅ كفو! تم التحقق من هويتك كمسؤول والتقاط القناة بنجاح! 🚀\n\n📝 الحين ارسل لي نص رسالة أو منشور المسابقة الفخم الذي تود بثه داخل القناة لكي نصنع زر الاشتراك أسفله:")
         except Exception as e:
-            bot.reply_to(message, "⚠️ تنبيه سريع: تأكد من إضافة البوت كمشرف أولاً داخل قناتك المستهدفة، ومن صحة المعرف، ثم ارسله مجدداً هنا:")
+            bot.reply_to(message, f"⚠️ لم أستطع فحص القناة! تأكد من إضافة البوت كمشرف أولاً داخل قناتك المحددة، ومن صحة المعرف المكتوب!\n\n🔍 الخطأ الفني: {e}")
         return
 
     elif current_step == "get_contest_text":
@@ -336,7 +339,7 @@ def process_contest_creation_steps(message):
         creator_id = state["creator_id"]
         group_chat_id = state["group_chat_id"]
         
-        # 🔑 كسر الفخ وقيد الـ 64 بايت لتليجرام: نربط المسابقة بمفتاح ثابت وقصير "live" دائماً لحمايتها!
+        # 🔑 كسر قيد الـ 64 بايت لتليجرام: نربط المسابقة بمفتاح ثابت وقصير "live" دائماً لحمايتها من العبث!
         inline_markup = telebot.types.InlineKeyboardMarkup()
         btn_subscribe = telebot.types.InlineKeyboardButton("🎯 زر الاشتراك في الفعالية 🎯", callback_data="join_live")
         inline_markup.add(btn_subscribe)
@@ -353,7 +356,7 @@ def process_contest_creation_steps(message):
         try:
             deployed_msg = bot.send_message(chat_id=target_channel, text=full_post_text, reply_markup=inline_markup)
             
-            # حفر المسابقة تحت المفتاح الرقمي "live" ليتطابق بالملي مع ضغطة الزر الفورية الحين
+            # حفر المسابقة تحت المفتاح الموحد "live" ليتطابق مع ضغطة زر المشتركين كلياً
             channel_contests["live"] = {
                 "config": {
                     "status": "active",
@@ -363,11 +366,11 @@ def process_contest_creation_steps(message):
                     "custom_alert": custom_alert,
                     "include_username": include_username
                 },
-                "registered_users": list() if 'mongo_collection' in globals() else set(),
+                "registered_users": set(),
                 "participants": {}
             }
             
-            # تخزين فوري بالملف النصي JSON لحفظ ثبات الفعالية تماماً
+            # تخزين فوري بالملف النصي JSON لحفظ ثبات الفعالية تماماً ضد الريستارت لأسابيع
             save_contests_to_storage()
             
             bot.send_message(message.chat.id, "🚀 مياووو! تم تفجير وإطلاق المسابقة بنجاح باهر داخل قناتك الحين!\n\nالبيانات محفورة في صخر ملف الـ JSON ولن تختفي مطلقاً بمسح الكاش، والتحكم بالفرز محصور عبر أمر /end الحاسم! انطلقوا! 🔥🐾", reply_markup=hide_markup)
@@ -376,6 +379,7 @@ def process_contest_creation_steps(message):
             bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
             user_states.pop(user_id, None)
         return
+
 
 # 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي وقفل التكرار الحازم
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
