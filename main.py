@@ -441,111 +441,65 @@ def handle_customize_username_and_broadcast(call):
 # 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي للعدالة الشاملة وقفل التكرار الحازم
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
 def handle_user_subscription(call):
-    channel_id = call.data.replace("join_", "")
-    user_id = call.from_user.id
-    username = call.from_user.username
-    first_name = call.from_user.first_name
+    """حارس الاشتراك الصامت المطور: يكسر تعليق التحميل فوراً ويمنع الغش والتكرار بنافذة Alert منبثقة"""
+    # 1. إغلاق لمبة التحميل الدائرية المزعجة فوراً في أول جزء من الثانية لمنع التعليق
+    bot.answer_callback_query(call.id)
     
-    try: channel_id = int(channel_id)
-    except ValueError: pass
-        
-    if channel_id not in channel_contests:
-        bot.answer_callback_query(call.id, text="❌ عذراً، لا توجد مسابقة نشطة مسجلة لهذه القناة حالياً.", show_alert=True)
-        return
-        
-    contest_node = channel_contests[channel_id]
-    
-    if "processed_users" not in contest_node:
-        contest_node["processed_users"] = set()
-
-
-    if user_id in contest_node["processed_users"]:
-        bot.answer_callback_query(call.id, text="عذراً، أنت مسجل في هذه الفعالية بالفعل ولا يمكنك الاشتراك مرتين! 🐾", show_alert=True)
-        return
-        
-    contest_node["processed_users"].add(user_id)
-    registered_count = len(contest_node["participants"]) + 1
-    user_mention = f"@{username}" if username else first_name
-    
-    config = contest_node["config"]
-    custom_alert_text = config["custom_alert"]
-    should_attach_user = config["attach_username"]
-    
-    if should_attach_user:
-        final_alert_msg = f"🔥 <b>المتسابق رقم {registered_count}: {user_mention} {custom_alert_text}</b>\n\n⭐ <i>كل نجمة مدفوعة = صوتين | وأي ريأكشن عادي = صوت واحد 🐾</i>"
-    else:
-        final_alert_msg = f"🔥 <b>المتسابق رقم {registered_count}: {custom_alert_text}</b>\n\n⭐ <i>كل نجمة مدفوعة = صوتين | وأي ريأكشن عادي = صوت واحد 🐾</i>"
-        
     try:
-        vote_msg = bot.send_message(chat_id=channel_id, text=final_alert_msg, parse_mode="HTML")
-        contest_node["participants"][vote_msg.message_id] = {
-            "user_id": user_id,
-            "mention": user_mention,
-            "votes": 0,
-            "voted_users": [] 
-        }
-        save_contests_to_storage() 
-        bot.answer_callback_query(call.id, text="🎉 تم تسجيل انضمامك بنجاح وبث رسالة تصويتك المخصصة داخل القناة! انطلق! 🚀", show_alert=False)
-    except Exception:
-        bot.answer_callback_query(call.id, text="⚠️ فشل بث رسالة تصويتك، تأكد من صلاحيات البوت الإدارية بالقناة أولاً.", show_alert=True)
-# 🔍 تتبع التفاعلات وحساب الأصوات آلياً بنظام النجوم المفتوحة وصوت مجاني واحد للجميع بالتثبيت البصمي
-@bot.message_reaction_handler()
-def handle_contest_reactions(message_reaction):
-    chat_id = message_reaction.chat.id
-    message_id = message_reaction.message_id
+        group_chat_id = int(call.data.split("_"))
+    except:
+        bot.answer_callback_query(call.id, text="⚠️ خطأ في قراءة بيانات مفتاح الفعالية!", show_alert=True)
+        return
+        
+    if group_chat_id not in channel_contests:
+        bot.answer_callback_query(call.id, text="⚠️ عذراً، لا توجد مسابقة نشطة حالياً مخصصة لهذا المفتاح!", show_alert=True)
+        return
+        
+    contest = channel_contests[group_chat_id]
+    user_id = call.from_user.id
+    target_channel = contest["config"]["target_channel"]
     
-    try: chat_id = int(chat_id)
-    except ValueError: pass
+    # 🛡️ 2. الفخ الفولاذي: التحقق من سجل المسجلين وقذف الشاشة المنبثقة (Alert) قسرياً لمنع التكرار
+    if user_id in contest.get("registered_users", set()):
+        # السحر هنا في تفعيل show_alert=True لقذف النافذة الصغيرة المنبثقة في وجه المشترك!
+        bot.answer_callback_query(call.id, text="❌ أوه يا غالي! عذراً، أنت موجود بالمسابقة بالفعل ومستحيل تشترك مرتين! 🐾", show_alert=True)
+        return
+        
+     # بناء هوية ومناداة المتسابق الجديد
+    first_name = call.from_user.first_name
+    username = call.from_user.username
     
-    if channel_id := next((ch for ch in channel_contests if int(ch) == int(chat_id)), None):
-        if message_id in channel_contests[channel_id]["participants"]:
-            competitor = channel_contests[channel_id]["participants"][message_id]
-            voter_id = message_reaction.user.id if message_reaction.user else None
-            
-            if not voter_id: return
+    if contest["config"]["include_username"] and username:
+        user_mention = f"{first_name} (@{username})"
+    else:
+        user_mention = f"{first_name}"
+        
+    # جلب نص المنشئ المخصص بالكامل أو استخدام صيغة افتراضية نظيفة إذا لم يكتب شيئاً
+    custom_alert = contest["config"]["custom_alert"]
+    if custom_alert:
+        # هنا البوت يطبع نص المنشئ من الصفر ويلصق بأسفله اسم المتسابق فقط!
+        final_alert_msg = f"{custom_alert}\n\n👤 المتسابق: {user_mention}"
+    else:
+        final_alert_msg = f"🎯 متسابق جديد انضم للمسابق الحين:\n\n👤 الحساب: {user_mention}"
 
-
-            paid_stars_count = 0
-            if message_reaction.new_reaction:
-                for r in message_reaction.new_reaction:
-                    if getattr(r, 'type', None) == 'paid':
-                        paid_stars_count += getattr(r, 'count', 1)
-            competitor["votes"] += (paid_stars_count * 2)
-
-
-            has_regular_reaction = False
-            if message_reaction.new_reaction:
-                for r in message_reaction.new_reaction:
-                    if getattr(r, 'type', None) != 'paid':
-                        has_regular_reaction = True
-                        break
-
-
-            if has_regular_reaction:
-                if "voted_users" not in competitor: competitor["voted_users"] = []
-                if voter_id not in competitor["voted_users"]:
-                    competitor["voted_users"].append(voter_id)
-                    competitor["votes"] += 1
-
-
-            save_contests_to_storage() 
-
-
-            if competitor["votes"] >= 1000:
-                alert_text = (
-                    f"🚨 <b>تنبيه حامي شركس السحابي لحفظ التقدم!</b> 🚨\n\n"
-                    f"🔥 المتسابق الفخم: {competitor['mention']} حرق العداد ووصل لحد الذاكرة المؤقتة المسموح!\n"
-                    f"⭐️ <b>حصد حالياً:</b> <code>1000</code> صوت من النجوم والتفاعلات الحية.\n\n"
-                    f"💬 <b>البوت بيقولكم:</b>\n"
-                    f"<i>\"أوف تعبت يرحم أبوك هدي ههههه.. فلان حصل 1000 نجمة يعني 2000 صوت رجاءً من المشرفين التثبيت!\"</i> 😾💨\n\n"
-                    f"📌 <b>يا أدمنز يا فخمين:</b> ثبتوا هذه الرسالة فوراً لتوثيق نقاطه بسلام!\n"
-                    f"🫧 <i>تم تصفير عداد الذاكرة للمتسابق لتخفيف الحمل عن الـ CPU ومتابعة صعود الحماس بأمان!</i>"
-                )
-                try: bot.send_message(chat_id=channel_id, text=alert_text, parse_mode="HTML")
-                except Exception: pass
-                competitor["votes"] = competitor["votes"] % 1000
-                save_contests_to_storage()
-
+    try:
+        # بث الرسالة فوراً داخل قناتك ليراها الجميع علناً وينشر اسم المشترك
+        vote_msg = bot.send_message(chat_id=target_channel, text=final_alert_msg)
+        
+        # حفر وتثبيت بصمة المشترك لمنع غش التكرار للأبد
+        if "registered_users" not in contest: contest["registered_users"] = set()
+        if "participants" not in contest: contest["participants"] = {}
+        
+        contest["registered_users"].add(user_id)
+        contest["participants"][vote_msg.message_id] = {"user_id": user_id, "name": first_name}
+        
+        # ترحيل سحابي فوري وموفر للمساحة لقائمة المسجلين فقط لحمايتها ضد الريستارت
+        save_contests_to_storage()
+        
+        # نافذة منبثقة تفرح المشترك بنجاح تسجيله
+        bot.answer_callback_query(call.id, text="🎉 كفو! تم تسجيل انضمامك بنجاح وبث منشور تصويتك داخل القناة الحين! 🚀", show_alert=True)
+    except Exception as e:
+        bot.answer_callback_query(call.id, text=f"⚠️ عذراً، فشل بث رسالتك بالقناة: {e}", show_alert=True)
 
 # 🏁 أمر إطلاق واجهة استقبال الفرز والإنهاء للآدمنز المسؤولين
 @bot.message_handler(commands=['end'])
