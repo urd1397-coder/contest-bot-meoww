@@ -394,8 +394,8 @@ def process_contest_creation_steps(message):
         return
 
 
-            bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
-            user_states.pop(user_id, None)
+          bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
+          user_states.pop(user_id, None)
         return
 # 🧱 ========================================== 🧱
 # دالة معالجة ضغطة زر الاشتراك المصلحة لحل مشكلة التعليق ونشر الاسم فوراً
