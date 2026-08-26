@@ -369,7 +369,9 @@ def process_contest_creation_steps(message):
         
         full_post_text = contest_text + example_footer
         
+              try:
             deployed_msg = bot.send_message(chat_id=target_channel, text=full_post_text, reply_markup=inline_markup)
+            
             channel_contests[group_chat_id] = {
                 "config": {
                     "status": "active",
@@ -385,9 +387,13 @@ def process_contest_creation_steps(message):
             
             save_contests_to_storage()
             
-            bot.send_message(message.chat.id, "🚀 **مياووو! تم تفجير وإطلاق المسابقة بنجاح باهر داخل قناتك الحين!**\n\nالبيانات محفورة في صخر السحاب ولن تختفي مطلقاً بمسح الكاش، والتحكم بالفرز محصور لك وللمشرفين فقط عبر أمر `/end` الحاسم عند النهاية! انطلقوا! 🔥🐾", reply_markup=hide_markup)
+            bot.send_message(message.chat.id, "🚀 **مياووو! تم تفجير وإطلاق المسابقة بنجاح باهر داخل قناتك الحين!**\n\nالبيانات محفورة في صخر السحاب ولن تختفي مطلقاً بمسح الكاش، والتحكم بالفرز محصور لك وللمشرفين فقط عبر أمر `/end` الحاسم عند النهاية! انطلقوا! 🔥🐾")
             user_states.pop(user_id, None)
         except Exception as e:
+            bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}")
+            user_states.pop(user_id, None)
+        return
+
             bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
             user_states.pop(user_id, None)
         return
