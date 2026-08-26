@@ -249,7 +249,7 @@ user_states = {}
 
 @bot.message_handler(commands=['create'])
 def cmd_create_contest(message):
-    """الخطوة 0: فتح مرشد شركس التفاعلي فوراً والبدء بحيوية"""
+    """الخطوة 0: فتح مرشد شركس التفاعلي فوراً لجميع المستخدمين بدون حظر مسبق"""
     user_id = message.from_user.id
     chat_id = message.chat.id
 
@@ -268,24 +268,25 @@ def process_contest_creation_steps(message):
     """المعالج المتتالي لاستلام معطيات المنشئ خطوة بخطوة بنصوص حيوية"""
     user_id = message.from_user.id
     state = user_states[user_id]
-      current_step = state["step"]
-  input_text = message.text.strip() if message.text else ""
+    current_step = state["step"]
+    input_text = message.text.strip() if message.text else ""
 
-    # 🛑 حل المشكلة 3: خيار إلغاء العملية فوراً وبشكل قاطع ومنع التداخل
+    # 🛑 خطوة 271 المؤمنة والموزونة بالـ Tab الشرعي لمنع الـ unindent تماماً
     if input_text.lower() in ["/cancel", "إلغاء"] or message.text == "إلغاء":
         user_states.pop(user_id, None)
         hide_markup = telebot.types.ReplyKeyboardRemove()
         bot.send_message(message.chat.id, "⚙️ **تم إلغاء خطوات إنشاء المسابقة بطلبك، وتطهير غرف التجهيز بسلام كامل!**", reply_markup=hide_markup)
         return
 
-    # 📡 حل المشكلة 1: استلام المعرف ذكياً (سواء بالتوجيه الصريح أو الكتابة النصية)
+    # 📡 الخطوة 1: استلام المعرف ذكياً (سواء بالتوجيه الصريح، أو توجيه رسالة عادية، أو كتابة نصية)
     if current_step == "get_channel_target":
         target_channel = None
         
-        # 1. التقاط إذا كان التوجيه من قناة عامة صريحة
         if message.forward_from_chat:
             target_channel = message.forward_from_chat.id
-        # 2. الاعتماد على النص المكتوب مباشرة من المستخدم
+        elif message.forward_signature or message.forward_sender_name:
+            bot.reply_to(message, "⚠️ **تنبيه:** لم أستطع قراءة آيدي القناة من هذا التوجيه لأن الرسالة غير موثقة كقناة! يرجى كتابة معرف القناة يدوياً (مثل: @name):")
+            return
         else:
             if not input_text:
                 bot.reply_to(message, "❌ يرجى إرسال معرف قناة أو آيدي صحيح:")
@@ -293,26 +294,24 @@ def process_contest_creation_steps(message):
             target_channel = input_text
 
         try:
-            # تحويل النص لآيدي رقمي إذا كان يبدأ بـ سالب أو أرقام
             if str(target_channel).replace('-', '').isdigit():
                 cleaned_channel = int(target_channel)
             else:
                 cleaned_channel = target_channel if str(target_channel).startswith('@') else f"@{target_channel}"
             
-            # 🔒 جدار حماية الصلاحيات الحقيقي: الفحص داخل القناة المستهدفة بالذات رداً على طلبك!
             member_status = bot.get_chat_member(cleaned_channel, user_id).status
             if member_status not in ['administrator', 'creator']:
                 bot.reply_to(message, "❌ **أوه يا غالي! عذراً، تبين لي أنك لست مشرفاً أو مسؤولاً داخل هذه القناة المحددة! هالبوابة محصورة فقط للآدمنز المؤهلين للتحكم بالفعالية!** 🐾")
-                user_states.pop(user_id, None) # طرده وتطهير حالته فوراً
+                user_states.pop(user_id, None)
                 return
                 
-            # تثبيت المعرف والانتقال للسؤال التالي
             state["target_channel"] = cleaned_channel
             state["step"] = "get_contest_text"
             bot.reply_to(message, "✅ **كفو! تم التحقق من هويتك كمسؤول، والتقاط القناة بنجاح ساحق!** 🚀\n\n📝 الحين ارسل لي **نص رسالة أو منشور المسابقة** الفخم الذي تود بثه علناً داخل القناة لكي نصنع زر الاشتراك أسفله:")
         except Exception as e:
             bot.reply_to(message, "⚠️ **تنبيه سريع:** لم أستطع الوصول للقناة! تأكد من إضافة البوت كمشرف أولاً داخل قناتك المستهدفة، ومن صحة المعرف، ثم ارسل المعرف مجدداً هنا:")
         return
+
     elif current_step == "get_contest_text":
         if not message.text:
             bot.reply_to(message, "❌ **يرجى إرسال نص برمي واضح للمسابقة يا بطل!**")
@@ -369,7 +368,7 @@ def process_contest_creation_steps(message):
         
         full_post_text = contest_text + example_footer
         
-                  try:
+        try:
             deployed_msg = bot.send_message(chat_id=target_channel, text=full_post_text, reply_markup=inline_markup)
             
             channel_contests[group_chat_id] = {
@@ -393,6 +392,7 @@ def process_contest_creation_steps(message):
             bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}")
             user_states.pop(user_id, None)
         return
+
 
             bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
             user_states.pop(user_id, None)
