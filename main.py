@@ -101,7 +101,7 @@ def load_contests_from_storage():
 # استدعاء فوري صخري لتلقيم الكود بالذاكرة بمجرد نهوض السيرفر
 load_contests_from_storage()
 
-        if mongo_collection is not None:
+     if mongo_collection is not None:
             all_docs = mongo_collection.find()
             for doc in all_docs:
                 ch_id = int(doc["channel_id"])
