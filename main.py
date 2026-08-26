@@ -271,7 +271,7 @@ def process_contest_creation_steps(message):
     current_step = state["step"]
     input_text = message.text.strip() if message.text else ""
 
-    # 🛑 خطوة 271 المؤمنة والموزونة بالـ Tab الشرعي لمنع الـ unindent تماماً
+    # 🛑 خيار إلغاء العملية فوراً وبشكل قاطع في أي خطوة ومنع التداخل
     if input_text.lower() in ["/cancel", "إلغاء"] or message.text == "إلغاء":
         user_states.pop(user_id, None)
         hide_markup = telebot.types.ReplyKeyboardRemove()
@@ -393,16 +393,10 @@ def process_contest_creation_steps(message):
             user_states.pop(user_id, None)
         return
 
-
-          bot.send_message(message.chat.id, f"❌ خطأ حرج أثناء بث المنشور للقناة: {e}", reply_markup=hide_markup)
-          user_states.pop(user_id, None)
-        return
 # 🧱 ========================================== 🧱
-# دالة معالجة ضغطة زر الاشتراك المصلحة لحل مشكلة التعليق ونشر الاسم فوراً
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
 def handle_user_subscription(call):
     """حارس الاشتراك الصامت المطور: يكسر تعليق التحميل فوراً وينشر رسالة المتسابق بانتظام"""
-    # 1. كسر وإغلاق لمبة التحميل الدائرية في أول جزء من الثانية لمنع التعليق
     bot.answer_callback_query(call.id)
     
     try:
@@ -419,22 +413,18 @@ def handle_user_subscription(call):
     user_id = call.from_user.id
     target_channel = contest["config"]["target_channel"]
     
-    # 🛡️ التحقق من منع تكرار الاشتراك بـ نافذة صغيرة (Alert) قسرية مئة بالمئة!
     if user_id in contest.get("registered_users", set()):
         bot.answer_callback_query(call.id, text="❌ أنت موجود بالمسابقة بالفعل ومستحيل تشترك مرتين! 🐾", show_alert=True)
         return
         
-    # بناء نص رسالة المتسابق حسب خيارات المنشئ الحيوية (سواء بالاسم أو اليوزر نيم)
     first_name = call.from_user.first_name
     username = call.from_user.username
     
-    # مناداة الهوية حسب خيار المنشئ
     if contest["config"]["include_username"] and username:
         user_mention = f"[{first_name}](tg://user?id={user_id}) (@{username})"
     else:
         user_mention = f"[{first_name}](tg://user?id={user_id})"
         
-    # جلب نص التنبيه المخصص أو استخدام النص الافتراضي الحيوي لشركس
     custom_alert = contest["config"]["custom_alert"]
     if custom_alert:
         final_alert_msg = f"🎯 **{custom_alert}**\n\n👤 المتسابق البطل: {user_mention}"
@@ -442,125 +432,20 @@ def handle_user_subscription(call):
         final_alert_msg = f"🎯 **منشور تصويت جديد لإنعاش الساحة!**\n\n👤 صوّتوا للحساب الموثق: {user_mention}\n\n💡 _👍 الريأكشن العادي صوت واحد | ⭐ الريأكشن المدفوع بصوتين! انطلقوا!_ 🔥🐾"
         
     try:
-        # بث الرسالة فوراً داخل القناة ليراها الجميع علناً وينشر اسم المشترك
         vote_msg = bot.send_message(chat_id=target_channel, text=final_alert_msg, parse_mode="Markdown")
         
-        # حفر وتثبيت المشترك في جدول الحراسة لمنع الغش والتكرار للأبد
         if "registered_users" not in contest: contest["registered_users"] = set()
         if "participants" not in contest: contest["participants"] = {}
         
         contest["registered_users"].add(user_id)
         contest["participants"][vote_msg.message_id] = {"user_id": user_id, "name": first_name}
         
-        # مزامنة سحابية فورية لقائمة المسجلين فقط لحمايتها ضد الفرمتة العظمى
         save_contests_to_storage()
         
         bot.answer_callback_query(call.id, text="🎉 كفو! تم تسجيل انضمامك بنجاح وبث منشور تصويتك داخل القناة الحين! 🚀", show_alert=True)
     except Exception as e:
         bot.answer_callback_query(call.id, text=f"⚠️ عذراً، فشل بث رسالتك بالقناة: {e}", show_alert=True)
 
-
-# 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي للعدالة الشاملة وقفل التكرار الحازم
-@bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
-def handle_user_subscription(call):
-    channel_id = call.data.replace("join_", "")
-    user_id = call.from_user.id
-    username = call.from_user.username
-    first_name = call.from_user.first_name
-    
-    try: channel_id = int(channel_id)
-    except ValueError: pass
-        
-    if channel_id not in channel_contests:
-        bot.answer_callback_query(call.id, text="❌ عذراً، لا توجد مسابقة نشطة مسجلة لهذه القناة حالياً.", show_alert=True)
-        return
-        
-    contest_node = channel_contests[channel_id]
-    
-    if "processed_users" not in contest_node:
-        contest_node["processed_users"] = set()
-
-    if user_id in contest_node["processed_users"]:
-        bot.answer_callback_query(call.id, text="عذراً، أنت مسجل في هذه الفعالية بالفعل ولا يمكنك الاشتراك مرتين! 🐾", show_alert=True)
-        return
-        
-    contest_node["processed_users"].add(user_id)
-    registered_count = len(contest_node["participants"]) + 1
-    user_mention = f"@{username}" if username else first_name
-    
-    config = contest_node["config"]
-    custom_alert_text = config["custom_alert"]
-    should_attach_user = config["attach_username"]
-    
-    if should_attach_user:
-        final_alert_msg = f"🔥 <b>المتسابق رقم {registered_count}: {user_mention} {custom_alert_text}</b>\n\n⭐ <i>كل نجمة مدفوعة = صوتين | وأي ريأكشن عادي = صوت واحد 🐾</i>"
-    else:
-        final_alert_msg = f"🔥 <b>المتسابق رقم {registered_count}: {custom_alert_text}</b>\n\n⭐ <i>كل نجمة مدفوعة = صوتين | وأي ريأكشن عادي = صوت واحد 🐾</i>"
-        
-    try:
-        vote_msg = bot.send_message(chat_id=channel_id, text=final_alert_msg, parse_mode="HTML")
-        contest_node["participants"][vote_msg.message_id] = {
-            "user_id": user_id,
-            "mention": user_mention,
-            "votes": 0,
-            "voted_users": [] 
-        }
-        save_contests_to_storage() 
-        bot.answer_callback_query(call.id, text="🎉 تم تسجيل انضمامك بنجاح وبث رسالة تصويتك المخصصة داخل القناة! انطلق! 🚀", show_alert=False)
-    except Exception:
-        bot.answer_callback_query(call.id, text="⚠️ فشل بث رسالة تصويتك، تأكد من صلاحيات البوت الإدارية بالقناة أولاً.", show_alert=True)
-# 🔍 تتبع التفاعلات وحساب الأصوات آلياً بنظام النجوم المفتوحة وصوت مجاني واحد للجميع بالتثبيت البصمي
-@bot.message_reaction_handler()
-def handle_contest_reactions(message_reaction):
-    chat_id = message_reaction.chat.id
-    message_id = message_reaction.message_id
-    
-    try: chat_id = int(chat_id)
-    except ValueError: pass
-    
-    if channel_id := next((ch for ch in channel_contests if int(ch) == int(chat_id)), None):
-        if message_id in channel_contests[channel_id]["participants"]:
-            competitor = channel_contests[channel_id]["participants"][message_id]
-            voter_id = message_reaction.user.id if message_reaction.user else None
-            
-            if not voter_id: return
-
-            paid_stars_count = 0
-            if message_reaction.new_reaction:
-                for r in message_reaction.new_reaction:
-                    if getattr(r, 'type', None) == 'paid':
-                        paid_stars_count += getattr(r, 'count', 1)
-            competitor["votes"] += (paid_stars_count * 2)
-
-            has_regular_reaction = False
-            if message_reaction.new_reaction:
-                for r in message_reaction.new_reaction:
-                    if getattr(r, 'type', None) != 'paid':
-                        has_regular_reaction = True
-                        break
-
-            if has_regular_reaction:
-                if "voted_users" not in competitor: competitor["voted_users"] = []
-                if voter_id not in competitor["voted_users"]:
-                    competitor["voted_users"].append(voter_id)
-                    competitor["votes"] += 1
-
-            save_contests_to_storage() 
-
-            if competitor["votes"] >= 1000:
-                alert_text = (
-                    f"🚨 <b>تنبيه حامي شركس السحابي لحفظ التقدم!</b> 🚨\n\n"
-                    f"🔥 المتسابق الفخم: {competitor['mention']} حرق العداد ووصل لحد الذاكرة المؤقتة المسموح!\n"
-                    f"⭐️ <b>حصد حالياً:</b> <code>1000</code> صوت من النجوم والتفاعلات الحية.\n\n"
-                    f"💬 <b>البوت بيقولكم:</b>\n"
-                    f"<i>\"أوف تعبت يرحم أبوك هدي ههههه.. فلان حصل 1000 نجمة يعني 2000 صوت رجاءً من المشرفين التثبيت!\"</i> 😾💨\n\n"
-                    f"📌 <b>يا أدمنز يا فخمين:</b> ثبتوا هذه الرسالة فوراً لتوثيق نقاطه بسلام!\n"
-                    f"🫧 <i>تم تصفير عداد الذاكرة للمتسابق لتخفيف الحمل عن الـ CPU ومتابعة صعود الحماس بأمان!</i>"
-                )
-                try: bot.send_message(chat_id=channel_id, text=alert_text, parse_mode="HTML")
-                except Exception: pass
-                competitor["votes"] = competitor["votes"] % 1000
-                save_contests_to_storage()
 
 # 🏁 أمر إطلاق واجهة استقبال الفرز والإنهاء للآدمنز المسؤولين
 @bot.message_handler(commands=['end'])
