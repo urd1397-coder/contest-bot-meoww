@@ -583,4 +583,12 @@ def finalize_contest_results(message, channel_id, requested_winners, input_text,
 if __name__ == '__main__':
     threading.Thread(target=run_web_server, daemon=True).start()
     print("جاري فتح المنافذ وتشغيل شركس بنمط الاستماع المباشر الصافي المطور...")
-    bot.infinity_polling()
+    # التشغيل الفولاذي المقيد للأخطاء لمنع الاصطدام والتصادم الدوري في ريندر
+if __name__ == "__main__":
+    import time
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=60, long_polling_timeout=60)
+        except Exception as e:
+            print(f"⚠️ خطأ مؤقت في الاتصال، إعادة المحاولة خلال 5 ثوانٍ... {e}")
+            time.sleep(5)
