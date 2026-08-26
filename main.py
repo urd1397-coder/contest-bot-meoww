@@ -101,22 +101,6 @@ def load_contests_from_storage():
 # استدعاء فوري صخري لتلقيم الكود بالذاكرة بمجرد نهوض السيرفر
 load_contests_from_storage()
 
-     if mongo_collection is not None:
-            all_docs = mongo_collection.find()
-            for doc in all_docs:
-                ch_id = int(doc["channel_id"])
-                channel_contests[ch_id] = {
-                    "config": doc["config"],
-                    "participants": {int(msg_id): p_data for msg_id, p_data in doc["participants"].items()},
-                    "processed_users": set(doc.get("processed_users", []))
-                }
-            print("📦 تم استرجاع كافة فعاليات ومسابقات وأصوات شركس من الخزنة الخارجية بنجاح!")
-    except Exception as e:
-        print(f"خطأ أثناء استرجاع الحفظ السحابي: {e}")
-
-# استدعاء فوري لاسترجاع البيانات المخزنة من الكلاود فور إقلاع السيرفر من جديد
-load_contests_from_storage()
-
 # =========================================================================
 # 🌐 خادم الويب (Web Server) الصامت لفتح المنفذ وإرضاء فحص ريندر الأمني وحل المشكلة
 class MyServer(BaseHTTPRequestHandler):
