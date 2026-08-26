@@ -261,7 +261,7 @@ def cmd_create_contest(message):
         "يسعدني جداً وبكل حماس بدء مسابقة جديدة تحت إشرافك، لكن لكي نربط البوابات أحتاج أولاً **معرف القناة أو آيدي القناة المستهدفة**! 📡\n\n"
         "💡 _ارسل لي معرف قناتك المسبوق بـ @ (مثل @channel_name) أو الآيدي الرقمي تبعه.. أو ببساطة وجه لي أي منشور أو رسالة من القناة الحين وأنا سأتولى قشط المعرف وتأمين الاتصال بالباقي كلياً!_ 👇"
     )
-    bot.reply_to(message, guide_msg, parse_mode="Markdown")
+       bot.reply_to(message, guide_msg)
 
 @bot.message_handler(func=lambda msg: msg.from_user.id in user_states)
 def process_contest_creation_steps(message):
