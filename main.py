@@ -44,26 +44,63 @@ if HAS_MONGO and MONGO_URI:
         print(f"⚠️ فشل الاتصال بخزنة MongoDB، سيتم استخدام الذاكرة المؤقتة: {e}")
 
 def save_contests_to_storage():
+    """ترحيل فوري وصهر شامل يحول كافة المفاتيح الرقمية إلى نصوص لإرضاء قاعدة البيانات"""
     try:
         if mongo_collection is not None:
-            # صهر البيانات السحابية وتحديثها فوراً في الخزنة الخارجية الدائمة
             for ch_id, c_data in channel_contests.items():
+                # تحويل مفاتيح المتسابقين (الـ message_id) إلى نصوص لتقبلها سحابة MongoDB بسلام
+                stringified_participants = {
+                    str(msg_id): p_data for msg_id, p_data in c_data["participants"].items()
+                }
+                
+                processed_list = list(c_data.get("processed_users", set()))
+                
                 serializable_data = {
                     "config": c_data["config"],
-                    "participants": c_data["participants"],
-                    "processed_users": list(c_data.get("processed_users", set()))
+                    "participants": stringified_participants,
+                    "processed_users": processed_list
                 }
+                
                 mongo_collection.update_one(
                     {"channel_id": str(ch_id)},
                     {"$set": serializable_data},
                     upsert=True
                 )
     except Exception as e:
-        print(f"خطأ أثناء الحفظ السحابي الدائم: {e}")
+        print(f"❌ خطأ حرج أثناء الترحيل الفوري للسحاب: {e}")
 
 def load_contests_from_storage():
+    """الاسترجاع السحابي الفولاذي وإعادة تحويل كافة النصوص إلى أرقام (int) إجبارياً بعد الريستارت"""
     global channel_contests
     try:
+        if mongo_collection is not None:
+            all_docs = mongo_collection.find()
+            loaded_count = 0
+            for doc in all_docs:
+                ch_id = int(doc["channel_id"])
+                
+                # المعجزة هنا: تحويل الـ message_id المسترجع من نص إلى رقم (int) ليفهمه كود شركس فوراً
+                restored_participants = {}
+                if "participants" in doc:
+                    for msg_id_str, p_data in doc["participants"].items():
+                        restored_participants[int(msg_id_str)] = p_data
+                
+                processed_set = set(doc.get("processed_users", []))
+                
+                channel_contests[ch_id] = {
+                    "config": doc["config"],
+                    "participants": restored_participants,
+                    "processed_users": processed_set
+                }
+                loaded_count += 1
+            if loaded_count > 0:
+                print(f"📦 نجاح ساحق: تم إعادة شحن {loaded_count} مسابقة من السحاب وتحويل بياناتها بنجاح!")
+    except Exception as e:
+        print(f"❌ خطأ حرج أثناء استرجاع البيانات عند الإقلاع: {e}")
+
+# استدعاء فوري صخري لتلقيم الكود بالذاكرة بمجرد نهوض السيرفر
+load_contests_from_storage()
+
         if mongo_collection is not None:
             all_docs = mongo_collection.find()
             for doc in all_docs:
