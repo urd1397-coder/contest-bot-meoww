@@ -51,52 +51,70 @@ if HAS_MONGO and MONGO_URI:
     except Exception as e:
         print(f"⚠️ فشل الاتصال بخزنة MongoDB، سيتم استخدام الذاكرة المؤقتة: {e}")
 
+# ==============================================================================
+# 🌐 [المحرك السحابي المطور لشركس الحارس الصامت]
+from pymongo import MongoClient
+
+MONGO_URI = os.getenv("MONGO_URI")
+mongo_db = None
+mongo_collection = None
+
+if MONGO_URI:
+    try:
+        cleaned_uri = MONGO_URI.strip().replace('"', '').replace("'", "")
+        client = MongoClient(cleaned_uri)
+        mongo_db = client["cherkes_database"]
+        mongo_collection = mongo_db["contests"]
+        print("🌐 [سحابي] تم تفعيل نفق الحراسة السحابي بنجاح صخر!")
+    except Exception as e:
+        print(f"⚠️ فشل الاتصال بالسحاب: {e}")
 
 def save_contests_to_storage():
-    """ترحيل فوري وصهر شامل يحول كافة المفاتيح الرقمية إلى نصوص لإرضاء قاعدة البيانات"""
+    """المعالج السحابي المطور: تحويل قسري لمعرفات القنوات لنصوص لتقبلها سحابة MongoDB فوراً"""
     try:
         if mongo_collection is not None:
             for ch_id, c_data in channel_contests.items():
-                # تحويل مفاتيح المتسابقين (الـ message_id) إلى نصوص لتقبلها سحابة MongoDB بسلام
-                stringified_participants = {
-                    str(msg_id): p_data for msg_id, p_data in c_data["participants"].items()
-                }
+                str_channel_id = str(ch_id).strip()
+                stringified_participants = {}
+                if "participants" in c_data:
+                    for msg_id, p_data in c_data["participants"].items():
+                        stringified_participants[str(msg_id)] = p_data
                 
                 processed_list = list(c_data.get("processed_users", set()))
-                
                 serializable_data = {
                     "config": c_data["config"],
                     "participants": stringified_participants,
                     "processed_users": processed_list
                 }
-                
                 mongo_collection.update_one(
-                    {"channel_id": str(ch_id)},
+                    {"channel_id": str_channel_id},
                     {"$set": serializable_data},
                     upsert=True
                 )
+            print("💾 [سحابي] تم ترحيل وحفظ لقطة الفعالية الحية في MongoDB بنجاح!")
     except Exception as e:
         print(f"❌ خطأ حرج أثناء الترحيل الفوري للسحاب: {e}")
 
-
 def load_contests_from_storage():
-    """الاسترجاع السحابي الفولاذي وإعادة تحويل كافة النصوص إلى أرقام (int) إجبارياً بعد الريستارت"""
+    """الاسترجاع الشامل: جلب البيانات وتحويل المعرفات إلى أرقام (int) ليفهمها الكود بعد الريستارت"""
     global channel_contests
     try:
         if mongo_collection is not None:
             all_docs = mongo_collection.find()
             loaded_count = 0
             for doc in all_docs:
-                ch_id = int(doc["channel_id"])
+                raw_ch_id = doc["channel_id"]
+                ch_id = int(raw_ch_id) if raw_ch_id.replace('-', '').isdigit() else raw_ch_id
                 
-                # المعجزة هنا: تحويل الـ message_id المسترجع من نص إلى رقم (int) ليفهمه كود شركس فوراً
                 restored_participants = {}
                 if "participants" in doc:
                     for msg_id_str, p_data in doc["participants"].items():
-                        restored_participants[int(msg_id_str)] = p_data
+                        if msg_id_str.isdigit():
+                            restored_participants[int(msg_id_str)] = p_data
+                        else:
+                            restored_participants[msg_id_str] = p_data
                 
                 processed_set = set(doc.get("processed_users", []))
-                
                 channel_contests[ch_id] = {
                     "config": doc["config"],
                     "participants": restored_participants,
@@ -104,16 +122,14 @@ def load_contests_from_storage():
                 }
                 loaded_count += 1
             if loaded_count > 0:
-                print(f"📦 نجاح ساحق: تم إعادة شحن {loaded_count} مسابقة من السحاب وتحويل بياناتها بنجاح!")
+                print(f"📦 [سحابي] تم شحن {loaded_count} مسابقة من السحاب وتجهيز الذاكرة بنجاح!")
     except Exception as e:
         print(f"❌ خطأ حرج أثناء استرجاع البيانات عند الإقلاع: {e}")
 
-
-# استدعاء فوري صخري لتلقيم الكود بالذاكرة بمجرد نهوض السيرفر
+# تلقيم شحن قائمة الحراسة فوراً عند الإقلاع والنهوض لحمايتها
 load_contests_from_storage()
+# ==============================================================================
 
-
-# =========================================================================
 # 🌐 خادم الويب (Web Server) الصامت لفتح المنفذ وإرضاء فحص ريندر الأمني وحل المشكلة
 class MyServer(BaseHTTPRequestHandler):
     def do_GET(self):
