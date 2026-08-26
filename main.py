@@ -3,7 +3,6 @@ import telebot
 import json
 import time
 import threading
-from pymongo import MongoClient
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -26,110 +25,53 @@ bot = telebot.TeleBot(BOT_TOKEN)
 user_states = {}
 channel_contests = {}
 
-
-# 📡 محرك قاعدة البيانات السحابية الخارجية MongoDB لضمان الدوام لأسابيع وشهور
-try:
-    from pymongo import MongoClient
-    HAS_MONGO = True
-except ImportError:
-    HAS_MONGO = False
-
-
-# 🛠️ قراءة الرابط السري إجبارياً الممرر من إعدادات ريندر
-MONGO_URI = os.getenv("MONGO_URI")
-
-
-# 🔒 تهيئة الاتصال بالخزنة السحابية الخارجية المحمية ضد الحذف
-mongo_db = None
-mongo_collection = None
-
-
-if HAS_MONGO and MONGO_URI:
-    try:
-        client = MongoClient(MONGO_URI)
-        mongo_db = client["cherkes_database"]
-        mongo_collection = mongo_db["contests"]
-        print("🌐 تم الاتصال بنجاح ساحق بخزنة MongoDB السحابية الخارجية الدائمة!")
-    except Exception as e:
-        print(f"⚠️ فشل الاتصال بخزنة MongoDB، سيتم استخدام الذاكرة المؤقتة: {e}")
-
 # ==============================================================================
-# 🌐 [المحرك السحابي المطور لشركس الحارس الصامت]
-from pymongo import MongoClient
-
-MONGO_URI = os.getenv("MONGO_URI")
-mongo_db = None
-mongo_collection = None
-
-if MONGO_URI:
-    try:
-        cleaned_uri = MONGO_URI.strip().replace('"', '').replace("'", "")
-        client = MongoClient(cleaned_uri)
-        mongo_db = client["cherkes_database"]
-        mongo_collection = mongo_db["contests"]
-        print("🌐 [سحابي] تم تفعيل نفق الحراسة السحابي بنجاح صخر!")
-    except Exception as e:
-        print(f"⚠️ فشل الاتصال بالسحاب: {e}")
+# 💾 [المحرك المحلي المطور للحراسة والثبات لأسابيع بملف JSON بمقاييس هندسية]
+DATA_FILE = "contests_data.json"
 
 def save_contests_to_storage():
-    """المعالج السحابي المطور: تحويل قسري لمعرفات القنوات لنصوص لتقبلها سحابة MongoDB فوراً"""
+    """حفر فوري لهوية الفعالية وأسماء المشتركين في ملف نصي ثابت لحمايتها ضد الريستارت"""
     try:
-        if mongo_collection is not None:
-            for ch_id, c_data in channel_contests.items():
-                str_channel_id = str(ch_id).strip()
-                stringified_participants = {}
-                if "participants" in c_data:
-                    for msg_id, p_data in c_data["participants"].items():
-                        stringified_participants[str(msg_id)] = p_data
-                
-                processed_list = list(c_data.get("processed_users", set()))
-                serializable_data = {
-                    "config": c_data["config"],
-                    "participants": stringified_participants,
-                    "processed_users": processed_list
-                }
-                mongo_collection.update_one(
-                    {"channel_id": str_channel_id},
-                    {"$set": serializable_data},
-                    upsert=True
-                )
-            print("💾 [سحابي] تم ترحيل وحفظ لقطة الفعالية الحية في MongoDB بنجاح!")
+        serializable_data = {}
+        for ch_id, c_data in channel_contests.items():
+            # تحويل قائمة المسجلين (set) إلى قائمة عادية ومفاتيح الرسائل لنصوص ليقبل الـ JSON حفظها
+            serializable_data[str(ch_id)] = {
+                "config": c_data["config"],
+                "participants": {str(m_id): p for m_id, p in c_data.get("participants", {}).items()},
+                "registered_users": list(c_data.get("registered_users", []))
+            }
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump(serializable_data, f, ensure_ascii=False, indent=4)
+        print("💾 [محلي] تم حفر لقطة الفعالية بنجاح وثبات كامل في ملف contests_data.json!")
     except Exception as e:
-        print(f"❌ خطأ حرج أثناء الترحيل الفوري للسحاب: {e}")
+        print(f"❌ خطأ أثناء الحفظ المحلي للملف: {e}")
 
 def load_contests_from_storage():
-    """الاسترجاع الشامل: جلب البيانات وتحويل المعرفات إلى أرقام (int) ليفهمها الكود بعد الريستارت"""
+    """استرجاع فوري وتلقيم للذاكرة بمجرد نهوض السيرفر لتبدأ المسابقة من حيث توقفت"""
     global channel_contests
     try:
-        if mongo_collection is not None:
-            all_docs = mongo_collection.find()
-            loaded_count = 0
-            for doc in all_docs:
-                raw_ch_id = doc["channel_id"]
-                ch_id = int(raw_ch_id) if raw_ch_id.replace('-', '').isdigit() else raw_ch_id
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                raw_data = json.load(f)
+            for ch_id_str, c_data in raw_data.items():
+                # إعادة مفتاح القناة رقمياً ليفهمه كود تليجرام
+                ch_id = int(ch_id_str) if ch_id_str.replace('-', '').isdigit() else ch_id_str
                 
-                restored_participants = {}
-                if "participants" in doc:
-                    for msg_id_str, p_data in doc["participants"].items():
-                        if msg_id_str.isdigit():
-                            restored_participants[int(msg_id_str)] = p_data
-                        else:
-                            restored_participants[msg_id_str] = p_data
+                # إعادة أرقام الرسائل إلى صيغة أرقام صحيحة (int) لتتطابق مع الـ msg_id عند الفرز
+                restored_participants = {int(m_id): p for m_id, p in c_data.get("participants", {}).items() if m_id.isdigit()}
                 
-                processed_set = set(doc.get("processed_users", []))
                 channel_contests[ch_id] = {
-                    "config": doc["config"],
+                    "config": c_data["config"],
                     "participants": restored_participants,
-                    "processed_users": processed_set
+                    "registered_users": set(c_data.get("registered_users", []))
                 }
-                loaded_count += 1
-            if loaded_count > 0:
-                print(f"📦 [سحابي] تم شحن {loaded_count} مسابقة من السحاب وتجهيز الذاكرة بنجاح!")
+            print(f"📦 [محلي] تم تفكيك ملف الـ JSON وإعادة شحن {len(channel_contests)} فعالية للذاكرة بنجاح صخر!")
     except Exception as e:
-        print(f"❌ خطأ حرج أثناء استرجاع البيانات عند الإقلاع: {e}")
+        print(f"❌ خطأ أثناء استرجاع الذاكرة من ملف JSON: {e}")
 
-# تلقيم شحن قائمة الحراسة فوراً عند الإقلاع والنهوض لحمايتها
+# استدعاء فوري قسري عند الإقلاع والنهوض لتلقيم البوت بمخازنه
 load_contests_from_storage()
+
 # ==============================================================================
 
 # 🌐 خادم الويب (Web Server) الصامت لفتح المنفذ وإرضاء فحص ريندر الأمني وحل المشكلة
