@@ -3,6 +3,7 @@ import sys
 import logging
 import subprocess
 
+# تثبيت المكتبة فوراً إذا غابت عن السيرفر منعاً لأي خطأ
 try:
     from telegram import Update
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 TEXTS = {
     "ar": {
         "welcome": "👋 أهلاً بك في بوت شركس للمسابقات والفعاليات المفتوحة!\n\nأجب على الاستطلاع أدناه بالضغط على الزر المزين لنبدأ معاً! ✨",
-        "poll_question": "🎭 جاهز لبدء المسابقة？ اضغط على الزر أدناه:",
+        "poll_question": "🎭 جاهز لبدء المسابقة؟ اضغط على الزر أدناه:",
         "poll_option": "✨🚀 اِبدأ الآن | START NOW 🚀✨"
     },
     "en": {
@@ -55,6 +56,7 @@ def main():
         logger.error("خطأ: لم يتم العثور على BOT_TOKEN!")
         return
 
+    # التخزين السحابي المستمر لبيانات شركس لضمان عدم ضياع المسابقات
     bot_persistence = PicklePersistence(filepath="sharkas_data.pickle")
     application = Application.builder().token(TOKEN).persistence(bot_persistence).build()
 
@@ -63,13 +65,13 @@ def main():
 
     logger.info(f"جاري تشغيل البوت وتصفية التحديثات القديمة المعلقة...")
     
-    # هنا أضفنا ميزة مسح الأوامر المتراكمة القديمة فوراً عند التشغيل لمنع التكرار
+    # تشغيل نظيف ومباشر عبر الـ Webhook المتوافق تماماً مع Render وحذف الرسائل المتراكمة السابقة
     application.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         url_path=TOKEN,
         webhook_url=f"{RENDER_EXTERNAL_URL}/{TOKEN}",
-        drop_pending_updates=True # حذف كافة الرسائل السابقة المعلقة في خوادم تليجرام
+        drop_pending_updates=True
     )
 
 if __name__ == '__main__':
