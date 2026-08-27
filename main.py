@@ -1,4 +1,5 @@
 import os
+import certifi
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from aiogram import Bot, Dispatcher, types
@@ -10,11 +11,11 @@ MONGO_URI = os.getenv("MONGO_URI")
 BASE_URL = os.getenv("RENDER_EXTERNAL_URL", "https://contest-bot-meoww-3d8k.onrender.com")
 WEBHOOK_URL = f"{BASE_URL}/webhook"
 
-# إعداد الاتصال بـ MongoDB مع حل مشكلة TLS/SSL
+# الاتصال بالشهادات الموثوقة لمنع خطأ SSL
 mongo_client = AsyncIOMotorClient(
     MONGO_URI,
     tls=True,
-    tlsAllowInvalidCertificates=True
+    tlsCAFile=certifi.where()
 )
 db = mongo_client["contest_db"]
 users_collection = db["users"]
