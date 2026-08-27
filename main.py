@@ -3,17 +3,15 @@ import sys
 import logging
 import subprocess
 
-# كود ذكي لتثبيت المكتبة تلقائياً إذا لم تكن موجودة في السيرفر
+# تثبيت المكتبة فوراً إذا غابت عن السيرفر منعاً لأي خطأ
 try:
     from telegram import Update
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
 except ModuleNotFoundError:
-    print("المكتبة غير موجودة، جاري تثبيتها تلقائياً...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot==20.8"])
     from telegram import Update
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
 
-# إعدادات تسجيل الأخطاء
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
@@ -21,12 +19,12 @@ logger = logging.getLogger(__name__)
 
 TEXTS = {
     "ar": {
-        "welcome": "👋 أهلاً بك في بوت شركس للمسابقات والفعاليات المفتوحة!\n\nيسعدني جداً انضمامك، أجب على الاستطلاع أدناه بالضغط على الزر المزين لنبدأ معاً! ✨",
+        "welcome": "👋 أهلاً بك في بوت شركس للمسابقات والفعاليات المفتوحة!\n\nأجب على الاستطلاع أدناه بالضغط على الزر المزين لنبدأ معاً! ✨",
         "poll_question": "🎭 جاهز لبدء المسابقة؟ اضغط على الزر أدناه:",
         "poll_option": "✨🚀 اِبدأ الآن | START NOW 🚀✨"
     },
     "en": {
-        "welcome": "👋 Welcome to Sharkas Open Contest Bot!\n\nGlad to have you here, answer the poll below by clicking the decorated button to start! ✨",
+        "welcome": "👋 Welcome to Sharkas Open Contest Bot!\n\nAnswer the poll below by clicking the decorated button to start! ✨",
         "poll_question": "🎭 Ready to start the quiz? Click the button below:",
         "poll_option": "✨🚀 START NOW | اِبدأ الآن 🚀✨"
     }
@@ -55,26 +53,24 @@ def main():
     RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
     
     if not TOKEN:
-        logger.error("خطأ: لم يتم العثور على BOT_TOKEN في إعدادات البيئة!")
+        logger.error("خطأ: لم يتم العثور على BOT_TOKEN!")
         return
 
+    # التخزين السحابي المستمر لبيانات شركس
     bot_persistence = PicklePersistence(filepath="sharkas_data.pickle")
     application = Application.builder().token(TOKEN).persistence(bot_persistence).build()
 
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.Text(["بدء", "start", "البدء", "Start"]), start_command))
 
-    if RENDER_EXTERNAL_URL:
-        logger.info(f"جاري تشغيل البوت بنظام Webhook على المنفذ: {PORT}")
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path=TOKEN,
-            webhook_url=f"{RENDER_EXTERNAL_URL}/{TOKEN}"
-        )
-    else:
-        logger.info("لم يتم العثور على رابط ريندر الخارجي، جاري التشغيل بنظام Polling محلياً...")
-        application.run_polling()
+    # تشغيل نظيف ومباشر عبر الـ Webhook فقط دون أي تجميد أو استهلاك طاقة زائد
+    logger.info(f"جاري تشغيل البوت بنظام Webhook على المنفذ: {PORT}")
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        url_path=TOKEN,
+        webhook_url=f"{RENDER_EXTERNAL_URL}/{TOKEN}"
+    )
 
 if __name__ == '__main__':
     main()
