@@ -23,8 +23,8 @@ dp = Dispatcher()
 async def root():
     return {"status": "Bot is running online!"}
 
-# أمر /start التجريبي
-@app.message(Command("start"))
+# أمر /start التجريبي (تم تصحيح app إلى dp)
+@dp.message(Command("start"))
 async def start_handler(message: types.Message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name
