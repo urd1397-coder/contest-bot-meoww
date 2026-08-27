@@ -3,13 +3,12 @@ import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
 
-# إعدادات تسجيل الأخطاء لرؤيتها على منصة Render
+# إعدادات تسجيل الأخطاء
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# نصوص الترحيب باللغتين العربية والإنجليزية
 TEXTS = {
     "ar": {
         "welcome": "👋 أهلاً بك في بوت شركس للمسابقات!\n\nللبدء، يرجى الانضمام إلى قناتنا أولاً لمتابعة كل جديد، ثم أجب على الاستطلاع أدناه بالضغط على الزر المزين! ✨",
@@ -23,19 +22,15 @@ TEXTS = {
     }
 }
 
-# دالة الترحيب والبدء عند إرسال /start أو كلمة بدء
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.lower() if update.message.text else ""
     user_lang = update.effective_user.language_code
     
-    # تحديد اللغة وحفظها في ذاكرة تليجرام السحابية للمستخدم
     lang = "ar" if (user_lang == "ar" or "بدء" in user_text) else "en"
     context.user_data["lang"] = lang
     
-    # 1. إرسال رسالة الترحيب
     await update.message.reply_text(TEXTS[lang]["welcome"])
     
-    # 2. إرسال الاستطلاع المنبثق المزين
     await context.bot.send_poll(
         chat_id=update.effective_chat.id,
         question=TEXTS[lang]["poll_question"],
@@ -45,25 +40,36 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
-    # جلب التوكن من إعدادات البيئة (Environment Variables) في Render باسم TOKEN
-    TOKEN = os.getenv("TOKEN", "ضع_توكن_البوت_هنا")
+    # جلب التوكن بناءً على التسمية الظاهرة في صورتك BOT_TOKEN
+    TOKEN = os.getenv("BOT_TOKEN")
+    # جلب المنفذ (Port) المخصص من Render، وإذا لم يوجد نستخدم 8000 كافتراضي
+    PORT = int(os.getenv("PORT", 8000))
+    # جلب رابط موقعك الخاص على ريندر (ستجده أعلى لوحة تحكم Render وينتهي بـ .onrender.com)
+    RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
     
-    if TOKEN == "ضع_توكن_البوت_هنا":
-        logger.error("الرجاء إضافة توكن البوت الصحيح في إعدادات ريندر!")
+    if not TOKEN:
+        logger.error("خطأ: لم يتم العثور على BOT_TOKEN في إعدادات البيئة!")
         return
 
-    # تفعيل الذاكرة السحابية المستمرة لتخزين بيانات المسابقات واللغات تلقائياً
     bot_persistence = PicklePersistence(filepath="sharkas_data.pickle")
-
-    # بناء وتجهيز تطبيق البوت
     application = Application.builder().token(TOKEN).persistence(bot_persistence).build()
 
-    # إضافة الأوامر والمستقبلات
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.Text(["بدء", "start", "البدء", "Start"]), start_command))
 
-    # تشغيل البوت بنظام استقبال التحديثات المستمر (Polling)
-    application.run_polling()
+    # التشغيل بنظام Webhook المتوافق مع خطة Web Service المجانية في Render
+    if RENDER_EXTERNAL_URL:
+        logger.info(f"جاري تشغيل البوت بنظام Webhook على المنفذ: {PORT}")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path=TOKEN,
+            webhook_url=f"{RENDER_EXTERNAL_URL}/{TOKEN}"
+        )
+    else:
+        # في حال كنت تجربه محلياً على جهازك سيعمل تلقائياً بنظام Polling
+        logger.info("لم يتم العثور على رابط ريندر الخارجي، جاري التشغيل بنظام Polling محلياً...")
+        application.run_polling()
 
 if __name__ == '__main__':
     main()
