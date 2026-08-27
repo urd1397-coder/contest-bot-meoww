@@ -11,7 +11,6 @@ MONGO_URI = os.getenv("MONGO_URI")
 BASE_URL = os.getenv("RENDER_EXTERNAL_URL", "https://contest-bot-meoww-3d8k.onrender.com")
 WEBHOOK_URL = f"{BASE_URL}/webhook"
 
-# الاتصال بالشهادات الموثوقة لمنع خطأ SSL
 mongo_client = AsyncIOMotorClient(
     MONGO_URI,
     tls=True,
@@ -26,7 +25,7 @@ dp = Dispatcher()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
-    print(f"Webhook configured to: {WEBHOOK_URL}")
+    print(f"Webhook active: {WEBHOOK_URL}")
     yield
     await bot.delete_webhook()
     await bot.session.close()
@@ -41,7 +40,7 @@ async def root():
 async def telegram_webhook(request: Request):
     try:
         data = await request.json()
-        update = types.Update(**data)
+        update = types.Update.model_validate(data, context={"bot": bot})
         await dp.feed_update(bot=bot, update=update)
     except Exception as e:
         print(f"Error handling update: {e}")
@@ -60,7 +59,7 @@ async def start_handler(message: types.Message):
         else:
             text = f"أهلاً بك مجدداً يا {first_name}! 👋"
     except Exception as e:
-        print(f"Database error: {e}")
+        print(f"DB Error: {e}")
         text = f"أهلاً بك يا {first_name}! 👋"
 
     await message.answer(text)
