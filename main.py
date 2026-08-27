@@ -1,7 +1,17 @@
 import os
+import sys
 import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
+import subprocess
+
+# كود ذكي لتثبيت المكتبة تلقائياً إذا لم تكن موجودة في السيرفر
+try:
+    from telegram import Update
+    from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
+except ModuleNotFoundError:
+    print("المكتبة غير موجودة، جاري تثبيتها تلقائياً...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot==20.8"])
+    from telegram import Update
+    from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
 
 # إعدادات تسجيل الأخطاء
 logging.basicConfig(
@@ -11,12 +21,12 @@ logger = logging.getLogger(__name__)
 
 TEXTS = {
     "ar": {
-        "welcome": "👋 أهلاً بك في بوت شركس للمسابقات!\n\nللبدء، يرجى الانضمام إلى قناتنا أولاً لمتابعة كل جديد، ثم أجب على الاستطلاع أدناه بالضغط على الزر المزين! ✨",
+        "welcome": "👋 أهلاً بك في بوت شركس للمسابقات والفعاليات المفتوحة!\n\nيسعدني جداً انضمامك، أجب على الاستطلاع أدناه بالضغط على الزر المزين لنبدأ معاً! ✨",
         "poll_question": "🎭 جاهز لبدء المسابقة؟ اضغط على الزر أدناه:",
         "poll_option": "✨🚀 اِبدأ الآن | START NOW 🚀✨"
     },
     "en": {
-        "welcome": "👋 Welcome to Sharkas Quiz Bot!\n\nTo start, please join our channel first, then answer the poll below by clicking the decorated button! ✨",
+        "welcome": "👋 Welcome to Sharkas Open Contest Bot!\n\nGlad to have you here, answer the poll below by clicking the decorated button to start! ✨",
         "poll_question": "🎭 Ready to start the quiz? Click the button below:",
         "poll_option": "✨🚀 START NOW | اِبدأ الآن 🚀✨"
     }
@@ -40,11 +50,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
-    # جلب التوكن بناءً على التسمية الظاهرة في صورتك BOT_TOKEN
     TOKEN = os.getenv("BOT_TOKEN")
-    # جلب المنفذ (Port) المخصص من Render، وإذا لم يوجد نستخدم 8000 كافتراضي
     PORT = int(os.getenv("PORT", 8000))
-    # جلب رابط موقعك الخاص على ريندر (ستجده أعلى لوحة تحكم Render وينتهي بـ .onrender.com)
     RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
     
     if not TOKEN:
@@ -57,7 +64,6 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.Text(["بدء", "start", "البدء", "Start"]), start_command))
 
-    # التشغيل بنظام Webhook المتوافق مع خطة Web Service المجانية في Render
     if RENDER_EXTERNAL_URL:
         logger.info(f"جاري تشغيل البوت بنظام Webhook على المنفذ: {PORT}")
         application.run_webhook(
@@ -67,7 +73,6 @@ def main():
             webhook_url=f"{RENDER_EXTERNAL_URL}/{TOKEN}"
         )
     else:
-        # في حال كنت تجربه محلياً على جهازك سيعمل تلقائياً بنظام Polling
         logger.info("لم يتم العثور على رابط ريندر الخارجي، جاري التشغيل بنظام Polling محلياً...")
         application.run_polling()
 
