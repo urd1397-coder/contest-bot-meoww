@@ -384,11 +384,11 @@ def process_contest_creation_steps(message):
 # 🎯 معالجة ضغط زر الاشتراك وبث رسالة التنبيه المخصصة بالملي وقفل التكرار الحازم
 @bot.callback_query_handler(func=lambda call: call.data.startswith("join_"))
 def handle_user_subscription(call):
-    """حارس الاشتراك الصامت المطور: يمنع الغش والتكرار بـ Alert منبثق ويتحقق من الذاكرة المحلية"""
-    try:
-        group_chat_id = int(call.data.split("_")[])
-    except Exception as e:
-        bot.answer_callback_query(call.id, text="⚠️ خطأ في قراءة بيانات مفتاح الفعالية الرقمي!", show_alert=True)
+    """حارس الاشتراك الصامت المطور: يكسر تعليق التحميل فوراً ويتطابق بالملي مع مفتاح المسابقة الموحد live"""
+    group_chat_id = call.data.split("_")
+        
+    if group_chat_id not in channel_contests:
+        bot.answer_callback_query(call.id, text="⚠️ عذراً، لا توجد مسابقة نشطة حالياً مخصصة لهذا المفتاح السحابي!", show_alert=True)
         return
         
     if group_chat_id not in channel_contests:
