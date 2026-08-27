@@ -36,28 +36,35 @@ async def telegram_webhook(request: Request):
         print(f"Error handling update: {e}")
     return {"ok": True}
 
-# 1. أمر /start (الترحيب بشخصية القط شركس + زر Help)
-@dp.message(Command("start"))
-async def start_handler(message: types.Message):
-    first_name = message.from_user.first_name
-    
-    # بناء زر Help التفاعلي
+# دالة مسؤولة عن إرجاع رسالة الترحيب الأساسية (للصفر) مع زر الـ Help
+async def send_welcome_message(message_or_callback, is_callback=False):
     builder = InlineKeyboardBuilder()
     builder.button(text="help 🐾", callback_data="show_help")
     
     welcome_text = (
-        f"مرحباً بك يا {first_name} 🐱\n"
-        f"أنا **شركس**، قط لطيف ولكني ذكي جداً!\n\n"
-        f"أنا بوت مخصص ليكون **مساعدك + منظم للمسابقات**. "
-        f"يمكنني مساعدتك في إدارة مجموعتك وإحضار المعرفات وغيرها من المهام.\n\n"
-        f"اضغط على الزر أدناه لمعرفة الأوامر والخيارات المتاحة:"
+        "مرحباً بك  🐱\n"
+        "أنا **شركس**، قطك المساعد هيهي!\n\n"
+        "أنا بوت مخصص ليكون **مساعدك + منظم للمسابقات**.\n"
+        "يمكنني مساعدتك في إحضار المعرفات وغيرها من المهام.\n\n"
+        "اضغط على الزر أدناه لمعرفة الأوامر والخيارات المتاحة:"
     )
     
-    await message.answer(welcome_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    if is_callback:
+        await message_or_callback.message.edit_text(welcome_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    else:
+        await message_or_callback.answer(welcome_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
 
-# 2. عرض قائمة المساعدة عند الضغط على زر help
+# 1. أمر /start (الترحيب الأساسي)
+@dp.message(Command("start"))
+async def start_handler(message: types.Message):
+    await send_welcome_message(message, is_callback=False)
+
+# 2. عرض قائمة المساعدة عند الضغط على زر help مع إضافة زر للرجوع (العودة للصفر)
 @dp.callback_query(F.data == "show_help")
 async def help_callback_handler(callback: types.CallbackQuery):
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔙 رجوع للرئيسية", callback_data="back_to_home")
+    
     help_text = (
         "📖 **قائمة خيارات وأوامر شركس:**\n\n"
         "🔹 **id_help**: يساعد في إحضار معرفات القنوات، القروبات، والحسابات لأغراض الحماية.\n"
@@ -67,5 +74,11 @@ async def help_callback_handler(callback: types.CallbackQuery):
         "*(ملاحظة: الأوامر التي تحتاج كتابة يدوية تبدأ بـ / مثل /start)*"
     )
     
-    await callback.message.edit_text(help_text, parse_mode="Markdown")
+    await callback.message.edit_text(help_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
     await callback.answer()
+
+# 3. زر الرجوع أو تصفير الحالة والعودة للبداية
+@dp.callback_query(F.data == "back_to_home")
+async def back_home_handler(callback: types.CallbackQuery):
+    await send_welcome_message(callback, is_callback=True)
+    await callback.answer("تمت العودة للبداية 🐱")
