@@ -9,12 +9,12 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# دالة مسؤولة عن إرجاع رسالة الترحيب الأساسية (للصفر) مع زر الـ Help
-async def send_welcome_message(message_or_callback, is_callback=False):
+# دالة رسالة الترحيب الموحدة
+async def send_welcome(message_or_callback, is_edit=False):
     builder = InlineKeyboardBuilder()
     builder.button(text="help 🐾", callback_data="show_help")
     
-    welcome_text = (
+    text = (
         "مرحباً بك يا غالي 🐱\n"
         "أنا **شركس**، قطك المساعد هيهي!\n\n"
         "أنا بوت مخصص ليكون **مساعدك + منظم للمسابقات**.\n"
@@ -22,21 +22,22 @@ async def send_welcome_message(message_or_callback, is_callback=False):
         "اضغط على الزر أدناه لمعرفة الأوامر والخيارات المتاحة:"
     )
     
-    if is_callback:
-        await message_or_callback.message.edit_text(welcome_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+    if is_edit:
+        await message_or_callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
     else:
-        await message_or_callback.answer(welcome_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
+        await message_or_callback.answer(text, reply_markup=builder.as_markup(), parse_mode="Markdown")
 
-# 1. أمر /start (الترحيب الأساسي)
 @dp.message(Command("start"))
-async def start_handler(message: types.Message):
-    await send_welcome_message(message, is_callback=False)
+async def start_cmd(message: types.Message):
+    await send_welcome(message, is_edit=False)
 
-# 2. عرض قائمة المساعدة عند الضغط على زر help مع زر للرجوع
 @dp.callback_query(F.data == "show_help")
-async def help_callback_handler(callback: types.CallbackQuery):
+async def help_cb(callback: types.CallbackQuery):
+    # إيقاف علامة التحميل المزعجة فوراً من تيليجرام
+    await callback.answer()
+    
     builder = InlineKeyboardBuilder()
-    builder.button(text="🔙 رجوع للرئيسية", callback_data="back_to_home")
+    builder.button(text="🔙 رجوع للرئيسية", callback_data="back_home")
     
     help_text = (
         "📖 **قائمة خيارات وأوامر شركس:**\n\n"
@@ -48,18 +49,16 @@ async def help_callback_handler(callback: types.CallbackQuery):
     )
     
     await callback.message.edit_text(help_text, reply_markup=builder.as_markup(), parse_mode="Markdown")
-    await callback.answer()
 
-# 3. زر الرجوع أو تصفير الحالة والعودة للبداية
-@dp.callback_query(F.data == "back_to_home")
-async def back_home_handler(callback: types.CallbackQuery):
-    await send_welcome_message(callback, is_callback=True)
+@dp.callback_query(F.data == "back_home")
+async def home_cb(callback: types.CallbackQuery):
     await callback.answer("تمت العودة للبداية 🐱")
+    await send_welcome(callback, is_edit=True)
 
 async def main():
-    # مسح أي Webhook قديم عالق لضمان عدم تداخل البيانات
+    # مسح أي تضارب قديم في الويب هوك والبدء بالسحب الفوري
     await bot.delete_webhook(drop_pending_updates=True)
-    print("🐱 Sharx Bot is starting polling...")
+    print("Sharx Bot is running with instant polling...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
