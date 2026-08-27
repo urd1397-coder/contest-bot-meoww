@@ -2,8 +2,10 @@ import os
 import sys
 import logging
 import subprocess
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
 
-# تثبيت المكتبة فوراً إذا غابت عن السيرفر منعاً لأي خطأ
+# تثبيت المكتبة لضمان استقرار البيئة
 try:
     from telegram import Update
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
@@ -47,14 +49,27 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         allows_multiple_answers=False
     )
 
+# 🌐 خادم ويب مصغر وخفيف جداً لمنع توقف السيرفر المجاني في Render
+class WebHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Sharkas Bot is Active")
+
+def run_web_server(port):
+    server = HTTPServer(('0.0.0.0', port), WebHandler)
+    server.serve_forever()
+
 def main():
     TOKEN = os.getenv("BOT_TOKEN")
     PORT = int(os.getenv("PORT", 8000))
-    RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
     
     if not TOKEN:
         logger.error("خطأ: لم يتم العثور على BOT_TOKEN!")
         return
+
+    # تشغيل خادم الويب في خلفية النظام لإرضاء Render ومنع خطأ الـ Port
+    threading.Thread(target=run_web_server, args=(PORT,), daemon=True).start()
 
     # التخزين السحابي المستمر لبيانات شركس لضمان عدم ضياع المسابقات
     bot_persistence = PicklePersistence(filepath="sharkas_data.pickle")
@@ -63,16 +78,10 @@ def main():
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.Text(["بدء", "start", "البدء", "Start"]), start_command))
 
-    logger.info(f"جاري تشغيل البوت وتصفية التحديثات القديمة المعلقة...")
+    logger.info("🚀 جاري تشغيل شركس وتصفية الرسائل القديمة المتراكمة...")
     
-    # تشغيل نظيف ومباشر عبر الـ Webhook المتوافق تماماً مع Render وحذف الرسائل المتراكمة السابقة
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TOKEN,
-        webhook_url=f"{RENDER_EXTERNAL_URL}/{TOKEN}",
-        drop_pending_updates=True
-    )
+    # تشغيل مستقر وتجاهل كامل للرسائل المعلقة القديمة لمنع التكرار والتعليق
+    application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
     main()
