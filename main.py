@@ -5,12 +5,14 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 
-# تثبيت المكتبة لضمان استقرار البيئة
+# كود صارم لتنظيف بيئة بايثون وتثبيت النسخة المستقرة والخالية من الأخطاء 20.7
 try:
     from telegram import Update
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
-except ModuleNotFoundError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot==20.8"])
+except (ModuleNotFoundError, AttributeError):
+    print("جاري تهيئة وتنظيف مكتبات التليجرام لضمان استقرار السيرفر...")
+    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", "python-telegram-bot", "telegram"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot==20.7"])
     from telegram import Update
     from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
 
@@ -49,7 +51,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         allows_multiple_answers=False
     )
 
-# 🌐 خادم ويب مصغر وخفيف جداً لمنع توقف السيرفر المجاني في Render
 class WebHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -68,19 +69,15 @@ def main():
         logger.error("خطأ: لم يتم العثور على BOT_TOKEN!")
         return
 
-    # تشغيل خادم الويب في خلفية النظام لإرضاء Render ومنع خطأ الـ Port
     threading.Thread(target=run_web_server, args=(PORT,), daemon=True).start()
 
-    # التخزين السحابي المستمر لبيانات شركس لضمان عدم ضياع المسابقات
     bot_persistence = PicklePersistence(filepath="sharkas_data.pickle")
     application = Application.builder().token(TOKEN).persistence(bot_persistence).build()
 
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.Text(["بدء", "start", "البدء", "Start"]), start_command))
 
-    logger.info("🚀 جاري تشغيل شركس وتصفية الرسائل القديمة المتراكمة...")
-    
-    # تشغيل مستقر وتجاهل كامل للرسائل المعلقة القديمة لمنع التكرار والتعليق
+    logger.info("🚀 جاري إقلاع شركس وتصفية كافة التحديثات القديمة...")
     application.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
