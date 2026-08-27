@@ -1,15 +1,15 @@
 import os
 import logging
-import pickle
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PicklePersistence
 
-# إعدادات تسجيل الأخطاء
+# إعدادات تسجيل الأخطاء لرؤيتها على منصة Render
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+# نصوص الترحيب باللغتين العربية والإنجليزية
 TEXTS = {
     "ar": {
         "welcome": "👋 أهلاً بك في بوت شركس للمسابقات!\n\nللبدء، يرجى الانضمام إلى قناتنا أولاً لمتابعة كل جديد، ثم أجب على الاستطلاع أدناه بالضغط على الزر المزين! ✨",
@@ -23,16 +23,19 @@ TEXTS = {
     }
 }
 
+# دالة الترحيب والبدء عند إرسال /start أو كلمة بدء
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.lower() if update.message.text else ""
     user_lang = update.effective_user.language_code
     
-    # تحديد اللغة وحفظها في "ذاكرة المستخدم السحابية" التابعة لتليجرام
+    # تحديد اللغة وحفظها في ذاكرة تليجرام السحابية للمستخدم
     lang = "ar" if (user_lang == "ar" or "بدء" in user_text) else "en"
-    context.user_data["lang"] = lang  # هنا تم حفظ لغة المستخدم سحابياً!
+    context.user_data["lang"] = lang
     
+    # 1. إرسال رسالة الترحيب
     await update.message.reply_text(TEXTS[lang]["welcome"])
     
+    # 2. إرسال الاستطلاع المنبثق المزين
     await context.bot.send_poll(
         chat_id=update.effective_chat.id,
         question=TEXTS[lang]["poll_question"],
@@ -42,22 +45,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
+    # جلب التوكن من إعدادات البيئة (Environment Variables) في Render باسم TOKEN
     TOKEN = os.getenv("TOKEN", "ضع_توكن_البوت_هنا")
     
     if TOKEN == "ضع_توكن_البوت_هنا":
-        logger.error("الرجاء إضافة توكن البوت الصحيح!")
+        logger.error("الرجاء إضافة توكن البوت الصحيح في إعدادات ريندر!")
         return
 
-    # تفعيل ميزة الحفظ المستمر السحابي (Persistence)
-    # مكتبة python-telegram-bot ستقوم بحفظ أي بيانات نضعها في context.user_data أو context.bot_data تلقائياً
+    # تفعيل الذاكرة السحابية المستمرة لتخزين بيانات المسابقات واللغات تلقائياً
     bot_persistence = PicklePersistence(filepath="sharkas_data.pickle")
 
-    # بناء التطبيق مع ربطه بالذاكرة المستمرة
+    # بناء وتجهيز تطبيق البوت
     application = Application.builder().token(TOKEN).persistence(bot_persistence).build()
 
+    # إضافة الأوامر والمستقبلات
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(MessageHandler(filters.Text(["بدء", "start", "البدء", "Start"]), start_command))
 
+    # تشغيل البوت بنظام استقبال التحديثات المستمر (Polling)
     application.run_polling()
 
 if __name__ == '__main__':
