@@ -386,7 +386,7 @@ def process_contest_creation_steps(message):
 def handle_user_subscription(call):
     """حارس الاشتراك الصامت المطور: يمنع الغش والتكرار بـ Alert منبثق ويتحقق من الذاكرة المحلية"""
     try:
-        group_chat_id = int(call.data.split("_")[1])
+        group_chat_id = int(call.data.split("_")[])
     except Exception as e:
         bot.answer_callback_query(call.id, text="⚠️ خطأ في قراءة بيانات مفتاح الفعالية الرقمي!", show_alert=True)
         return
