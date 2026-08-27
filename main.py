@@ -399,18 +399,14 @@ def handle_user_subscription(call):
     user_id = call.from_user.id
     raw_channel = contest["config"]["target_channel"]
     
-    # تأمين معرف القناة رقمياً ليفهمه تليجرام فوراً
-    target_channel = int(raw_channel) if str(raw_channel).replace('-', '').isdigit() else raw_channel
-    
-    # 🛡️ 2. منع التكرار الحازم بـ مصفوفة القوائم العادية المتوافقة 100% مع الـ JSON لمنع انهيار السيرفر
-    if "registered_users" not in contest:
+    # 🛡️ جدار حظر الغش ومنع التكرار الصافي المتوافق مع ملف الـ JSON
+    if "registered_users" not in contest or not isinstance(contest["registered_users"], list):
         contest["registered_users"] = []
         
     if user_id in contest["registered_users"]:
-        # إذا كان مسجل مسبقاً، نفتح له نافذة منبثقة صريحة ومستقلة هنا لتخبره بالمنع فوراً وبدون تعليق
-        bot.answer_callback_query(call.id, text="❌ أنت موجود بالمسابقة بالفعل ومستحيل تشترك مرتين! 🐾", show_alert=True)
+        bot.answer_callback_query(call.id, text="❌ أوه يا غالي! عذراً، أنت موجود بالمسابقة بالفعل ومستحيل تشترك مرتين! 🐾", show_alert=True)
         return
-        
+
     # بناء هويات وبصمة المشترك الجديد بنص عادي صافي لتفادي أخطاء المارك داون
     first_name = call.from_user.first_name
     username = call.from_user.username
