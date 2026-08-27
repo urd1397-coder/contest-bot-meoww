@@ -1,4 +1,6 @@
 aiogram
-motor
-uvicorn
 fastapi
+uvicorn
+motor
+pymongo
+certifi
