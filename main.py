@@ -399,49 +399,57 @@ def handle_user_subscription(call):
     user_id = call.from_user.id
     raw_channel = contest["config"]["target_channel"]
     
-    # 🛡️ جدار حظر الغش ومنع التكرار الصافي المتوافق مع ملف الـ JSON
-    if "registered_users" not in contest or not isinstance(contest["registered_users"], list):
-        contest["registered_users"] = []
-        
-    if user_id in contest["registered_users"]:
-        bot.answer_callback_query(call.id, text="❌ أوه يا غالي! عذراً، أنت موجود بالمسابقة بالفعل ومستحيل تشترك مرتين! 🐾", show_alert=True)
-        return
-
-    # بناء هويات وبصمة المشترك الجديد بنص عادي صافي لتفادي أخطاء المارك داون
-    first_name = call.from_user.first_name
-    username = call.from_user.username
+    # تأمين معرف القناة رقمياً ليفهمه تليجرام فوراً
+    target_channel = int(raw_channel) if str(raw_channel).replace('-', '').isdigit() else raw_channel
     
-    if contest["config"]["include_username"] and username:
-        user_mention = f"{first_name} (@{username})"
-    else:
-        user_mention = f"{first_name}"
-        
-    # قراءة التخصيص الكامل للرسالة الكستوم من الصفر حسب رغبة منشئ المسابقة
-    custom_alert = contest["config"]["custom_alert"]
-    if custom_alert:
-        final_alert_msg = f"{custom_alert}\n\n👤 المتسابق: {user_mention}"
-    else:
-        final_alert_msg = f"🎯 متسابق جديد انضم للمسابقة الحين:\n\n👤 الحساب: {user_mention}"
-        
-    try:
-        # بث منشور المتسابق داخل قناتك المستهدفة بسلام كامل
-        vote_msg = bot.send_message(chat_id=target_channel, text=final_alert_msg)
-        
-        # حفر وتثبيت بصمة المشترك بقوائم متوافقة 100% مع الـ JSON لحمايتها ضد الفرمتة
-        if "participants" not in contest: 
-            contest["participants"] = {}
-            
-        contest["registered_users"].append(user_id)
-        contest["participants"][str(vote_msg.message_id)] = {"user_id": user_id, "name": first_name}
-        
-        # تخليد فوري في ملف الـ JSON لتأمين الذاكرة المحلية لأسابيع
-        save_contests_to_storage()
-        
-        # نافذة منبثقة تفرح المشترك بنجاح تسجيله
-        bot.answer_callback_query(call.id, text="🎉 كفو! تم تسجيل انضمامك بنجاح وبث منشور تصويتك داخل القناة الحين! 🚀", show_alert=True)
-    except Exception as e:
-        print(f"❌ فشل البث بالقناة: {e}")
+   # 🛡️ نظام حماية وتسجيل قوي
 
+# التأكد من وجود قائمة المسجلين
+if not isinstance(contest.get("registered_users"), list):
+    contest["registered_users"] = []
+
+# تنظيف القائمة من التكرارات وتحويل الـ ID إلى أرقام
+clean_users = []
+
+for uid in contest["registered_users"]:
+    try:
+        uid = int(uid)
+        if uid not in clean_users:
+            clean_users.append(uid)
+    except (ValueError, TypeError):
+        pass
+
+contest["registered_users"] = clean_users
+
+# 🚫 التأكد أن المسابقة ما زالت فعالة
+if contest.get("status") != "active":
+    bot.answer_callback_query(
+        call.id,
+        text="❌ عذرًا، هذه المسابقة غير متاحة حاليًا!",
+        show_alert=True
+    )
+    return
+
+# 🛡️ منع التسجيل المكرر
+if user_id in contest["registered_users"]:
+    bot.answer_callback_query(
+        call.id,
+        text="🚫 أنت مسجل بالفعل في هذه المسابقة!\nلا يمكنك الاشتراك أكثر من مرة.",
+        show_alert=True
+    )
+    return
+
+# ✅ تسجيل المستخدم
+contest["registered_users"].append(user_id)
+
+# 💾 هنا لازم تحفظ المسابقة في ملفك أو قاعدة البيانات
+save_data()
+
+bot.answer_callback_query(
+    call.id,
+    text="✅ تم تسجيلك في المسابقة بنجاح!",
+    show_alert=True
+)
 
 # 🏁 أمر إطلاق واجهة استقبال الفرز والإنهاء للآدمنز المسؤولين
 @bot.message_handler(commands=['end'])
