@@ -1,40 +1,13 @@
 import os
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+import asyncio
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-BASE_URL = os.getenv("RENDER_EXTERNAL_URL", "https://contest-bot-meoww-3d8k.onrender.com")
-WEBHOOK_URL = f"{BASE_URL}/webhook"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # تفعيل الـ Webhook فوراً عند التشغيل
-    await bot.set_webhook(url=WEBHOOK_URL, drop_pending_updates=True)
-    yield
-    await bot.delete_webhook()
-    await bot.session.close()
-
-app = FastAPI(lifespan=lifespan)
-
-@app.get("/")
-async def root():
-    return {"status": "Sharx Bot is active and purring! 🐱"}
-
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    try:
-        data = await request.json()
-        update = types.Update(**data)
-        await dp.feed_webhook_update(bot, update)
-    except Exception as e:
-        print(f"Error handling update: {e}")
-    return {"ok": True}
 
 # دالة مسؤولة عن إرجاع رسالة الترحيب الأساسية (للصفر) مع زر الـ Help
 async def send_welcome_message(message_or_callback, is_callback=False):
@@ -42,7 +15,7 @@ async def send_welcome_message(message_or_callback, is_callback=False):
     builder.button(text="help 🐾", callback_data="show_help")
     
     welcome_text = (
-        "مرحباً بك  🐱\n"
+        "مرحباً بك يا غالي 🐱\n"
         "أنا **شركس**، قطك المساعد هيهي!\n\n"
         "أنا بوت مخصص ليكون **مساعدك + منظم للمسابقات**.\n"
         "يمكنني مساعدتك في إحضار المعرفات وغيرها من المهام.\n\n"
@@ -59,7 +32,7 @@ async def send_welcome_message(message_or_callback, is_callback=False):
 async def start_handler(message: types.Message):
     await send_welcome_message(message, is_callback=False)
 
-# 2. عرض قائمة المساعدة عند الضغط على زر help مع إضافة زر للرجوع (العودة للصفر)
+# 2. عرض قائمة المساعدة عند الضغط على زر help مع زر للرجوع
 @dp.callback_query(F.data == "show_help")
 async def help_callback_handler(callback: types.CallbackQuery):
     builder = InlineKeyboardBuilder()
@@ -82,3 +55,12 @@ async def help_callback_handler(callback: types.CallbackQuery):
 async def back_home_handler(callback: types.CallbackQuery):
     await send_welcome_message(callback, is_callback=True)
     await callback.answer("تمت العودة للبداية 🐱")
+
+async def main():
+    # مسح أي Webhook قديم عالق لضمان عدم تداخل البيانات
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("🐱 Sharx Bot is starting polling...")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
