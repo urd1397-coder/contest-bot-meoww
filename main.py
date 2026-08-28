@@ -1,5 +1,6 @@
 import os
 import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
@@ -10,13 +11,24 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-app = FastAPI()
+# الطريقة الحديثة والآمنة لإدارة أحداث التشغيل والإيقاف في FastAPI
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # بدء تشغيل البوت في الخلفية عند إقلاع السيرفر
+    await bot.delete_webhook(drop_pending_updates=True)
+    asyncio.create_task(dp.start_polling(bot))
+    print("Sharx Bot polling started successfully in background!")
+    yield
+    # عمليات التنظيف عند إغلاق التطبيق (إن وجدت)
+    await bot.session.close()
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 async def root():
     return {"status": "Sharx Bot is active and purring! 🐱"}
 
-# رسالة الترحيب بأسلوب شركس اللطيف (تم تصحيح النص والأقواس هنا)
+# رسالة الترحيب بأسلوب شركس اللطيف
 async def send_welcome(message_or_callback, is_edit=False):
     builder = InlineKeyboardBuilder()
     builder.button(text="🐾 الأوامر والمساعدة", callback_data="show_help")
@@ -55,10 +67,3 @@ async def help_cb(callback: types.CallbackQuery):
 async def home_cb(callback: types.CallbackQuery):
     await callback.answer("عادت الأمور للبداية 🐾")
     await send_welcome(callback, is_edit=True)
-
-# تشغيل البوت في الخلفية عند إقلاع سيرفر FastAPI
-@app.on_event("startup")
-async def on_startup():
-    await bot.delete_webhook(drop_pending_updates=True)
-    asyncio.create_task(dp.start_polling(bot))
-    print("Sharx Bot polling started in background!")
