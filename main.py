@@ -1,13 +1,24 @@
 import time
-import os
-import telebot
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
+import telebot
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PORT = int(os.getenv("PORT", 10000))
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# ضع دالة الزر الدائم هنا تماماً
+def get_restart_keyboard():
+    markup = telebot.types.InlineKeyboardMarkup()
+    markup.add(telebot.types.InlineKeyboardButton("🔄😺 إعادة البدء (restart)", callback_data="cmd_restart"))
+    return markup
+
+# دالة الترحيب والأوامر الرئيسية
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    ...
 
 # دالة الترحيب والأوامر الرئيسية
 @bot.message_handler(commands=['start'])
@@ -44,7 +55,33 @@ def callback_home(call):
         call.message.message_id,
         reply_markup=markup
     )
+    
+# الاستجابة في المجموعات والقنوات فقط عند مناداة البوت (بشرط أن يكون المرسل مشرفاً)
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup', 'channel'] and message.text and 'شركس' in message.text)
+def group_admin_mention_handler(message):
+    try:
+        # التحقق مما إذا كان الشخص الذي ذكر البوت هو مشرف أو مالك
+        member = bot.get_chat_member(message.chat.id, message.from_user.id)
+        if member.status not in ['administrator', 'creator']:
+            return  # إذا لم يكن مشرفاً، نتجاهل الرسالة تماماً
+    except Exception:
+        return
 
+    # إذا كان مشرفاً، نرد عليه ونرفق له القائمة (مع زر إعادة البدء)
+    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        telebot.types.InlineKeyboardButton("🔍😼 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
+        telebot.types.InlineKeyboardButton("🎯😸 إنشاء مسابقة (create)", callback_data="cmd_create"),
+        telebot.types.InlineKeyboardButton("⛔😺 إنهاء المسابقة (end)", callback_data="cmd_end"),
+        telebot.types.InlineKeyboardButton("🔄😺 إعادة البدء (restart)", callback_data="cmd_restart"),
+        telebot.types.InlineKeyboardButton("❌😺 إلغاء العملية (cancel)", callback_data="cmd_cancel")
+    )
+    
+    bot.send_message(
+        message.chat.id,
+        "أهلاً بك يا إداري! معك شركس 🐱، بناءً على طلبك:",
+        reply_markup=markup
+    )
 # سيرفر HTTP بسيط جداً لفتح البورت المطلوب على Render وتجاوز فحص المنفذ
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
