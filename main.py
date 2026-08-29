@@ -117,3 +117,13 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Polling warning: {e}. Retrying in 5 seconds...")
             time.sleep(5)
+            # تنظيف أي اتصال قديم وتجنب تداخل النسخ
+bot.remove_webhook()
+print("Starting Telegram bot polling...")
+
+while True:
+    try:
+        bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
+    except Exception as e:
+        print(f"Polling warning: {e}. Retrying in 5 seconds...")
+        time.sleep(5)
