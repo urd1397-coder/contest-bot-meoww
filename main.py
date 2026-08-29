@@ -77,19 +77,19 @@ class SimpleHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
-        
+
 def run_server():
     server = HTTPServer(('0.0.0.0', PORT), SimpleHandler)
     server.serve_forever()
 
 if __name__ == "__main__":
-    # تشغيل سيرفر الويب في خلفية مستقلة لفتح البورت #
+    # تشغيل سيرفر الويب في خلفية مستقلة لفتح البورت
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
     server_thread.start()
     print(f"HTTP Server started on port {PORT}")
 
-    # انتظار 5 ثوانٍ لضمان إغلاق النسخة القديمة تماماً #
+    # انتظار 5 ثوانٍ لضمان إغلاق النسخة القديمة تماماً
     time.sleep(5)
 
     bot.remove_webhook()
