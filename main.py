@@ -44,8 +44,8 @@ def callback_home(call):
         reply_markup=markup
     )
     
-# 1. أمر id_help في المحادثة الخاصة
-@bot.message_handler(func=lambda message: message.chat.type == 'private' and ('id_help' in message.text or message.text == '/id_help'))
+# 1. أمر id_help في المحادثة الخاصة (يستجيب حصراً عند كتابة الكلمة أو الأمر بدقة)
+@bot.message_handler(func=lambda message: message.chat.type == 'private' and (message.text == 'id_help' or message.text == '/id_help'))
 def private_id_help_prompt(message):
     print("DEBUG: Private id_help triggered.")
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
@@ -54,7 +54,7 @@ def private_id_help_prompt(message):
     )
     bot.reply_to(
         message,
-        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة (صورة، ملف، رابط، أو نص من أي شخص أو قناة) للحصول على تفاصيله.",
+        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة (صورة، ملصق، رابط، أو نص) للحصول على تفاصيلها.",
         reply_markup=markup
     )
 
@@ -69,11 +69,11 @@ def callback_id_help(call):
     )
     bot.send_message(
         call.message.chat.id,
-        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة (صورة، ملف، رابط، أو نص) للحصول على تفاصيلها الكاملة.",
+        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة للحصول على تفاصيلها الكاملة.",
         reply_markup=markup
     )
 
-# 3. فحص التوجيه في الخاصة (شامل لأي نوع محتوى: صور، ملفات، روابط، نصوص)
+# 3. فحص التوجيه في الخاصة (شامل لكافة الأنواع والمحتويات)
 @bot.message_handler(func=lambda message: message.chat.type == 'private' and message.forward_date)
 def private_target_analyzer(message):
     print("DEBUG: Private universal forward analyzer triggered.")
@@ -83,31 +83,25 @@ def private_target_analyzer(message):
         telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home")
     )
 
-    # حالة التوجيه من شخص (محادثة خاصة)
     if message.forward_from:
         target = message.forward_from
         target_type = "شخص (محادثة خاصة)"
         name = f"{target.first_name} {target.last_name or ''}".strip()
         username = f"@{target.username}" if target.username else "غير متوفر"
         target_id = target.id
-
-    # حالة التوجيه من قناة أو مجموعة
     elif message.forward_from_chat:
         target = message.forward_from_chat
         target_type = "قناة أو مجموعة"
         name = target.title or "غير معروف"
         username = f"@{target.username}" if target.username else "غير متوفر"
         target_id = target.id
-
-    # حالة التوجيه من حساب مخفي الإعدادات
     elif message.forward_sender_name:
         target_type = "شخص (حساب مخفي الإعدادات)"
         name = message.forward_sender_name
         username = "غير متوفر (محمي بواسطة الخصوصية)"
-        target_id = "مخفي من قِبل المستخدم"
-
+        target_id = "مخفي من قِبل تيليجرام"
     else:
-        bot.reply_to(message, "😾 لم يتم التعرف على مصدر التوجيه، حاول إرسال رسالة أخرى.", reply_markup=markup)
+        bot.reply_to(message, "😾 لم يتم التعرف على مصدر التوجيه.", reply_markup=markup)
         return
 
     response_text = (
@@ -119,27 +113,33 @@ def private_target_analyzer(message):
     )
     bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup)
 
-# 4. دالة الاستجابة في المجموعات عبر الرد (Reply) على أي رسالة
-@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.reply_to_message)
+# 4. دالة الاستجابة في المجموعات (تعمل حصراً عند الرد + كتابة الأمر بدقة، وتدعم الملصقات، الإيموجي، وكل الأنواع)
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.reply_to_message and (message.text == 'id_help' or message.text == '/id_help'))
 def group_id_help_handler(message):
     print("DEBUG: Group id_help triggered.")
     target_user = message.reply_to_message.from_user
-    name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
-    username = f"@{target_user.username}" if target_user.username else "غير متوفر"
-    user_id = target_user.id
-
+    
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home")
     )
 
+    if not target_user:
+        bot.reply_to(message, "😾 عذراً، لا يمكن استخراج آيدي هذا العنصر.", reply_markup=markup)
+        return
+
+    name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
+    username = f"@{target_user.username}" if target_user.username else "غير متوفر"
+    user_id = target_user.id
+
     response_text = (
-        f"😾 **تفاصيل الحساب في المجموعة:**\n\n"
+        f"😾 **تفاصيل الحساب المستهدف:**\n\n"
         f"• **الاسم:** {name}\n"
         f"• **المعرف:** {username}\n"
         f"• **الآيدي الثابت:** `{user_id}`"
     )
     bot.reply_to(message.reply_to_message, response_text, parse_mode="Markdown", reply_markup=markup)
+    
 
 # [ دالة الرد بلمجموعات ]
 @bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.text and 'شركس' in message.text)
