@@ -1,3 +1,4 @@
+import time
 import os
 import telebot
 from http.server import BaseHTTPRequestHandler, HTTPServer
