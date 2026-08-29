@@ -52,6 +52,14 @@ def private_id_help_prompt(message):
         "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة، أو اكتب المعرف/الآيدي المستهدف للحصول على تفاصيله."
     )
     
+    # معالجة الضغط على زر "معرفة الأيدي" من القائمة الشفافة بالخاص
+@bot.callback_query_handler(func=lambda call: call.data == "cmd_id_help")
+def callback_id_help(call):
+    bot.answer_callback_query(call.id, "😾 وضع كشف المعرفات مفعّل")
+    bot.send_message(
+        call.message.chat.id,
+        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة، أو اكتب المعرف/الآيدي المستهدف للحصول على تفاصيله الكاملة."
+    )
 
 # 2. استقبال الرسائل المحولة أو النصية في الخاصة
 @bot.message_handler(func=lambda message: message.chat.type == 'private' and (message.forward_from or message.forward_from_chat or (message.text and not message.text.startswith('/'))))
@@ -82,6 +90,15 @@ def private_target_analyzer(message):
         f"• **الآيدي الثابت:** `{target_id}`"
     )
     bot.reply_to(message, response_text, parse_mode="Markdown")
+    
+# معالجة الضغط على زر "معرفة الأيدي" من القائمة الشفافة بالخاص
+@bot.callback_query_handler(func=lambda call: call.data == "cmd_id_help")
+def callback_id_help(call):
+    bot.answer_callback_query(call.id, "😾 وضع كشف المعرفات مفعّل")
+    bot.send_message(
+        call.message.chat.id,
+        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة، أو اكتب المعرف/الآيدي المستهدف للحصول على تفاصيله الكاملة."
+    )
 
 # 3. دالة الاستجابة في المجموعات (عند الرد على شخص وكتابة id_help أو /id_help)
 @bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.reply_to_message and ('id_help' in message.text or message.text == '/id_help'))
@@ -99,7 +116,15 @@ def group_id_help_handler(message):
         f"• **الآيدي الثابت:** `{user_id}`"
     )
     bot.reply_to(message.reply_to_message, response_text, parse_mode="Markdown")
-
+    
+# معالجة الضغط على زر "معرفة الأيدي" من القائمة الشفافة بالخاص
+@bot.callback_query_handler(func=lambda call: call.data == "cmd_id_help")
+def callback_id_help(call):
+    bot.answer_callback_query(call.id, "😾 وضع كشف المعرفات مفعّل")
+    bot.send_message(
+        call.message.chat.id,
+        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة، أو اكتب المعرف/الآيدي المستهدف للحصول على تفاصيله الكاملة."
+    )
 
 # [ دالة الرد بلمجموعات ]
 @bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.text and 'شركس' in message.text)
