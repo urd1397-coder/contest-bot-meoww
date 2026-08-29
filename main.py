@@ -44,15 +44,19 @@ def callback_home(call):
         reply_markup=markup
     )
 
-# الاستجابة في المجموعات والقنوات فقط عند مناداة البوت (بشرط أن يكون المرسل مشرفاً)
+# [ دالة الرد في المجموعات والقنوات ]
 @bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup', 'channel'] and message.text and 'شركس' in message.text)
 def group_admin_mention_handler(message):
-    try:
-        member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        if member.status not in ['administrator', 'creator']:
-            return  # تجاهل تام إذا لم يكن مشرفاً
-    except Exception:
-        return
+    print(f"Chat Type: {message.chat.type}, From User: {getattr(message, 'from_user', None)}")
+
+    if message.chat.type in ['group', 'supergroup'] and message.from_user:
+        if message.from_user.id != message.chat.id:
+            try:
+                member = bot.get_chat_member(message.chat.id, message.from_user.id)
+                if member.status not in ['administrator', 'creator']:
+                    return
+            except Exception:
+                pass
 
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -63,9 +67,10 @@ def group_admin_mention_handler(message):
         telebot.types.InlineKeyboardButton("❌😺 إلغاء العملية (cancel)", callback_data="cmd_cancel")
     )
     
-    bot.send_message(
-        message.chat.id,
-        "أهلاً بك يا إداري! معك شركس 🐱، بناءً على طلبك:",
+    # استخدام bot.reply_to لتقوم بعمل اقتباس (Quote) للرسالة الأصلية أينما كتبت
+    bot.reply_to(
+        message,
+        "أهلاً بك! معك شركس 🐱، بناءً على طلبك:",
         reply_markup=markup
     )
 
