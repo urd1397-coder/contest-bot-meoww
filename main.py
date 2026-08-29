@@ -89,7 +89,15 @@ if __name__ == "__main__":
     server_thread.start()
     print(f"HTTP Server started on port {PORT}")
 
-    # تصفير أي ويب هوك قديم والبدء بالبولينغ مباشرة
+   # انتظار 5 ثوانٍ لضمان إغلاق النسخة القديمة تماماً
+    time.sleep(5)
+
     bot.remove_webhook()
-    print("Starting TeleBot polling...")
-    bot.infinity_polling(skip_pending=True)
+    print("Starting TeleBot polling safely...")
+    
+    while True:
+        try:
+            bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
+        except Exception as e:
+            print(f"Polling warning: {e}. Retrying in 5 seconds...")
+            time.sleep(5)
