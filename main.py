@@ -14,10 +14,10 @@ bot = telebot.TeleBot(BOT_TOKEN)
 def send_welcome(message):
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        telebot.types.InlineKeyboardButton("🔹 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
-        telebot.types.InlineKeyboardButton("🔸 إنشاء مسابقة (create)", callback_data="cmd_create"),
-        telebot.types.InlineKeyboardButton("🔺 إنهاء المسابقة (end)", callback_data="cmd_end"),
-        telebot.types.InlineKeyboardButton("❌ إلغاء العملية (cancel)", callback_data="cmd_cancel")
+        telebot.types.InlineKeyboardButton("🔍😼 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
+        telebot.types.InlineKeyboardButton("🎯😸 إنشاء مسابقة (create)", callback_data="cmd_create"),
+        telebot.types.InlineKeyboardButton("⛔😺 إنهاء المسابقة (end)", callback_data="cmd_end"),
+        telebot.types.InlineKeyboardButton("❌😺 إلغاء العملية (cancel)", callback_data="cmd_cancel")
     )
     bot.send_message(
         message.chat.id,
@@ -25,30 +25,6 @@ def send_welcome(message):
         reply_markup=markup
     )
 
-# معالجة الضغط على زر المساعدة أو الأوامر
-@bot.callback_query_handler(func=lambda call: call.data.startswith("cmd_"))
-def callback_commands(call):
-    action = call.data.split("_")[1]
-    
-    if action == "id_help":
-        bot.answer_callback_query(call.id, "جاري إحضار معلومات الآيدي...")
-        # ضع هنا الكود أو الرد الخاص بأمر id_help
-        bot.send_message(call.message.chat.id, "📋 معلومات الآيدي الخاصة بك أو بالقروب...")
-        
-    elif action == "create":
-        bot.answer_callback_query(call.id, "تم بدء إنشاء المسابقة!")
-        # ضع هنا الكود أو الرد الخاص بأمر create
-        bot.send_message(call.message.chat.id, "✨ تم بدء عملية إنشاء مسابقة جديدة...")
-        
-    elif action == "end":
-        bot.answer_callback_query(call.id, "تم إنهاء المسابقة الحالية.")
-        # ضع هنا الكود أو الرد الخاص بأمر end
-        bot.send_message(call.message.chat.id, "🛑 تم إنهاء المسابقة الحالية بنجاح.")
-        
-    elif action == "cancel":
-        bot.answer_callback_query(call.id, "تم إلغاء العملية.")
-        # ضع هنا الكود أو الرد الخاص بأمر cancel
-        bot.send_message(call.message.chat.id, "↩️ تم تصفير وإلغاء أي عملية جارية.")
 
 # زر العودة للقائمة الرئيسية
 @bot.callback_query_handler(func=lambda call: call.data == "back_home")
