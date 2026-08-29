@@ -43,131 +43,23 @@ def callback_home(call):
         call.message.message_id,
         reply_markup=markup
     )
-# 1. معالج عام لكلمة "شركس" في الخاصة والمجموعات (يعرض القائمة والأزرار بدقة)
-@bot.message_handler(func=lambda message: message.text is not None and message.text.strip().lower() in ['شركس', 'sharكس', 'شاركس'])
-def handle_sharks_command(message):
-    chat_type = message.chat.type
-    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
-    
-    # في المحادثة الخاصة: عرض القائمة مع تفعيل الأزرار الشفافة
-    if chat_type == 'private':
-        markup.add(
-            telebot.types.InlineKeyboardButton("💎 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
-            telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home")
-        )
-        bot.reply_to(
-            message,
-            "مرحباً بك في محادثة البوت الخاصة! 🦁\nاضغط على زر معرفة الآيدي أدناه، ثم قم بتمرير (Forward) أي رسالة أو أرسل يوزرنيم أو رابط للحصول على معلومات مرسلها الأصلي.",
-            reply_markup=markup
-        )
-        
-    # في المجموعات: الرد مع (Reply) يستخرج معلومات الشخص فوراً لتجاوز الفلترة، وإذا أُرسلت وحدها تعرض القائمة مع الأزرار
-    else:
-        if message.reply_to_message:
-            reply_msg = message.reply_to_message
-            markup_reply = telebot.types.InlineKeyboardMarkup(row_width=1)
-            markup_reply.add(telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home"))
-            
-            target_user = None
-            if reply_msg.from_user:
-                target_user = reply_msg.from_user
-            elif reply_msg.sender_chat:
-                target_chat = reply_msg.sender_chat
-                response_text = (
-                    f"😾 **تفاصيل الكيان المستهدف (قناة/مجموعة):**\n\n"
-                    f"• **الاسم:** {target_chat.title}\n"
-                    f"• **المعرف:** @{target_chat.username if target_chat.username else 'غير متوفر'}\n"
-                    f"• **الآيدي الثابت:** `{target_chat.id}`"
-                )
-                bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup_reply)
-                return
-
-            if not target_user:
-                bot.reply_to(message, "😾 عذراً، لا يمكن استخراج آيدي هذا العنصر (حساب محذوف أو رسالة نظام).", reply_markup=markup_reply)
-                return
-
-            name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
-            username = f"@{target_user.username}" if target_user.username else "غير متوفر"
-            
-            response_text = (
-                f"😾 **تفاصيل الحساب المستهدف (تخطي الفلترة):**\n\n"
-                f"• **الاسم:** {name}\n"
-                f"• **المعرف:** {username}\n"
-                f"• **الآيدي الثابت:** `{target_user.id}`"
-            )
-            bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup_reply)
-        else:
-            markup.add(
-                telebot.types.InlineKeyboardButton("💎 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
-                telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home")
-            )
-            bot.reply_to(
-                message,
-                "😾 أهلاً بك يا مشرف. استخدم الأمر بالرد (Reply) مع كلمة 'شركس' على رسالة أي شخص لاستخراج معلوماته، أو اضغط على الأزرار أدناه:",
-                reply_markup=markup
-            )
-
-# 2. معالج الضغط على زر "معرفة الآيدي" الشفاف في الخاصة
-@bot.callback_query_handler(func=lambda call: call.data == "cmd_id_help")
-def callback_id_help(call):
-    bot.answer_callback_query(call.id, "😾 وضع كشف المعرفات مفعّل")
-    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
-    markup.add(telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home"))
-    
-    bot.send_message(
-        call.message.chat.id,
-        "😾 جاهز تماماً! أرسل الآن **إعادة توجيه (Forward)** لأي رسالة (صورة، ملصق، فيديو، ملف) أو أرسل **يوزرنيم** أو **رابط** لأي شخص أو قناة أو مجموعة، وسأستخرج معلوماته فوراً.",
-        reply_markup=markup
-    )
-
-# 3. معالجة الرسائل المعادة توجيهها (Forward) في المحادثة الخاصة (لكافة أنواع الرسائل)
-@bot.message_handler(func=lambda message: message.chat.type == 'private' and getattr(message, 'forward_date', None) is not None)
-def private_forward_analyzer(message):
-    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
-    markup.add(telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home"))
-
-    if message.forward_from:
-        target = message.forward_from
-        target_type = "شخص (محادثة خاصة)"
-        name = f"{target.first_name} {target.last_name or ''}".strip()
-        username = f"@{target.username}" if target.username else "غير متوفر"
-        target_id = target.id
-    elif message.forward_from_chat:
-        target = message.forward_from_chat
-        target_type = "قناة أو مجموعة"
-        name = target.title or "غير معروف"
-        username = f"@{target.username}" if target.username else "غير متوفر"
-        target_id = target.id
-    elif message.forward_sender_name:
-        target_type = "شخص (حساب مخفي الإعدادات)"
-        name = message.forward_sender_name
-        username = "غير متوفر (محمي بواسطة الخصوصية)"
-        target_id = "مخفي من قِبل إعدادات الخصوصية"
-    else:
-        bot.reply_to(message, "😾 لم يتم التعرف على مصدر التوجيه.", reply_markup=markup)
-        return
-
-    response_text = (
-        f"😾 **معلومات مرسل الرسالة الأصلية:**\n\n"
-        f"• **النوع:** {target_type}\n"
-        f"• **الاسم:** {name}\n"
-        f"• **المعرف:** {username}\n"
-        f"• **الآيدي الثابت:** `{target_id}`"
-    )
-    bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup)
-
-# 4. معالجة الروابط أو اليوزرنيمات المرسلة نصياً في الخاصة لجلب معلومات (أشخاص، قنوات، مجموعات)
-@bot.message_handler(func=lambda message: message.chat.type == 'private' and message.text and not message.text.startswith('/') and ('t.me/' in message.text or message.text.startswith('@')))
-def handle_link_or_username_query(message):
+# 1. معالج عام لقراءة الروابط أو اليوزرنيمات في المجموعات والخاصة مباشرة
+@bot.message_handler(func=lambda message: message.text and not message.text.startswith('/') and ('t.me/' in message.text or '@' in message.text))
+def handle_group_or_private_links(message):
     text = message.text.strip()
+    # استخراج اليوزرنيم أو الرابط بدقة
+    match = re.search(r'(@[a-zA-Z0-9_]{5,}|https?://t\.me/[a-zA-Z0-9_+/]+)', text)
+    if not match:
+        return
+        
+    target_query = match.group(0)
+    clean_target = target_query.replace("https://t.me/", "").replace("http://t.me/", "").strip("@/")
+    
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home"))
-
-    # تنظيف النص لاستخراج المعرف أو الرابط بالشكل الصحيح
-    clean_target = text.replace("https://t.me/", "").replace("http://t.me/", "").strip("@/")
     
     try:
-        query_target = f"@{clean_target}" if not text.startswith('http') and not text.startswith('@') else (text if text.startswith('@') else f"@{clean_target}")
+        query_target = f"@{clean_target}" if not target_query.startswith('http') and not target_query.startswith('@') else (target_query if target_query.startswith('@') else f"@{clean_target}")
         chat_info = bot.get_chat(query_target)
         
         chat_type_str = "قناة / مجموعة" if chat_info.type in ['channel', 'supergroup', 'group'] else "مستخدم"
@@ -183,18 +75,44 @@ def handle_link_or_username_query(message):
         )
         bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup)
     except Exception:
-        bot.reply_to(
-            message, 
-            f"😾 عذراً، لم أستطع جلب معلومات الكيان لـ ({text}). تأكد من صحة المعرف أو الرابط أو جرب استخدام خاصية إعادة التوجيه (Forward).", 
-            reply_markup=markup
-        )
+        pass
 
-# [ دالة الرد بلمجموعات ]
-@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.text and 'شركس' in message.text)
-def handle_groups_full(message):
-    print(f"Group Message Received in chat ID: {message.chat.id}")
+# 2. معالج الرد (Reply) في المجموعات (يعمل الآن بأي رد عادي بدون الحاجة لكتابة كلمة شركس)
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.reply_to_message is not None)
+def handle_group_reply_extraction(message):
+    reply_msg = message.reply_to_message
+    markup_reply = telebot.types.InlineKeyboardMarkup(row_width=1)
+    markup_reply.add(telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home"))
     
-    # القائمة الكاملة بجميع الأزرار والخيارات للمجموعات
+    # إذا كانت الرسالة المُردود عليها تخص قناة أو مجموعة
+    if reply_msg.sender_chat:
+        target_chat = reply_msg.sender_chat
+        response_text = (
+            f"😾 **تفاصيل الكيان المستهدف (قناة/مجموعة):**\n\n"
+            f"• **الاسم:** {target_chat.title}\n"
+            f"• **المعرف:** @{target_chat.username if target_chat.username else 'غير متوفر'}\n"
+            f"• **الآيدي الثابت:** `{target_chat.id}`"
+        )
+        bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup_reply)
+        return
+
+    # إذا كانت الرسالة المُردود عليها تخص شخص (حتى لو كانت ملفاً، صورة، ملصقاً، إلخ)
+    if reply_msg.from_user:
+        target_user = reply_msg.from_user
+        name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
+        username = f"@{target_user.username}" if target_user.username else "غير متوفر"
+        
+        response_text = (
+            f"😾 **تفاصيل الحساب المستهدف (تخطي الفلترة):**\n\n"
+            f"• **الاسم:** {name}\n"
+            f"• **المعرف:** {username}\n"
+            f"• **الآيدي الثابت:** `{target_user.id}`"
+        )
+        bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup_reply)
+
+# 3. معالج كلمة "شركس" وحدها في المجموعات لإظهار قائمة الأزرار والمسابقات
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.text is not None and message.text.strip().lower() in ['شركس', 'sharكس', 'شاركس'])
+def handle_group_menu_command(message):
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         telebot.types.InlineKeyboardButton("🔍😼 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
