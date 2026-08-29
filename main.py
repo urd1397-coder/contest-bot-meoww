@@ -57,7 +57,7 @@ def handle_sharks_command(message):
         )
         bot.reply_to(
             message,
-            "مرحباً بك في محادثة البوت الخاصة! 🦁\nاضغط على زر معرفة الآيدي أدناه، ثم قم بتمرير (Forward) أي رسالة للحصول على معلومات مرسلها الأصلي.",
+            "مرحباً بك في محادثة البوت الخاصة! 🦁\nاضغط على زر معرفة الآيدي أدناه، ثم قم بتمرير (Forward) أي رسالة أو أرسل يوزرنيم أو رابط للحصول على معلومات مرسلها الأصلي.",
             reply_markup=markup
         )
         
@@ -83,7 +83,7 @@ def handle_sharks_command(message):
                 return
 
             if not target_user:
-                bot.reply_to(message, "😾 عذراً، لا يمكن استخراج آيدي هذا العنصر (حساب محذوف أو رسالة نظام).", parse_reply=markup_reply)
+                bot.reply_to(message, "😾 عذراً، لا يمكن استخراج آيدي هذا العنصر (حساب محذوف أو رسالة نظام).", reply_markup=markup_reply)
                 return
 
             name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
@@ -107,7 +107,7 @@ def handle_sharks_command(message):
                 reply_markup=markup
             )
 
-# 2. معالج الضغط على زر "معرفة الآيدي" الشفاف في الخاصة (هذا ما كان يجعله لا يعمل)
+# 2. معالج الضغط على زر "معرفة الآيدي" الشفاف في الخاصة
 @bot.callback_query_handler(func=lambda call: call.data == "cmd_id_help")
 def callback_id_help(call):
     bot.answer_callback_query(call.id, "😾 وضع كشف المعرفات مفعّل")
@@ -116,11 +116,11 @@ def callback_id_help(call):
     
     bot.send_message(
         call.message.chat.id,
-        "😾 جاهز تماماً! أرسل الآن **إعادة توجيه (Forward)** للرسالة المستهدفة من أي مكان، وسأستخرج لك معلومات مرسلها الأصلي فوراً.",
+        "😾 جاهز تماماً! أرسل الآن **إعادة توجيه (Forward)** لأي رسالة (صورة، ملصق، فيديو، ملف) أو أرسل **يوزرنيم** أو **رابط** لأي شخص أو قناة أو مجموعة، وسأستخرج معلوماته فوراً.",
         reply_markup=markup
     )
 
-# 3. معالجة الرسائل المعادة توجيهها (Forward) في المحادثة الخاصة (تعطي معلومات المرُسل الأصلي حصراً وبغض النظر عن نوعها)
+# 3. معالجة الرسائل المعادة توجيهها (Forward) في المحادثة الخاصة (لكافة أنواع الرسائل)
 @bot.message_handler(func=lambda message: message.chat.type == 'private' and getattr(message, 'forward_date', None) is not None)
 def private_forward_analyzer(message):
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
@@ -155,7 +155,39 @@ def private_forward_analyzer(message):
         f"• **الآيدي الثابت:** `{target_id}`"
     )
     bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup)
+
+# 4. معالجة الروابط أو اليوزرنيمات المرسلة نصياً في الخاصة لجلب معلومات (أشخاص، قنوات، مجموعات)
+@bot.message_handler(func=lambda message: message.chat.type == 'private' and message.text and not message.text.startswith('/') and ('t.me/' in message.text or message.text.startswith('@')))
+def handle_link_or_username_query(message):
+    text = message.text.strip()
+    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
+    markup.add(telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home"))
+
+    # تنظيف النص لاستخراج المعرف أو الرابط بالشكل الصحيح
+    clean_target = text.replace("https://t.me/", "").replace("http://t.me/", "").strip("@/")
     
+    try:
+        query_target = f"@{clean_target}" if not text.startswith('http') and not text.startswith('@') else (text if text.startswith('@') else f"@{clean_target}")
+        chat_info = bot.get_chat(query_target)
+        
+        chat_type_str = "قناة / مجموعة" if chat_info.type in ['channel', 'supergroup', 'group'] else "مستخدم"
+        name = chat_info.title if chat_info.title else f"{chat_info.first_name or ''} {chat_info.last_name or ''}".strip()
+        username = f"@{chat_info.username}" if chat_info.username else "غير متوفر"
+        
+        response_text = (
+            f"😾 **معلومات الكيان المستهدف:**\n\n"
+            f"• **النوع:** {chat_type_str}\n"
+            f"• **الاسم:** {name}\n"
+            f"• **المعرف:** {username}\n"
+            f"• **الآيدي الثابت:** `{chat_info.id}`"
+        )
+        bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup)
+    except Exception:
+        bot.reply_to(
+            message, 
+            f"😾 عذراً، لم أستطع جلب معلومات الكيان لـ ({text}). تأكد من صحة المعرف أو الرابط أو جرب استخدام خاصية إعادة التوجيه (Forward).", 
+            reply_markup=markup
+        )
 
 # [ دالة الرد بلمجموعات ]
 @bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.text and 'شركس' in message.text)
