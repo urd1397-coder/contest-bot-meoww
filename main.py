@@ -65,6 +65,68 @@ def handle_groups_full(message):
         reply_markup=markup
     )
 
+# 1. معالجة أمر أو زر id_help في المحادثة الخاصة بالبوت
+@bot.message_handler(func=lambda message: message.chat.type == 'private' and message.text in ['/id_help', 'id_help'])
+def private_id_help_prompt(message):
+    bot.reply_to(
+        message,
+        "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة، أو اكتب المعرف/الآيدي (Username / ID) المستهدف للحصول على تفاصيله الكاملة."
+    )
+
+# 2. استقبال الرسائل الموجهة أو المدخلة بالخاص لتحليل الهدف (شخص، قناة، مجموعة)
+@bot.message_handler(func=lambda message: message.chat.type == 'private' and (message.forward_from or message.forward_from_chat or message.text))
+def private_target_analyzer(message):
+    # إذا كانت رسالة محولة من شخص
+    if message.forward_from:
+        target = message.forward_from
+        target_type = "شخص"
+        name = f"{target.first_name} {target.last_name or ''}".strip()
+        username = f"@{target.username}" if target.username else "غير متوفر"
+        target_id = target.id
+    # إذا كانت رسالة محولة من قناة أو مجموعة
+    elif message.forward_from_chat:
+        target = message.forward_from_chat
+        target_type = "قناة أو مجموعة"
+        name = target.title or "غير معروف"
+        username = f"@{target.username}" if target.username else "غير متوفر"
+        target_id = target.id
+    else:
+        # إذا أدخل المستخدم النص أو الآيدي مباشرة
+        text = message.text.strip()
+        if text.startswith('/'):
+            return
+        bot.reply_to(message, f"😾 تم استلام الطلب للهدف: {text}\n🆔 الآيدي أو المعرف قيد المعالجة.")
+        return
+
+    response_text = (
+        f"😾 **معلومات الكيان المستهدف:**\n\n"
+        f"• **النوع:** {target_type}\n"
+        f"• **الاسم:** {name}\n"
+        f"• **المعرف:** {username}\n"
+        f"• **الآيدي الثابت:** `{target_id}`"
+    )
+    bot.reply_to(message, response_text, parse_mode="Markdown")
+
+# 3. معالجة أمر أو زر id_help في المجموعات (كرد Reply على رسالة المسيء)
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and (message.text == '/id_help' or (message.reply_to_message and 'id_help' in message.text)))
+def group_id_help_handler(message):
+    if not message.reply_to_message:
+        bot.reply_to(message, "😾 يجب عمل (Reply) على رسالة الشخص أو الهدف المطلوب كشفه.")
+        return
+
+    target_user = message.reply_to_message.from_user
+    name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
+    username = f"@{target_user.username}" if target_user.username else "غير متوفر"
+    user_id = target_user.id
+
+    response_text = (
+        f"😾 **تفاصيل الحساب:**\n\n"
+        f"• **الاسم:** {name}\n"
+        f"• **المعرف:** {username}\n"
+        f"• **الآيدي الثابت:** `{user_id}`"
+    )
+    bot.reply_to(message.reply_to_message, response_text, parse_mode="Markdown")
+    
 # تجاوز فحص المنفذ بسيط جداً Render لفتح البورت المطلوب على HTTP سيرفر #
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
