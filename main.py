@@ -51,6 +51,7 @@ def private_id_help_prompt(message):
         message,
         "😾 أرسل لي الآن إعادة توجيه (Forward) لأي رسالة، أو اكتب المعرف/الآيدي المستهدف للحصول على تفاصيله."
     )
+    
 
 # 2. استقبال الرسائل المحولة أو النصية في الخاصة
 @bot.message_handler(func=lambda message: message.chat.type == 'private' and (message.forward_from or message.forward_from_chat or (message.text and not message.text.startswith('/'))))
@@ -82,14 +83,10 @@ def private_target_analyzer(message):
     )
     bot.reply_to(message, response_text, parse_mode="Markdown")
 
-# 3. معالجة id_help في المجموعات (بالرد Reply على الرسالة)
-@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and ('id_help' in message.text or message.text == '/id_help'))
+# 3. دالة الاستجابة في المجموعات (عند الرد على شخص وكتابة id_help أو /id_help)
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.reply_to_message and ('id_help' in message.text or message.text == '/id_help'))
 def group_id_help_handler(message):
     print("DEBUG: Group id_help triggered.")
-    if not message.reply_to_message:
-        bot.reply_to(message, "😾 يجب عمل (Reply) على رسالة الشخص المراد فحص معرفه.")
-        return
-
     target_user = message.reply_to_message.from_user
     name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
     username = f"@{target_user.username}" if target_user.username else "غير متوفر"
@@ -102,6 +99,7 @@ def group_id_help_handler(message):
         f"• **الآيدي الثابت:** `{user_id}`"
     )
     bot.reply_to(message.reply_to_message, response_text, parse_mode="Markdown")
+
 
 # [ دالة الرد بلمجموعات ]
 @bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.text and 'شركس' in message.text)
