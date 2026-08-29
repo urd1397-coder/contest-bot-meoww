@@ -44,36 +44,12 @@ def callback_home(call):
         reply_markup=markup
     )
 
-# [ دالة الرد في المجموعات والقنوات ]
-@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup', 'channel'] and message.text and 'شركس' in message.text)
-def group_admin_mention_handler(message):
-    print(f"Chat Type: {message.chat.type}, From User: {getattr(message, 'from_user', None)}")
-
-    if message.chat.type in ['group', 'supergroup'] and message.from_user:
-        if message.from_user.id != message.chat.id:
-            try:
-                member = bot.get_chat_member(message.chat.id, message.from_user.id)
-                if member.status not in ['administrator', 'creator']:
-                    return
-            except Exception:
-                pass
-
-    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        telebot.types.InlineKeyboardButton("🔍😼 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
-        telebot.types.InlineKeyboardButton("🎯😸 إنشاء مسابقة (create)", callback_data="cmd_create"),
-        telebot.types.InlineKeyboardButton("⛔😺 إنهاء المسابقة (end)", callback_data="cmd_end"),
-        telebot.types.InlineKeyboardButton("🔄😺 إعادة البدء (restart)", callback_data="cmd_restart"),
-        telebot.types.InlineKeyboardButton("❌😺 إلغاء العملية (cancel)", callback_data="cmd_cancel")
-    )
+# [مكان الإضافة: في منتصف ملف main.py استبدل دالة المجموعات القديمة بهذا الكود التجريبي]
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'])
+def test_group_response(message):
+    print(f"DEBUG: Received message in group -> {message.text}")
+    bot.reply_to(message, "نعم أنا أسمعك في المجموعة! 🐱")
     
-    # استخدام bot.reply_to لتقوم بعمل اقتباس (Quote) للرسالة الأصلية أينما كتبت
-    bot.reply_to(
-        message,
-        "أهلاً بك! معك شركس 🐱، بناءً على طلبك:",
-        reply_markup=markup
-    )
-
 # تجاوز فحص المنفذ بسيط جداً Render لفتح البورت المطلوب على HTTP سيرفر #
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
