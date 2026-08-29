@@ -44,12 +44,27 @@ def callback_home(call):
         reply_markup=markup
     )
 
-# [مكان الإضافة: في منتصف ملف main.py استبدل دالة المجموعات القديمة بهذا الكود التجريبي]
-@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'])
-def test_group_response(message):
-    print(f"DEBUG: Received message in group -> {message.text}")
-    bot.reply_to(message, "نعم أنا أسمعك في المجموعة! 🐱")
+# [ دالة الرد بلمجموعات ]
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.text and 'شركس' in message.text)
+def handle_groups_full(message):
+    print(f"Group Message Received in chat ID: {message.chat.id}")
     
+    # القائمة الكاملة بجميع الأزرار والخيارات للمجموعات
+    markup = telebot.types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        telebot.types.InlineKeyboardButton("🔍😼 معرفة الآيدي (id_help)", callback_data="cmd_id_help"),
+        telebot.types.InlineKeyboardButton("🎯😸 إنشاء مسابقة (create)", callback_data="cmd_create"),
+        telebot.types.InlineKeyboardButton("⛔😺 إنهاء المسابقة (end)", callback_data="cmd_end"),
+        telebot.types.InlineKeyboardButton("🔄😺 إعادة البدء (restart)", callback_data="cmd_restart"),
+        telebot.types.InlineKeyboardButton("❌😺 إلغاء العملية (cancel)", callback_data="cmd_cancel")
+    )
+    
+    bot.reply_to(
+        message,
+        "أهلاً بك في المجموعة! معك شركس 🐱، إليك كافة الخيارات المتاحة:",
+        reply_markup=markup
+    )
+
 # تجاوز فحص المنفذ بسيط جداً Render لفتح البورت المطلوب على HTTP سيرفر #
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
