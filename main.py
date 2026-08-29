@@ -44,8 +44,8 @@ def callback_home(call):
         reply_markup=markup
     )
     
-# 1. أمر id_help في المحادثة الخاصة (يستجيب حصراً عند كتابة الكلمة أو الأمر بدقة)
-@bot.message_handler(func=lambda message: message.chat.type == 'private' and (message.text == 'id_help' or message.text == '/id_help'))
+# 1. أمر id_help في المحادثة الخاصة (يعمل سواء كتبت id_help أو /id_help أو بالضغط على الزر)
+@bot.message_handler(func=lambda message: message.chat.type == 'private' and message.text in ['id_help', '/id_help'])
 def private_id_help_prompt(message):
     print("DEBUG: Private id_help triggered.")
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
@@ -73,7 +73,7 @@ def callback_id_help(call):
         reply_markup=markup
     )
 
-# 3. فحص التوجيه في الخاصة (شامل لكافة الأنواع والمحتويات)
+# 3. فحص التوجيه في الخاصة (شامل لكافة الأنواع والمحتويات: نص، صورة، ملف، رابط، إلخ)
 @bot.message_handler(func=lambda message: message.chat.type == 'private' and message.forward_date)
 def private_target_analyzer(message):
     print("DEBUG: Private universal forward analyzer triggered.")
@@ -113,19 +113,34 @@ def private_target_analyzer(message):
     )
     bot.reply_to(message, response_text, parse_mode="Markdown", reply_markup=markup)
 
-# 4. دالة الاستجابة في المجموعات (تعمل حصراً عند الرد + كتابة الأمر بدقة، وتدعم الملصقات، الإيموجي، وكل الأنواع)
-@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.reply_to_message and (message.text == 'id_help' or message.text == '/id_help'))
+# 4. دالة الاستجابة في المجموعات (تدعم الملصقات، الإيموجي، الصور، وكل الأنواع عند الرد + كتابة الأمر)
+@bot.message_handler(func=lambda message: message.chat.type in ['group', 'supergroup'] and message.reply_to_message and message.text in ['id_help', '/id_help'])
 def group_id_help_handler(message):
     print("DEBUG: Group id_help triggered.")
-    target_user = message.reply_to_message.from_user
+    
+    reply_msg = message.reply_to_message
+    target_user = None
     
     markup = telebot.types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         telebot.types.InlineKeyboardButton("🏠 العودة للبداية", callback_data="back_home")
     )
 
+    if reply_msg.from_user:
+        target_user = reply_msg.from_user
+    elif reply_msg.sender_chat:
+        target_chat = reply_msg.sender_chat
+        response_text = (
+            f"😾 **تفاصيل الكيان (قناة/مجموعة):**\n\n"
+            f"• **الاسم:** {target_chat.title}\n"
+            f"• **المعرف:** @{target_chat.username if target_chat.username else 'غير متوفر'}\n"
+            f"• **الآيدي الثابت:** `{target_chat.id}`"
+        )
+        bot.reply_to(reply_msg, response_text, parse_mode="Markdown", reply_markup=markup)
+        return
+
     if not target_user:
-        bot.reply_to(message, "😾 عذراً، لا يمكن استخراج آيدي هذا العنصر.", reply_markup=markup)
+        bot.reply_to(reply_msg, "😾 عذراً، لا يمكن استخراج آيدي هذا العنصر (قد يكون حساباً محذوفاً أو رسالة نظام).", reply_markup=markup)
         return
 
     name = f"{target_user.first_name} {target_user.last_name or ''}".strip()
@@ -138,7 +153,7 @@ def group_id_help_handler(message):
         f"• **المعرف:** {username}\n"
         f"• **الآيدي الثابت:** `{user_id}`"
     )
-    bot.reply_to(message.reply_to_message, response_text, parse_mode="Markdown", reply_markup=markup)
+    bot.reply_to(reply_msg, response_text, parse_mode="Markdown", reply_markup=markup)
     
 
 # [ دالة الرد بلمجموعات ]
