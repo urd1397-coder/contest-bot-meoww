@@ -255,61 +255,33 @@ def query_text(inline_query):
     query = inline_query.query.strip()
     results = []
     
-    if query:
-        try:
-            # محاولة جلب معلومات اليوزر أو القناة المكتوبة
-            target = "@" + query.replace("@", "")
-            chat_info = bot.get_chat(target)
-            
-            name = getattr(chat_info, "first_name", None) or getattr(chat_info, "title", "مجهول")
-            user_id = chat_info.id
-            username = f"@{chat_info.username}" if chat_info.username else "لا يوجد"
-            
-            result_text = (
-                f"🛡️ <b>نتيجة البحث السريع / Inline Search Result</b>\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"🆔 المعرف الثابت: <code>{user_id}</code>\n"
-                f"📛 الاسم: {name}\n"
-                f"🔗 اليوزر: {username}\n"
-                f"━━━━━━━━━━━━━━"
-            )
-            
-            results.append(
-                types.InlineQueryResultArticle(
-                    id='1',
-                    title=f"معلومات: {name}",
-                    description=f"الآيدي: {user_id} - اضغط للإرسال",
-                    input_message_content=types.InputTextMessageContent(
-                        message_text=result_text,
-                        parse_mode="HTML"
-                    )
+    # رسالة افتراضية تظهر فور كتابة يوزر البوت
+    if not query:
+        results.append(
+            types.InlineQueryResultArticle(
+                id='help',
+                title="🔍 ابحث عن آيدي أو يوزر...",
+                description="اكتب اليوزر بعد اسم البوت لعرض النتيجة",
+                input_message_content=types.InputTextMessageContent(
+                    message_text="🔍 يرجى كتابة اليوزر المطلوب بعد يوزر البوت في خانة البحث."
                 )
             )
-        except Exception:
-            results.append(
-                types.InlineQueryResultArticle(
-                    id='error',
-                    title="⚠️ لم يتم العثور على الحساب",
-                    description="تأكد من كتابة اليوزر بشكل صحيح أو أن الحساب تفاعل مع البوت مسبقاً",
-                    input_message_content=types.InputTextMessageContent(
-                        message_text="⚠️ عذراً، لم أتمكن من العثور على هذا الحساب عبر البحث السريع."
-                    )
-                )
-            )
+        )
     else:
         results.append(
             types.InlineQueryResultArticle(
-                id='empty',
-                title="🔍 اكتب يوزر للبحث...",
-                description="مثال: @username",
+                id='search_res',
+                title=f"النتيجة لـ: {query}",
+                description="اضغط لإرسال هذه النتيجة في المحادثة",
                 input_message_content=types.InputTextMessageContent(
-                    message_text="🔍 يرجى كتابة اسم المستخدم بعد يوزر البوت للبحث عنه."
+                    message_text=f"🛡️ نتيجة البحث السريع عن: <code>{query}</code>",
+                    parse_mode="HTML"
                 )
             )
         )
         
     bot.answer_inline_query(inline_query.id, results, cache_time=1)
-
+    
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
