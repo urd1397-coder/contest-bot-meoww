@@ -73,8 +73,8 @@ def format_chat(c):
 def start_command(message):
     bot.send_message(
         message.chat.id,
-        "مياو! 🐱 \n"
-        أهلاً بك في بوت شركس للحماية.\n"
+        "مياو! 🐱\n"
+        "أهلاً بك في بوت شركس للحماية.\n"
         "أنا قطك المطيع هيهي، جاهز لمساعدتك في حماية القروب وجلب معلومات المخربين بدقة!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
