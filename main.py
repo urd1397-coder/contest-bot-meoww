@@ -31,6 +31,14 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
+# --- دالة التحقق مما إذا كان المستخدم مشرفاً في القروب ---
+def is_user_admin(chat_id, user_id):
+    try:
+        member = bot.get_chat_member(chat_id, user_id)
+        return member.status in ['creator', 'administrator']
+    except Exception:
+        return False
+
 # --- [دالة احترافية]: البحث الشامل عبر الإنترنت للروابط واليوزرات ---
 def fetch_advanced_web_lookup(username):
     clean_un = username.replace("@", "").strip()
@@ -64,65 +72,79 @@ def fetch_advanced_web_lookup(username):
         pass
     return {"found": False}
 
-# --- [دالة احترافية]: لوحة المفاتيح السفلية (تظهر عند الطلب فقط) ---
+# --- [دالة احترافية]: لوحة المفاتيح السفلية للاختيار ---
 def create_dynamic_reply_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     btn_user = types.KeyboardButton(
-        text="👤 اختر مستخدم من الهاتف", 
+        text="👤 اختر مستخدم / Select User", 
         request_users=types.KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)
     )
     btn_group = types.KeyboardButton(
-        text="👥 اختر مجموعة أو قناة", 
+        text="👥 اختر مجموعة أو قناة / Select Chat", 
         request_chat=types.KeyboardButtonRequestChat(request_id=2, chat_is_channel=False)
     )
     markup.add(btn_user, btn_group)
     return markup
 
-# --- [دالة احترافية]: القائمة الرئيسية الشفافة (مميزة ومزخرفة) ---
+# --- [دالة احترافية]: القائمة الرئيسية (مع المسابقات قيد التطوير) ---
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🔍 استخراج الآيدي والبحث الشامل ⚡", callback_data="cmd_id_help"),
-        types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية جديدة", callback_data="cmd_create"),
-        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
-        types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
+        types.InlineKeyboardButton("🔍 استخراج الآيدي والبحث / ID & Search ⚡", callback_data="cmd_id_help"),
+        types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية (قيد التطوير)", callback_data="cmd_create"),
+        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية (قيد التطوير)", callback_data="cmd_end"),
+        types.InlineKeyboardButton("❌ إغلاق القائمة / Close", callback_data="cmd_cancel")
     )
     return markup
 
-# --- [دالة احترافية]: قائمة خيارات البحث والتحكم ---
+# --- [دالة احترافية]: قائمة خيارات البحث (عربي / إنجليزي) ---
 def create_id_help_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("📂 فتح لوحة الاختيار السريع (أسفل الشاشة)", callback_data="show_keyboard"),
-        types.InlineKeyboardButton("🌐 البحث اليدوي (يوزر / رابط مباشر)", callback_data="method_username"),
-        types.InlineKeyboardButton("📥 البحث عبر إعادة توجيه الرسائل", callback_data="method_forward"),
-        types.InlineKeyboardButton("🔙 العودة للقائمة الرئيسية 🏠", callback_data="cmd_home")
+        types.InlineKeyboardButton("📂 لوحة الاختيار السريع للأعضاء / Quick Selection", callback_data="show_keyboard"),
+        types.InlineKeyboardButton("🌐 البحث اليدوي المباشر / Manual Search", callback_data="method_username"),
+        types.InlineKeyboardButton("📥 تحليل الرسائل المحولة / Forward Analysis", callback_data="method_forward"),
+        types.InlineKeyboardButton("🔙 العودة للقائمة الرئيسية / Home 🏠", callback_data="cmd_home")
     )
     return markup
 
-# --- [دالة احترافية]: زر العودة الثابت تحت التقارير ---
+# --- [دالة احترافية]: زر العودة الثابت ---
 def create_home_return_markup():
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔙 العودة للقائمة الرئيسية 🏠", callback_data="cmd_home"))
+    markup.add(types.InlineKeyboardButton("🔙 العودة للقائمة الرئيسية / Home 🏠", callback_data="cmd_home"))
     return markup
 
-# --- [دالة احترافية]: تنسيق معلومات المستخدم الشخصي ---
-def format_user_report(u):
+# --- [دالة احترافية]: تنسيق معلومات المستخدم الشخصي مع الرتبة داخل القروب ---
+def format_user_report(u, chat_id=None):
     uname = f"@{u.username}" if u.username else "لا يوجد يوزر / No Username"
+    role_status = "عضو عادي (Member)"
+    
+    if chat_id:
+        try:
+            member = bot.get_chat_member(chat_id, u.id)
+            if member.status == 'creator':
+                role_status = "👑 مالك القروب (Creator)"
+            elif member.status == 'administrator':
+                role_status = "🛡️ مشرف في القروب (Admin)"
+            else:
+                role_status = "👤 عضو أساسي (Member)"
+        except Exception:
+            role_status = "👤 عضو (غير مرئي أو متاح بدقة)"
+
     return (
-        f"🛡️ <b>[ تقرير حماية شركس - حساب شخصي ]</b>\n"
+        f"🛡️ <b>[ تقرير حماية شركس - سجل الحساب ]</b>\n"
         f"━━━━━━━━━━━━━━━\n"
         f"🆔 المعرف الثابت: <code>{u.id}</code>\n"
         f"📛 اسم الحساب: {u.first_name}\n"
         f"🔗 اليوزر: {uname}\n"
-        f"📌 النوع: حساب شخصي موثق\n"
+        f"📌 الصلاحية في القروب: {role_status}\n"
         f"━━━━━━━━━━━━━━━"
     )
 
 # --- [دالة احترافية]: تنسيق معلومات المجموعات والقنوات ---
 def format_chat_report(c):
     uname = f"@{c.username}" if c.username else "لا يوجد يوزر / No Username"
-    chat_type_ar = "قناة عامة" if c.type == "channel" else ("مجموعة تفاعلية" if "group" in c.type else c.type)
+    chat_type_ar = "قناة عامة" if c.type == "channel" else "مجموعة تفاعلية"
     return (
         f"🛡️ <b>[ تقرير حماية شركس - جهة خارجية ]</b>\n"
         f"━━━━━━━━━━━━━━━\n"
@@ -140,7 +162,7 @@ def handle_start_command(message):
         message.chat.id,
         "مياو! 🐱✨\n"
         "أهلاً بك في النسخة المطورّة من بوت حماية شركس.\n"
-        "أرسل أي يوزر أو رابط مباشر، أو استخدم القائمة أدناه للتحكم الكامل:",
+        "اختر ما يناسبك من القائمة أدناه:",
         reply_markup=create_main_menu_markup()
     )
 
@@ -150,17 +172,20 @@ def handle_inline_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
 
-    if call.data == "cmd_id_help":
+    if call.data == "cmd_create" or call.data == "cmd_end":
+        bot.answer_callback_query(call.id, "هذه الميزة قيد التطوير حالياً 🚧", show_alert=True)
+    elif call.data == "cmd_id_help":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "🐾 أهلاً بك في قسم البحث الذكي والتحكم المتقدم.\n\n"
-            "اختر الطريقة المناسبة للبحث أدناه:",
+            "🐾 أهلاً بك في قسم البحث والتحكم المتقدم.\n"
+            "Welcome to ID & Advanced Search Section.\n\n"
+            "اختر الطريقة / Choose method:",
             chat_id,
             message_id,
             reply_markup=create_id_help_menu_markup()
         )
     elif call.data == "show_keyboard":
-        bot.answer_callback_query(call.id, "تم فتح لوحة الاختيار السريع بنجاح!")
+        bot.answer_callback_query(call.id, "تم فتح لوحة الاختيار السريع!")
         bot.send_message(
             chat_id,
             "👇 استخدم الأزرار الظاهرة أسفل الشاشة للاختيار المباشر:",
@@ -171,7 +196,7 @@ def handle_inline_callbacks(call):
         bot.edit_message_text(
             "🎯 <b>[ وضع البحث اليدوي المباشر ]</b>\n"
             "━━━━━━━━━━━━━━━\n"
-            "✍️ أرسل الآن اليوزر (مثل `@username`) أو الرابط (مثل `t.me/...`) وسأقوم بجلبه فوراً بروابط بحث صاروخية 🚀",
+            "✍️ أرسل الآن اليوزر (مثل `@username`) أو الرابط لجلب نتائجه فوراً 🚀",
             chat_id,
             message_id,
             parse_mode="HTML",
@@ -182,7 +207,7 @@ def handle_inline_callbacks(call):
         bot.edit_message_text(
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
             "━━━━━━━━━━━━━━━\n"
-            "🐾 قم بإعادة توجيه أي رسالة من أي قروب أو شخص هنا وسأستخرج كافة بياناته السرية!",
+            "🐾 قم بإعادة توجيه أي رسالة لاستخراج بيانات صاحبها السرية!",
             chat_id,
             message_id,
             parse_mode="HTML",
@@ -191,7 +216,7 @@ def handle_inline_callbacks(call):
     elif call.data == "cmd_home":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "🏠 عودة موفقة لقرص العمليات الرئيسي 🐱 تفضل:",
+            "🏠 عودة للقائمة الرئيسية / Main Menu 🐱:",
             chat_id,
             message_id,
             reply_markup=create_main_menu_markup()
@@ -199,21 +224,13 @@ def handle_inline_callbacks(call):
     elif call.data == "cmd_cancel":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "❌ تم إغلاق القائمة بنجاح. أرسل /start للإعادة.",
+            "❌ تم إغلاق القائمة بنجاح. أرسل /start لإظهارها مجدداً.",
             chat_id,
             message_id,
             reply_markup=None
         )
-    else:
-        bot.answer_callback_query(call.id)
-        bot.edit_message_text(
-            "⚙️ هذه الخاصية تحت التطوير والصيانة المستمرة.",
-            chat_id,
-            message_id,
-            reply_markup=create_home_return_markup()
-        )
 
-# --- [دالة احترافية معدلة]: معالجة الاختيارات من نافذة تيليجرام الداخلية دون أخطاء No Result ---
+# --- معالج الاختيارات السفلية (دون أخطاء No Result) ---
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
 def handle_shared_native_targets(message):
     response_text = ""
@@ -228,7 +245,7 @@ def handle_shared_native_targets(message):
         try:
             chat_info = bot.get_chat(target_id)
             if chat_info.type == "private":
-                response_text = format_user_report(chat_info)
+                response_text = format_user_report(chat_info, message.chat.id)
             else:
                 response_text = format_chat_report(chat_info)
         except Exception:
@@ -240,49 +257,32 @@ def handle_shared_native_targets(message):
                 f"━━━━━━━━━━━━━━━"
             )
     else:
-        response_text = "⚠️ لم يتم استلام أي معرف صالح من القائمة، حاول مرة أخرى."
+        response_text = "⚠️ لم يتم استلام أي معرف صالح."
 
-    # إخفاء الكيبورد السفلي فوراً وإرسال النتيجة بوضوح
     bot.send_message(
         message.chat.id, 
         response_text, 
         parse_mode="HTML", 
         reply_markup=types.ReplyKeyboardRemove()
     )
-    # إرسال زر العودة للرئيسية برسالة منفصلة ومرتبة
     bot.send_message(
         message.chat.id, 
-        "🔹 هل تريد عملية بحث أو استعلام آخر؟", 
+        "🔹 هل تريد عملية بحث أخرى؟", 
         reply_markup=create_home_return_markup()
     )
 
-# --- معالج النصوص والرسائل المحولة والبحث الشامل ---
+# --- معالج الدردشة الخاصة (Private) للبحث الشامل ---
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
-def handle_text_and_forwards_lookup(message):
+def handle_private_messages(message):
     response_text = ""
     
     if message.forward_from:
         response_text = format_user_report(message.forward_from)
     elif message.forward_from_chat:
         response_text = format_chat_report(message.forward_from_chat)
-    elif hasattr(message, "forward_origin") and message.forward_origin:
-        origin = message.forward_origin
-        if getattr(origin, "sender_user", None):
-            response_text = format_user_report(origin.sender_user)
-        elif getattr(origin, "chat", None):
-            response_text = format_chat_report(origin.chat)
-        else:
-            sender_name = getattr(origin, "sender_user_name", "مخفي تماماً")
-            response_text = (
-                f"🛡️ <b>[ تقرير حماية شركس - خصوصية مفعلة ]</b>\n"
-                f"━━━━━━━━━━━━━━━\n"
-                f"📛 الاسم الظاهر: {sender_name}\n"
-                f"━━━━━━━━━━━━━━━"
-            )
     elif message.text:
         text = message.text.strip()
-        
-        if text.startswith("/") or len(text) < 3 or (" " in text and "t.me/" not in text and "telegram.me/" not in text):
+        if text.startswith("/"):
             return
 
         clean_username = text
@@ -293,10 +293,9 @@ def handle_text_and_forwards_lookup(message):
         else:
             clean_username = text.replace("@", "").strip()
 
-        if clean_username:
-            target_query = "@" + clean_username
+        if len(clean_username) >= 3:
             try:
-                chat_info = bot.get_chat(target_query)
+                chat_info = bot.get_chat("@" + clean_username)
                 if chat_info.type == "private":
                     response_text = format_user_report(chat_info)
                 else:
@@ -305,44 +304,48 @@ def handle_text_and_forwards_lookup(message):
                 adv_result = fetch_advanced_web_lookup(clean_username)
                 if adv_result["found"]:
                     response_text = (
-                        f"🛡️ <b>[ تقرير البحث الشامل المفتوح - شركس بوت ]</b>\n"
+                        f"🛡️ <b>[ تقرير البحث الشامل - شركس بوت ]</b>\n"
                         f"━━━━━━━━━━━━━━━\n"
                         f"📛 الاسم: {adv_result['name']}\n"
                         f"🔗 اليوزر: {adv_result['username']}\n"
                         f"📝 الوصف: {adv_result['bio']}\n"
-                        f"📌 ملاحظة: {adv_result['note']}\n"
                         f"━━━━━━━━━━━━━━━"
                     )
                 else:
-                    response_text = f"❌ مياو! عذراً، لم أتمكن من العثور على أي نتائج مطابقة لـ: <b>{text}</b>."
-        else:
-            return
-    else:
-        return
+                    response_text = f"❌ لم يتم العثور على نتائج مطابقة لـ: <b>{text}</b>"
 
     if response_text:
         bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=create_home_return_markup())
 
-# --- معالج تفاعلات المجموعات حصراً ---
+# --- معالج تفاعلات ومجموعات القروبات حصراً (مناداة البوت + الرد الذكي للمشرفين) ---
 @bot.message_handler(chat_types=["group", "supergroup"], content_types=["text"])
-def handle_group_exclusive_messages(message):
+def handle_group_messages(message):
     text = message.text.strip()
     chat_id = message.chat.id
+    user_id = message.from_user.id
 
-    if text == "قائمة":
-        bot.send_message(
-            chat_id,
-            "📋 <b>[ القائمة المتميزة الخاصة بالمجموعة ]</b>\n"
-            "اضغط على الزر أدناه لاختيار أعضاء المجموعة حصراً:",
-            parse_mode="HTML",
-            reply_markup=create_dynamic_reply_keyboard()
-        )
-    elif "شركس" in text:
-        bot.send_message(
-            chat_id,
-            "مياو! 🐱 ناديتني؟ تفضل القائمة الرئيسية الخاصة بي:",
+    # 1. إذا نادى البوت باسمه في القروب
+    if "شركس" in text and not message.reply_to_message:
+        bot.reply_to(
+            message,
+            "مياو! 🐱 أهلاً بك. تفضل القائمة الرئيسية الخاصة بي:",
             reply_markup=create_main_menu_markup()
         )
+        return
+
+    # 2. ميزة الرد (Reply) على أي رسالة لمناداة البوت واستخراج معلومات الصلاحيات (للمشرفين حصراً)
+    if message.reply_to_message:
+        # التحقق مما إذا كان النص يتضمن مناداة للبوت أو طلب آيدي/معلومات
+        if "شركس" in text or "آيدي" in text or "id" in text.lower() or "معلومات" in text or "كشف" in text:
+            # التحقق هل المُرسل مشرف أم لا
+            if not is_user_admin(chat_id, user_id):
+                bot.reply_to(message, "⚠️ عذراً، هذه الميزة مخصصة لمشرفي المجموعة فقط!")
+                return
+
+            target_user = message.reply_to_message.from_user
+            if target_user:
+                report = format_user_report(target_user, chat_id)
+                bot.reply_to(message, report, parse_mode="HTML")
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
