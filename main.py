@@ -236,7 +236,8 @@ def process_id_help_target(message):
                     response_text = format_user(chat_info)
                 else:
                     response_text = format_chat(chat_info)
-            except Exception:
+            except Exception as e:
+                    print("USERNAME ERROR:", repr(e))
                 response_text = (
                     f"❌ مياو! لم أتمكن من جلب معلومات الحساب <b>{target_query}</b>.\n\n"
                     f"🔍 <b>السبب / Reason:</b> يمنع تيليغرام البوتات من البحث العشوائي إلا إذا تفاعل الشخص مسبقاً.\n"
