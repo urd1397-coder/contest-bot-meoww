@@ -60,31 +60,6 @@ def advanced_lookup_by_username(username):
         pass
     return {"found": False}
 
-# --- لوحة المفاتيح السفلية التفاعلية (مطابقة للصورة المطلوبة) ---
-def request_keyboard():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
-    
-    # استخدام KeyboardButtonRequestUsers لجلب المستخدمين/المجموعات مباشرة من هاتف المستخدم
-    btn_user = types.KeyboardButton(
-        text="👤 User", 
-        request_users=types.KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)
-    )
-    btn_bot = types.KeyboardButton(
-        text="🤖 Bot", 
-        request_users=types.KeyboardButtonRequestUsers(request_id=2, user_is_bot=True)
-    )
-    btn_group = types.KeyboardButton(
-        text="👥 Group", 
-        request_chat=types.KeyboardButtonRequestChat(request_id=3, chat_is_channel=False)
-    )
-    btn_channel = types.KeyboardButton(
-        text="📢 Channel", 
-        request_chat=types.KeyboardButtonRequestChat(request_id=4, chat_is_channel=True)
-    )
-    
-    markup.add(btn_user, btn_bot, btn_group, btn_channel)
-    return markup
-
 # --- القوائم الشفافة (Inline) ---
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -98,7 +73,9 @@ def main_menu():
 
 def id_help_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
+    # إضافة زر البحث التفاعلي (Switch Inline Query) الذي يفتح قائمة تليجرام لاختيار ومشاركة يوزر أو مستخدم مباشرة
     markup.add(
+        types.InlineKeyboardButton("👥 بحث ومشاركة مستخدم سريعة", switch_inline_query_current_chat=""),
         types.InlineKeyboardButton("🎯 من خلال اليوزر نيم / By Username", callback_data="method_username"),
         types.InlineKeyboardButton("📥 من خلال الرسائل المحولة / By Forwarded Msg", callback_data="method_forward"),
         types.InlineKeyboardButton("🔙 العودة للرئيسية / Main Menu", callback_data="cmd_home")
@@ -141,15 +118,9 @@ def start_command(message):
         message.chat.id,
         "مياو! 🐱\n"
         "أهلاً بك في بوت شركس للحماية المطور.\n"
-        "تم تفعيل أزرار البحث والطلبات السفلية لتختار منها مباشرة!\n\n"
+        "أنا قطك المطيع هيهي، جاهز لجلب معلومات المعرفات والمخربين!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
-    )
-    # إرسال الكيبورد السفلي للمستخدم
-    bot.send_message(
-        message.chat.id,
-        "👇 استخدم الأزرار أدناه للبحث والمشاركة السريعة:",
-        reply_markup=request_keyboard()
     )
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -162,7 +133,7 @@ def handle_callbacks(call):
         bot.edit_message_text(
             "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي.\n\n"
             "اختر الطريقة لاستخراج المعلومات بدقة:\n"
-            "يمكنك استخدام الأزرار أسفل الشاشة (User, Group...) للبحث والمشاركة الفورية!",
+            "يمكنك استخدام زر البحث السريع أدناه لاختيار ومشاركة أي مستخدم من محادثاتك فوراً!",
             chat_id,
             message_id,
             reply_markup=id_help_menu()
@@ -214,43 +185,12 @@ def handle_callbacks(call):
             reply_markup=back_menu()
         )
 
-# --- معالجة طلبات المشاركة السفلية (Users & Chats Shared) ---
-@bot.message_handler(content_types=["users_shared", "chat_shared"])
-def handle_shared_targets(message):
-    response_text = ""
-    target_id = None
-
-    if message.users_shared:
-        target_id = message.users_shared.user_ids[0]
-    elif message.chat_shared:
-        target_id = message.chat_shared.chat_id
-
-    if target_id:
-        try:
-            chat_info = bot.get_chat(target_id)
-            if chat_info.type == "private":
-                response_text = format_user(chat_info)
-            else:
-                response_text = format_chat(chat_info)
-        except Exception:
-            # في حال لم يظهر عبر الـ API المباشر، نعرض الآيدي الثابت الذي أرسله تيليجرام فوراً
-            response_text = (
-                f"🛡️ <b>تقرير الحماية - مشاركة مباشرة</b>\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"🆔 المعرف الثابت / ID: <code>{target_id}</code>\n"
-                f"📌 ملاحظة: تم جلب الآيدي بنجاح عبر قائمة المشاركة السفلية 🚀\n"
-                f"━━━━━━━━━━━━━━"
-            )
-    else:
-        response_text = "⚠️ لم يتم استلام أي معرف صالح."
-
-    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=request_keyboard())
-
 # --- معالجة الرسائل العادية واليوزرات والتحويل ---
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
     response_text = ""
     
+    # 1. معالجة الرسائل المحولة بكل الطرق الممكنة (التقليدية والحديثة)
     if message.forward_from:
         response_text = format_user(message.forward_from)
     elif message.forward_from_chat:
@@ -270,6 +210,8 @@ def process_id_help_target(message):
                 f"📌 ملاحظة: هذا الشخص مفعل لإعدادات إخفاء التحويل، لكننا التقطنا أثره بنجاح!\n"
                 f"━━━━━━━━━━━━━━"
             )
+    
+    # 2. معالجة اليوزرات المباشرة
     elif message.text:
         text = message.text.strip()
         
@@ -313,7 +255,7 @@ def process_id_help_target(message):
     else:
         response_text = "⚠️ مياو! أرسل رسالة محولة صحيحة."
 
-    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=request_keyboard())
+    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=id_help_menu())
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
