@@ -61,14 +61,20 @@ def handle_callbacks(call):
 
 @bot.message_handler(chat_types=["private"], func=lambda m: user_states.get(m.from_user.id) == "waiting_target")
 def process_target(m):
-    if m.forward_from: res = format_user(m.forward_from)
-    elif m.forward_from_chat: res = format_chat(m.forward_from_chat)
+    if m.forward_from: 
+        res = format_user(m.forward_from)
+    elif m.forward_from_chat: 
+        res = format_chat(m.forward_from_chat)
     elif m.text and (m.text.startswith("@") or "t.me/" in m.text):
         try:
             c = bot.get_chat("@" + m.text.split("/")[-1].replace("@", ""))
             res = format_chat(c) if c.type != "private" else format_user(c)
-        except: res = "❌ لم يتم العثور على الحساب."
-    else: res = "⚠️ يرجى إرسال يوزر صحيح أو رسالة محولة (Forward)."
+        except: 
+            res = "❌ لم يتم العثور على الحساب."
+    else: 
+        res = "⚠️ يرجى إرسال يوزر صحيح أو رسالة محولة (Forward)."
+    
+    # إرسال النتيجة مع زر العودة للرئيسية إجباريًا مع كل رد
     bot.send_message(m.chat.id, res, parse_mode="HTML", reply_markup=back_menu())
     user_states.pop(m.from_user.id, None)
 
