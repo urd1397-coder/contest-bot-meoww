@@ -1,6 +1,7 @@
 import os
 import time
 import threading
+import asyncio
 import requests
 from bs4 import BeautifulSoup
 import telebot
@@ -253,7 +254,33 @@ def process_id_help_target(message):
         response_text = "⚠️ مياو! أرسل رسالة محولة صحيحة."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
+    
+def semantic_search_handler(message):
+    try:
+        bot.send_chat_action(message.chat.id, 'typing')
+    except Exception:
+        pass
+    
+    query_text = message.text.strip()
+    found_results = []
+    
+    # البحث بداخل القواميس النشطة والمسابقات المسجلة
+    for ch_id, contest_data in channel_contests.items():
+        participants = contest_data.get("participants", {})
+        for msg_id, p_data in participants.items():
+            mention = str(p_data.get("mention", ""))
+            user_id = str(p_data.get("user_id", ""))
+            
+            # مطابقة البحث مع اليوزر أو الآيدي
+            if query_text in mention or query_text in user_id:
+                found_results.append(f"📡 القناة: <code>{ch_id}</code>\n👤 العضو: {mention}\n🆔 الآيدي: <code>{user_id}</code>\n⭐ الأصوات: {p_data.get('votes', 0)}")
 
+    if found_results:
+        response_text = "🔍 <b>نتائج البحث المطابقة في السجلات:</b>\n\n" + "\n\n".join(found_results[:5])
+        bot.reply_to(message, response_text, parse_mode="HTML")
+    else:
+        bot.reply_to(message, "❌ لم يتم العثور على أي نتائج مطابقة لهذا الاستعلام في المسابقات النشطة حالياً.")
+        
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
