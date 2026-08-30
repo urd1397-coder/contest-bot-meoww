@@ -34,7 +34,6 @@ def run_server():
 # --- دالة البحث الشامل والمتقدم لأي حساب أو قناة عامة عبر الرابط أو اليوزر ---
 def advanced_lookup_by_username(username):
     clean_un = username.replace("@", "").strip()
-    # إزالة روابط تليجرام الشائعة للحصول على المعرف النقي
     if "t.me/" in clean_un:
         clean_un = clean_un.split("t.me/")[-1].split("/")[0].strip()
     elif "telegram.me/" in clean_un:
@@ -264,10 +263,10 @@ def process_id_help_target(message):
     elif message.text:
         text = message.text.strip()
         
-        if text.startswith("/"):
+        # تجاهل تام لأي كلام عادي أو مسافات حتى لا يظهر خطأ
+        if text.startswith("/") or len(text) < 3 or (" " in text and "t.me/" not in text and "telegram.me/" not in text):
             return
 
-        # تنظيف النص واستخراج اليوزر أو الرابط بأي شكل تم إرساله
         clean_username = text
         if "t.me/" in text:
             clean_username = text.split("t.me/")[-1].split("/")[0].strip()
@@ -299,11 +298,12 @@ def process_id_help_target(message):
                 else:
                     response_text = f"❌ مياو! لم أتمكن من العثور على الحساب أو الرابط <b>{text}</b>."
         else:
-            response_text = "⚠️ يرجى إرسال رابط صحيح أو يوزر نيم."
+            return
     else:
-        response_text = "⚠️ مياو! أرسل رسالة نصية أو رابط صالح."
+        return
 
-    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=id_help_menu())
+    if response_text:
+        bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=id_help_menu())
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
