@@ -75,7 +75,7 @@ def start_command(message):
         message.chat.id,
         "مياو! 🐱\n"
         "أهلاً بك في بوت شركس للحماية.\n"
-        "أنا قطك المطيع هيهي، جاهز لمساعدتك في جلب معلومات المخربين بدقة!\n\n"
+        "أنا قطك المطيع هيهي، جاهز لمساعدتك في جلب معلومات المخربين بدقة وتجاوز كل القيود!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
     )
@@ -88,7 +88,10 @@ def handle_callbacks(call):
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي.\n\n"
-            "قم بإرسال (اسم المستخدم / الـ Username) أو الرابط مباشرة، أو قم بإعادة توجيه (Forward) لأي رسالة من شخص أو قناة لأقوم بفك شفرتها وجلب الآيدي ومعلومات الحساب فوراً!",
+            "يمكنك جلب معلومات أي شخص أو قناة عبر:\n"
+            "1️⃣ إعادة توجيه (Forward) لأي رسالة (سواء نص، صور، فيديوهات، إلخ).\n"
+            "2️⃣ إرسال اليوزر أو الرابط مباشرة (@username أو t.me).\n"
+            "3️⃣ إرسال جهة اتصال (Contact) للحسابات المخفية تماماً!",
             chat_id,
             call.message.message_id,
             reply_markup=back_menu()
@@ -107,7 +110,7 @@ def handle_callbacks(call):
             "❌ تم إلغاء العملية بنجاح.",
             chat_id,
             call.message.message_id,
-            reply_markup=main_menu()
+            reply_markup=back_menu()
         )
     else:
         bot.answer_callback_query(call.id)
@@ -118,11 +121,31 @@ def handle_callbacks(call):
             reply_markup=back_menu()
         )
 
-@bot.message_handler(chat_types=["private"])
+# معالج مخصص لاستقبال جهات الاتصال (للحسابات المخفية تماماً)
+@bot.message_handler(chat_types=["private"], content_types=["contact"])
+def process_contact_target(message):
+    contact = message.contact
+    if contact.user_id:
+        response_text = (
+            f"🛡️ <b>تقرير حماية القروب - جهة اتصال مستخرجة</b>\n"
+            f"━━━━━━━━━━━━━━\n"
+            f"🆔 المعرف الثابت: <code>{contact.user_id}</code>\n"
+            f"📛 الاسم: {contact.first_name}\n"
+            f"📞 الهاتف / رقم التواصل: {contact.phone_number}\n"
+            f"📌 الحالة: تم استخراج الآيدي بنجاح متجاوزاً الخصوصية!\n"
+            f"━━━━━━━━━━━━━━"
+        )
+    else:
+        response_text = "⚠️ مياو! جهة الاتصال هذه غير مرتبطة بحساب تيليغرام مباشر."
+    
+    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
+
+# المعالج الأساسي للرسائل النصية والـ Forward بكل أنواع الوسائط
+@bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
     response_text = ""
 
-    # 1. فحص الطرق التقليدية والحديثة للرسائل المحولة (Forwarded Messages)
+    # 1. فحص الرسائل المحولة بغض النظر عن نوع المحتوى (صورة، نص، فيديو...)
     if message.forward_from:
         response_text = format_user(message.forward_from)
     elif message.forward_from_chat:
@@ -134,11 +157,19 @@ def process_id_help_target(message):
         elif getattr(origin, "chat", None):
             response_text = format_chat(origin.chat)
         elif getattr(origin, "sender_user_name", None):
-            response_text = f"⚠️ مياو! الحساب يمتلك اسماً نصياً مخفياً: {origin.sender_user_name} ولا يمكن جلب الآيدي الثابت بسبب إعدادات الخصوصية الصارمة."
+            name = origin.sender_user_name
+            response_text = (
+                f"⚠️ <b>مياو! تنبيه حماية هام</b>\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"📛 الاسم الظاهر: {name}\n"
+                f"📌 الحالة: <b>حساب مخفي تماماً</b>\n"
+                f"💡 هذا المستخدم قام بتفعيل إعدادات الخصوصية القصوى. لتجاوز ذلك والحصول على آيديه، قم بمشاركة <b>جهة الاتصال (Contact)</b> الخاصة به مع البوت.\n"
+                f"━━━━━━━━━━━━━━"
+            )
         else:
-            response_text = "⚠️ مياو! عذراً، مصدر الرسالة المحولة مخفي تماماً بواسطة إعدادات الخصوصية."
+            response_text = "⚠️ مياو! عذراً، مصدر الرسالة مخفي تماماً بواسطة إعدادات الخصوصية."
     
-    # 2. فحص إرسال اليوزر أو الرابط النصي مباشرة
+    # 2. فحص اليوزرات والروابط النصية المرسلة مباشرة
     elif message.text:
         text = message.text.strip()
         if "t.me/" in text:
@@ -156,13 +187,14 @@ def process_id_help_target(message):
                     response_text = format_chat(chat_info)
             except Exception:
                 response_text = (
-                    f"❌ مياو! لم أتمكن من العثور على الحساب <b>{target_query}</b>.\n"
-                    "تأكد من صحة اليوزر أو أن الحساب عام، أو جرب إرسال رسالة محولة (Forward) منه."
+                    f"❌ مياو! لم أتمكن من جلب معلومات الحساب <b>{target_query}</b>.\n\n"
+                    f"🔍 <b>السبب:</b> يمنع تيليغرام البوتات من البحث العشوائي عن الحسابات عبر اليوزر إلا إذا تفاعل الشخص مسبقاً مع البوت أو كانا في قروب مشترك.\n"
+                    f"💡 <b>الحل البديل:</b> اطلب منه إرسال رسالة مباشرة للبوت أو شارك جهة اتصاله."
                 )
         else:
             response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح."
     else:
-        response_text = "⚠️ مياو! أرسل رسالة محولة أو يوزر نيم صالح من فضلك."
+        response_text = "⚠️ مياو! يرجى إرسال رسالة محولة، يوزر نيم، أو جهة اتصال."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
 
