@@ -100,9 +100,10 @@ def id_help_menu():
     )
     return markup
 
-def back_menu():
+# زر العودة الثابت الذي يُضاف تحت كل رسالة
+def home_return_markup():
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي / Back", callback_data="cmd_id_help"))
+    markup.add(types.InlineKeyboardButton("🔙 العودة للرئيسية / Main Menu", callback_data="cmd_home"))
     return markup
 
 def format_user(u):
@@ -171,7 +172,7 @@ def handle_callbacks(call):
             chat_id,
             message_id,
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=home_return_markup()
         )
     elif call.data == "method_forward":
         bot.answer_callback_query(call.id)
@@ -182,7 +183,7 @@ def handle_callbacks(call):
             chat_id,
             message_id,
             parse_mode="HTML",
-            reply_markup=back_menu()
+            reply_markup=home_return_markup()
         )
     elif call.data == "cmd_home":
         bot.answer_callback_query(call.id)
@@ -206,7 +207,7 @@ def handle_callbacks(call):
             "⚙️ هذه الخاصية قيد البرمجة يا بطل.",
             chat_id,
             message_id,
-            reply_markup=back_menu()
+            reply_markup=home_return_markup()
         )
 
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
@@ -236,7 +237,7 @@ def handle_shared_targets(message):
     else:
         response_text = "⚠️ لم يتم استلام أي معرف صالح."
 
-    bot.send_message(message.chat.id, response_text, parse_mode="HTML")
+    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=home_return_markup())
 
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
@@ -263,7 +264,6 @@ def process_id_help_target(message):
     elif message.text:
         text = message.text.strip()
         
-        # تجاهل تام لأي كلام عادي أو مسافات حتى لا يظهر خطأ
         if text.startswith("/") or len(text) < 3 or (" " in text and "t.me/" not in text and "telegram.me/" not in text):
             return
 
@@ -303,7 +303,7 @@ def process_id_help_target(message):
         return
 
     if response_text:
-        bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=id_help_menu())
+        bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=home_return_markup())
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
