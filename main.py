@@ -15,9 +15,6 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# قاموس بسيط لتتبع حالة البحث الحر للمستخدمين (وضع الـ Premium)
-user_search_mode = {}
-
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -81,12 +78,11 @@ def create_dynamic_reply_keyboard():
     markup.add(btn_user, btn_group)
     return markup
 
-# --- [دالة احترافية]: القائمة الرئيسية الشفافة (مع زر الـ Premium الجديد) ---
+# --- [دالة احترافية]: القائمة الرئيسية الشفافة (مميزة ومزخرفة) ---
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("👑 بحث عام (Premium) ⚡", callback_data="cmd_premium_search"),
-        types.InlineKeyboardButton("🔍 استخراج الآيدي والاختيار السريع 📂", callback_data="cmd_id_help"),
+        types.InlineKeyboardButton("🔍 استخراج الآيدي والبحث الشامل ⚡", callback_data="cmd_id_help"),
         types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية جديدة", callback_data="cmd_create"),
         types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
         types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
@@ -126,7 +122,7 @@ def format_user_report(u):
 # --- [دالة احترافية]: تنسيق معلومات المجموعات والقنوات ---
 def format_chat_report(c):
     uname = f"@{c.username}" if c.username else "لا يوجد يوزر / No Username"
-    chat_type_ar = "قناة عامة" if c.type == "channel" else ("مجموعة تفاعلية" in c.type or "group" in c.type and "مجموعة" or c.type)
+    chat_type_ar = "قناة عامة" if c.type == "channel" else ("مجموعة تفاعلية" if "group" in c.type else c.type)
     return (
         f"🛡️ <b>[ تقرير حماية شركس - جهة خارجية ]</b>\n"
         f"━━━━━━━━━━━━━━━\n"
@@ -140,12 +136,11 @@ def format_chat_report(c):
 # --- معالج أمر البداية /start ---
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
-    user_search_mode[message.chat.id] = False
     bot.send_message(
         message.chat.id,
         "مياو! 🐱✨\n"
         "أهلاً بك في النسخة المطورّة من بوت حماية شركس.\n"
-        "أختر من القائمة أدناه أو ابدأ البحث الفوري:",
+        "أرسل أي يوزر أو رابط مباشر، أو استخدم القائمة أدناه للتحكم الكامل:",
         reply_markup=create_main_menu_markup()
     )
 
@@ -155,25 +150,11 @@ def handle_inline_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
 
-    if call.data == "cmd_premium_search":
-        bot.answer_callback_query(call.id, "تم تفعيل نظام البحث العام بنجاح!")
-        user_search_mode[chat_id] = True
-        bot.edit_message_text(
-            "👑 <b>[ نظام البحث العام والـ Premium ]</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "🌐 مفعّلة الآن بنجاح!\n"
-            "أرسل في الشات أي يوزر (`@username`) أو رابط مباشر (`t.me/...`) أو اسم ترغب بالبحث عنه في تيليجرام وسأقوم بجلبه فوراً دون قيود 🚀",
-            chat_id,
-            message_id,
-            parse_mode="HTML",
-            reply_markup=create_home_return_markup()
-        )
-    elif call.data == "cmd_id_help":
-        user_search_mode[chat_id] = False
+    if call.data == "cmd_id_help":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "🐾 أهلاً بك في قسم البحث والتحكم المتقدم.\n\n"
-            "اختر الطريقة المناسبة أدناه:",
+            "🐾 أهلاً بك في قسم البحث الذكي والتحكم المتقدم.\n\n"
+            "اختر الطريقة المناسبة للبحث أدناه:",
             chat_id,
             message_id,
             reply_markup=create_id_help_menu_markup()
@@ -190,7 +171,7 @@ def handle_inline_callbacks(call):
         bot.edit_message_text(
             "🎯 <b>[ وضع البحث اليدوي المباشر ]</b>\n"
             "━━━━━━━━━━━━━━━\n"
-            "✍️ أرسل الآن اليوزر (مثل `@username`) أو الرابط وسأجلب نتائجه:",
+            "✍️ أرسل الآن اليوزر (مثل `@username`) أو الرابط (مثل `t.me/...`) وسأقوم بجلبه فوراً بروابط بحث صاروخية 🚀",
             chat_id,
             message_id,
             parse_mode="HTML",
@@ -201,14 +182,13 @@ def handle_inline_callbacks(call):
         bot.edit_message_text(
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
             "━━━━━━━━━━━━━━━\n"
-            "🐾 قم بإعادة توجيه أي رسالة من أي قروب أو شخص هنا لاستخراج بياناته!",
+            "🐾 قم بإعادة توجيه أي رسالة من أي قروب أو شخص هنا وسأستخرج كافة بياناته السرية!",
             chat_id,
             message_id,
             parse_mode="HTML",
             reply_markup=create_home_return_markup()
         )
     elif call.data == "cmd_home":
-        user_search_mode[chat_id] = False
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "🏠 عودة موفقة لقرص العمليات الرئيسي 🐱 تفضل:",
@@ -217,7 +197,6 @@ def handle_inline_callbacks(call):
             reply_markup=create_main_menu_markup()
         )
     elif call.data == "cmd_cancel":
-        user_search_mode[chat_id] = False
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "❌ تم إغلاق القائمة بنجاح. أرسل /start للإعادة.",
@@ -234,7 +213,7 @@ def handle_inline_callbacks(call):
             reply_markup=create_home_return_markup()
         )
 
-# --- معالج الاختيارات السفلية (إخفاء الكيبورد فوراً لمنع بقائه ثابتاً) ---
+# --- [دالة احترافية معدلة]: معالجة الاختيارات من نافذة تيليجرام الداخلية دون أخطاء No Result ---
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
 def handle_shared_native_targets(message):
     response_text = ""
@@ -263,22 +242,23 @@ def handle_shared_native_targets(message):
     else:
         response_text = "⚠️ لم يتم استلام أي معرف صالح من القائمة، حاول مرة أخرى."
 
+    # إخفاء الكيبورد السفلي فوراً وإرسال النتيجة بوضوح
     bot.send_message(
         message.chat.id, 
         response_text, 
         parse_mode="HTML", 
         reply_markup=types.ReplyKeyboardRemove()
     )
+    # إرسال زر العودة للرئيسية برسالة منفصلة ومرتبة
     bot.send_message(
         message.chat.id, 
         "🔹 هل تريد عملية بحث أو استعلام آخر؟", 
         reply_markup=create_home_return_markup()
     )
 
-# --- معالج النصوص والرسائل المحولة والبحث الشامل أو الـ Premium ---
+# --- معالج النصوص والرسائل المحولة والبحث الشامل ---
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handle_text_and_forwards_lookup(message):
-    chat_id = message.chat.id
     response_text = ""
     
     if message.forward_from:
@@ -302,12 +282,7 @@ def handle_text_and_forwards_lookup(message):
     elif message.text:
         text = message.text.strip()
         
-        if text.startswith("/"):
-            return
-
-        # إذا لم يتم تفعيل وضع البحث اليدوي أو الـ Premium ولم تكن رسالة معتادة، نتحقق
-        is_premium_active = user_search_mode.get(chat_id, False)
-        if not is_premium_active and len(text) < 3 and "t.me/" not in text:
+        if text.startswith("/") or len(text) < 3 or (" " in text and "t.me/" not in text and "telegram.me/" not in text):
             return
 
         clean_username = text
@@ -330,7 +305,7 @@ def handle_text_and_forwards_lookup(message):
                 adv_result = fetch_advanced_web_lookup(clean_username)
                 if adv_result["found"]:
                     response_text = (
-                        f"🛡️ <b>[ تقرير البحث العام والـ Premium - شركس بوت ]</b>\n"
+                        f"🛡️ <b>[ تقرير البحث الشامل المفتوح - شركس بوت ]</b>\n"
                         f"━━━━━━━━━━━━━━━\n"
                         f"📛 الاسم: {adv_result['name']}\n"
                         f"🔗 اليوزر: {adv_result['username']}\n"
@@ -339,7 +314,7 @@ def handle_text_and_forwards_lookup(message):
                         f"━━━━━━━━━━━━━━━"
                     )
                 else:
-                    response_text = f"❌ مياو! عذراً، لم أتمكن من العثور على أي نتائج مطابقة لـ: <b>{text}</b> في قاعدة البيانات العامة."
+                    response_text = f"❌ مياو! عذراً، لم أتمكن من العثور على أي نتائج مطابقة لـ: <b>{text}</b>."
         else:
             return
     else:
