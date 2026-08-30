@@ -193,6 +193,7 @@ def process_contact_target(message):
 def process_id_help_target(message):
     response_text = ""
 
+    
     # 1. معالجة الرسائل المحولة (Forward)
     if message.forward_from:
         response_text = format_user(message.forward_from)
@@ -248,6 +249,66 @@ def process_id_help_target(message):
         response_text = "⚠️ مياو! يرجى إرسال رسالة محولة، يوزر نيم، أو جهة اتصال.\nPlease send a forwarded message, username, or contact."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
+
+@bot.inline_handler(func=lambda query: True)
+def query_text(inline_query):
+    query = inline_query.query.strip()
+    results = []
+    
+    if query:
+        try:
+            # محاولة جلب معلومات اليوزر أو القناة المكتوبة
+            target = "@" + query.replace("@", "")
+            chat_info = bot.get_chat(target)
+            
+            name = getattr(chat_info, "first_name", None) or getattr(chat_info, "title", "مجهول")
+            user_id = chat_info.id
+            username = f"@{chat_info.username}" if chat_info.username else "لا يوجد"
+            
+            result_text = (
+                f"🛡️ <b>نتيجة البحث السريع / Inline Search Result</b>\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"🆔 المعرف الثابت: <code>{user_id}</code>\n"
+                f"📛 الاسم: {name}\n"
+                f"🔗 اليوزر: {username}\n"
+                f"━━━━━━━━━━━━━━"
+            )
+            
+            results.append(
+                types.InlineQueryResultArticle(
+                    id='1',
+                    title=f"معلومات: {name}",
+                    description=f"الآيدي: {user_id} - اضغط للإرسال",
+                    input_message_content=types.InputTextMessageContent(
+                        message_text=result_text,
+                        parse_mode="HTML"
+                    )
+                )
+            )
+        except Exception:
+            results.append(
+                types.InlineQueryResultArticle(
+                    id='error',
+                    title="⚠️ لم يتم العثور على الحساب",
+                    description="تأكد من كتابة اليوزر بشكل صحيح أو أن الحساب تفاعل مع البوت مسبقاً",
+                    input_message_content=types.InputTextMessageContent(
+                        message_text="⚠️ عذراً، لم أتمكن من العثور على هذا الحساب عبر البحث السريع."
+                    )
+                )
+            )
+    else:
+        results.append(
+            types.InlineQueryResultArticle(
+                id='empty',
+                title="🔍 اكتب يوزر للبحث...",
+                description="مثال: @username",
+                input_message_content=types.InputTextMessageContent(
+                    message_text="🔍 يرجى كتابة اسم المستخدم بعد يوزر البوت للبحث عنه."
+                )
+            )
+        )
+        
+    bot.answer_inline_query(inline_query.id, results, cache_time=1)
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
