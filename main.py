@@ -43,10 +43,10 @@ def main_menu():
 def id_help_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🎯 من خلال اليوزر نيم", callback_data="method_username"),
-        types.InlineKeyboardButton("📥 من خلال الرسائل الموجهة", callback_data="method_forward"),
-        types.InlineKeyboardButton("🔍 البحث السريع وتجاوز الخصوصية", callback_data="method_inline_search"),
-        types.InlineKeyboardButton("🔙 العودة للرئيسية", callback_data="cmd_home")
+        types.InlineKeyboardButton("🎯 من خلال اليوزر نيم / By Username", callback_data="method_username"),
+        types.InlineKeyboardButton("📥 من خلال الرسائل المحولة / By Forwarded Msg", callback_data="method_forward"),
+        types.InlineKeyboardButton("🔍 البحث السريع / Inline Search", callback_data="method_inline_search"),
+        types.InlineKeyboardButton("🔙 العودة للرئيسية / Main Menu", callback_data="cmd_home")
     )
     return markup
 
@@ -105,38 +105,41 @@ def handle_callbacks(call):
             message_id,
             reply_markup=id_help_menu()
         )
-    elif call.data == "method_username":
+  elif call.data == "method_username":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "🎯 <b>هاتِ اليوزر يا بطل!</b>\n"
+            "🎯 <b>هاتِ اليوزر يا بطل! / Send the Username!</b>\n"
             "━━━━━━━━━━━━━━\n"
-            "✍️ اكتب اسم المستخدم أو الرابط مباشرة (مثل: `@username` أو الرابط)، وسأجيبك بتقريره الكامل قبل أن ترمش عيونك! 👀✨",
+            "✍️ اكتب اسم المستخدم أو الرابط مباشرة (مثل: `@username` أو الرابط)، وسأجيبك بتقريره الكامل قبل أن ترمش عيونك!\n"
+            "Type the username or direct link, and I'll fetch its report instantly! 👀✨",
             chat_id,
             message_id,
             parse_mode="HTML",
             reply_markup=back_menu()
         )
-    elif call.data == "method_forward":
+   elif call.data == "method_forward":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "📥 <b>حوّل الرسالة ودع الباقي عليّ!</b>\n"
+            "📥 <b>حوّل الرسالة ودع الباقي عليّ! / Forward the Message!</b>\n"
             "━━━━━━━━━━━━━━\n"
-            "🐾 قم بإعادة توجيه (Forward) أي رسالة هنا—سواء كانت نصاً، صورة، فيديو، أو من أي قناة عامة أو خاصة—وسأستخرج لك الآيدي والمعلومات فوراً! 🚀",
+            "🐾 قم بإعادة توجيه أي رسالة هنا (نص، صورة، فيديو...) وسأستخرج لك الآيدي والمعلومات فوراً!\n"
+            "Forward any message here and I'll extract the ID and info instantly! 🚀",
             chat_id,
             message_id,
             parse_mode="HTML",
             reply_markup=back_menu()
         )
-    elif call.data == "method_inline_search":
+ elif call.data == "method_inline_search":
         bot.answer_callback_query(call.id)
         inline_markup = types.InlineKeyboardMarkup()
-        inline_markup.add(types.InlineKeyboardButton("🔍 اضغط للبحث عن مستخدم", switch_inline_query_current_chat=""))
-        inline_markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي", callback_data="cmd_id_help"))
+        inline_markup.add(types.InlineKeyboardButton("🔍 ابحث الآن / Search Now", switch_inline_query_current_chat=""))
+        inline_markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي / Back", callback_data="cmd_id_help"))
         
         bot.edit_message_text(
-            "🔍 <b>ابحث واكشفه فوراً!</b>\n"
+            "🔍 <b>البحث السريع / Quick Search</b>\n"
             "━━━━━━━━━━━━━━\n"
-            "🐾 اضغط على الزر بالأسفل للبحث عن أي شخص في التيليغرام واختياره لمشاركته معنا—حتى لو لم يكن مسجلاً في جهات اتصالك! 🚀✨",
+            "🐾 اضغط على الزر بالأسفل للبحث عن أي شخص ومشاركته معنا مباشرة!\n"
+            "Tap the button below to search for anyone and share it directly! 🚀✨",
             chat_id,
             message_id,
             parse_mode="HTML",
@@ -212,10 +215,41 @@ def process_id_help_target(message):
         else:
             response_text = "⚠️ مياو! عذراً، مصدر الرسالة مخفي تماماً بواسطة إعدادات الخصوصية."
     
+  @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
+def process_id_help_target(message):
+    response_text = ""
+
+    # 1. معالجة الرسائل المحولة (Forward)
+    if message.forward_from:
+        response_text = format_user(message.forward_from)
+    elif message.forward_from_chat:
+        response_text = format_chat(message.forward_from_chat)
+    elif hasattr(message, "forward_origin") and message.forward_origin:
+        origin = message.forward_origin
+        if getattr(origin, "sender_user", None):
+            response_text = format_user(origin.sender_user)
+        elif getattr(origin, "chat", None):
+            response_text = format_chat(origin.chat)
+        elif getattr(origin, "sender_user_name", None):
+            name = origin.sender_user_name
+            response_text = (
+                f"⚠️ <b>مياو! تنبيه حماية هام / Security Alert</b>\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"📛 الاسم الظاهر / Name: {name}\n"
+                f"📌 الحالة / Status: <b>حساب مخفي تماماً / Hidden Account</b>\n"
+                f"💡 هذا المستخدم قام بتفعيل إعدادات الخصوصية القصوى. استخدم البحث السريع أو اطلب منه مراسلتك.\n"
+                f"━━━━━━━━━━━━━━"
+            )
+        else:
+            response_text = "⚠️ مياو! عذراً، مصدر الرسالة مخفي تماماً.\nSorry, the message source is hidden."
+    
+    # 2. معالجة اليوزرات والروابط النصية
     elif message.text:
         text = message.text.strip()
         if "t.me/" in text:
             clean_username = text.split("t.me/")[-1].split("/")[0].strip()
+        elif "telegram.me/" in text:
+            clean_username = text.split("telegram.me/")[-1].split("/")[0].strip()
         else:
             clean_username = text.replace("@", "").strip()
 
@@ -230,13 +264,14 @@ def process_id_help_target(message):
             except Exception:
                 response_text = (
                     f"❌ مياو! لم أتمكن من جلب معلومات الحساب <b>{target_query}</b>.\n\n"
-                    f"🔍 <b>السبب:</b> يمنع تيليغرام البوتات من البحث العشوائي عن الحسابات عبر اليوزر إلا إذا تفاعل الشخص مسبقاً مع البوت أو كانا في قروب مشترك.\n"
-                    f"💡 <b>الحل البديل:</b> اطلب منه إرسال رسالة مباشرة للبوت أو شارك جهة اتصاله."
+                    f"🔍 <b>السبب / Reason:</b> يمنع تيليغرام البوتات من البحث العشوائي إلا إذا تفاعل الشخص مسبقاً.\n"
+                    f"💡 <b>الحل / Solution:</b> اطلب منه إرسال رسالة للبوت أولاً."
                 )
         else:
-            response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح."
+            response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح.\nPlease send a valid username or link."
+    
     else:
-        response_text = "⚠️ مياو! يرجى إرسال رسالة محولة، يوزر نيم، أو جهة اتصال."
+        response_text = "⚠️ مياو! يرجى إرسال رسالة محولة، يوزر نيم، أو جهة اتصال.\nPlease send a forwarded message, username, or contact."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
 
