@@ -304,29 +304,7 @@ def process_id_help_target(message):
 
     if response_text:
         bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=home_return_markup())
-@bot.message_handler(chat_types=["group", "supergroup"], content_types=["text"])
-def group_exclusive_handler(message):
-    text = message.text.strip()
-    chat_id = message.chat.id
 
-    # عند كتابة كلمة "قائمة" في القروب يرسل أزرار اختيار أعضاء القروب حصراً
-    if text == "قائمة":
-        bot.send_message(
-            chat_id,
-            "📋 <b>القائمة المتطورة للقروب:</b>\n"
-            "اضغط على الزر أدناه لاختيار وجلب معلومات أعضاء القروب حصراً:",
-            parse_mode="HTML",
-            reply_markup=group_members_request_keyboard()
-        )
-    
-    # عند مناداته باسم "شركس" في القروب يرسل القائمة الأساسية
-    elif "شركس" in text:
-        bot.send_message(
-            chat_id,
-            "مياو! 🐱 ناديتني؟ تفضل القائمة الأساسية:",
-            reply_markup=main_menu()
-        )
-        
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
