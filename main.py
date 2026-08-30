@@ -1,7 +1,6 @@
 import os
 import telebot
-from telebot 
-import types
+from telebot import types
 
 # إعدادات البوت
 BOT_TOKEN = os.getenv("BOT_TOKEN")
