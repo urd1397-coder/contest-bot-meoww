@@ -89,22 +89,24 @@ def start_command(message):
         "أنا قطك المطيع هيهي، جاهز لمساعدتك في جلب معلومات المخربين بدقة وتجاوز كل القيود!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
+        
     )
-
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
+
     if call.data == "cmd_id_help":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي.\n\n"
-            "اختر الطريقة التي تفضلها لاستخراج الآيدي والمعلومات بدقة:",
+            "اختر الطريقة التي تفضلها لاستخراج الآيدي والمعلومات بدقة:\n"
+            "Choose the method you prefer to extract ID and info accurately:",
             chat_id,
             message_id,
             reply_markup=id_help_menu()
         )
-  elif call.data == "method_username":
+    elif call.data == "method_username":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "🎯 <b>هاتِ اليوزر يا بطل! / Send the Username!</b>\n"
@@ -116,7 +118,7 @@ def handle_callbacks(call):
             parse_mode="HTML",
             reply_markup=back_menu()
         )
-   elif call.data == "method_forward":
+    elif call.data == "method_forward":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "📥 <b>حوّل الرسالة ودع الباقي عليّ! / Forward the Message!</b>\n"
@@ -128,7 +130,7 @@ def handle_callbacks(call):
             parse_mode="HTML",
             reply_markup=back_menu()
         )
- elif call.data == "method_inline_search":
+    elif call.data == "method_inline_search":
         bot.answer_callback_query(call.id)
         inline_markup = types.InlineKeyboardMarkup()
         inline_markup.add(types.InlineKeyboardButton("🔍 ابحث الآن / Search Now", switch_inline_query_current_chat=""))
@@ -147,7 +149,7 @@ def handle_callbacks(call):
     elif call.data == "cmd_home":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "مياو العودة للقرص! 🐱 تفضل القائمة الرئيسية:",
+            "مياو العودة للقرص! 🐱 تفضل القائمة الرئيسية:\nBack to main menu:",
             chat_id,
             message_id,
             reply_markup=main_menu()
@@ -155,7 +157,7 @@ def handle_callbacks(call):
     elif call.data == "cmd_cancel":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "❌ تم إلغاء العملية بنجاح.",
+            "❌ تم إلغاء العملية بنجاح.\nOperation cancelled successfully.",
             chat_id,
             message_id,
             reply_markup=main_menu()
@@ -163,12 +165,12 @@ def handle_callbacks(call):
     else:
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "⚙️ هذه الخاصية قيد البرمجة يا بطل.",
+            "⚙️ هذه الخاصية قيد البرمجة يا بطل.\nThis feature is under development.",
             chat_id,
             message_id,
             reply_markup=back_menu()
         )
-
+        
 @bot.message_handler(chat_types=["private"], content_types=["contact"])
 def process_contact_target(message):
     contact = message.contact
