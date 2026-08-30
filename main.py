@@ -29,7 +29,7 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
-# --- القوائم والأزرار الشفافة ---
+# --- القوائم الرئيسية ---
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -91,7 +91,6 @@ def start_command(message):
         reply_markup=main_menu()
     )
 
-# --- معالجة الأزرار والـ Callbacks ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callbacks(call):
     chat_id = call.message.chat.id
@@ -130,7 +129,6 @@ def handle_callbacks(call):
         )
     elif call.data == "method_inline_search":
         bot.answer_callback_query(call.id)
-        # إنشاء زر بحث سريع (Switch Inline Query) يتيح للمستخدم البحث في المحادثات مباشرة
         inline_markup = types.InlineKeyboardMarkup()
         inline_markup.add(types.InlineKeyboardButton("🔍 اضغط للبحث عن مستخدم", switch_inline_query_current_chat=""))
         inline_markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي", callback_data="cmd_id_help"))
@@ -169,7 +167,6 @@ def handle_callbacks(call):
             reply_markup=back_menu()
         )
 
-# --- معالج جهات الاتصال (للحسابات المخفية) ---
 @bot.message_handler(chat_types=["private"], content_types=["contact"])
 def process_contact_target(message):
     contact = message.contact
@@ -188,12 +185,10 @@ def process_contact_target(message):
     
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
 
-# --- المعالج الأساسي للنصوص والرسائل المحولة بكل أنواعها ---
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
     response_text = ""
 
-    # 1. معالجة الرسائل المحولة (Forward) بجميع أنواع الوسائط
     if message.forward_from:
         response_text = format_user(message.forward_from)
     elif message.forward_from_chat:
@@ -217,7 +212,6 @@ def process_id_help_target(message):
         else:
             response_text = "⚠️ مياو! عذراً، مصدر الرسالة مخفي تماماً بواسطة إعدادات الخصوصية."
     
-    # 2. معالجة اليوزرات والروابط المباشرة
     elif message.text:
         text = message.text.strip()
         if "t.me/" in text:
@@ -253,6 +247,13 @@ if __name__ == "__main__":
     print(f"HTTP Server started on port {PORT}")
     
     time.sleep(3)
+
+    # إزالة الويب هوك القديم لمنع خطأ 409 Conflict نهائياً
+    try:
+        bot.remove_webhook()
+        print("Old webhook removed successfully.")
+    except Exception as e:
+        print(f"Error removing webhook: {e}")
 
     while True:
         try:
