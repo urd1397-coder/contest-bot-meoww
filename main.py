@@ -95,7 +95,6 @@ def start_command(message):
 def handle_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
-
     if call.data == "cmd_id_help":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
