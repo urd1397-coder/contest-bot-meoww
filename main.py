@@ -88,7 +88,7 @@ def handle_callbacks(call):
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي، هنا لمساعدتك في حماية القروبات.\n\n"
-            "قم بإرسال (اسم المستخدم / الـ Username) مباشرة، أو إن لم يكن لديه يوزر، قم بإعادة توجيه (Forward) أي رسالة، صورة، ملف، صوت، أو ملصق من هذا الشخص أو القناة لأقوم بفك شفرته وجلب معلومات الحساب المفيدة للحماية!",
+            "قم بإرسال (اسم المستخدم / الـ Username) أو الرابط مباشرة، أو قم بإعادة توجيه (Forward) أي رسالة من الشخص أو القناة لأقوم بفك شفرته وجلب معلومات الحساب المفيدة للحماية!",
             chat_id,
             call.message.message_id,
             reply_markup=back_menu()
@@ -107,7 +107,7 @@ def handle_callbacks(call):
             "❌ تم إلغاء العملية بنجاح.",
             chat_id,
             call.message.message_id,
-            reply_markup=main_menu()
+            reply_markup=back_menu()
         )
     else:
         bot.answer_callback_query(call.id)
@@ -122,6 +122,7 @@ def handle_callbacks(call):
 def process_id_help_target(message):
     response_text = ""
 
+    # التعامل مع جميع أنواع التوجيه القديمة والحديثة بغض النظر عن شكل الـ Forward
     if message.forward_from:
         response_text = format_user(message.forward_from)
     elif message.forward_from_chat:
@@ -132,24 +133,31 @@ def process_id_help_target(message):
             response_text = format_user(origin.sender_user)
         elif getattr(origin, "chat", None):
             response_text = format_chat(origin.chat)
+        elif getattr(origin, "sender_user_name", None):
+            # في حال كان الحساب مخفياً تماماً ولكنه يظهر اسماً نصياً
+            response_text = f"⚠️ مياو! الحساب باسم مخفي: {origin.sender_user_name} ولا يمكن جلب الآيدي الثابت بسبب إعدادات الخصوصية."
         else:
-            response_text = "⚠️ مياو! الحساب مخفي ولا يمكن جلب الآيدي بسبب إعدادات الخصوصية الصارمة."
+            response_text = "⚠️ مياو! عذراً، مصدر الرسالة المحولة مخفي تماماً."
     elif message.text:
         text = message.text.strip()
-        if text.startswith("@") or "t.me/" in text:
-            username_clean = text.split("/")[-1].replace("@", "")
-            try:
-                chat_info = bot.get_chat("@" + username_clean)
-                if chat_info.type == "private":
-                    response_text = format_user(chat_info)
-                else:
-                    response_text = format_chat(chat_info)
-            except Exception:
-                response_text = "❌ مياو! لم أتمكن من العثور على هذا الحساب. تأكد من صحة اليوزر أو الرابط."
-        else:
-            response_text = "⚠️ يرجى إرسال يوزر صحيح يبدأ بـ @ أو رابط، أو قم بعمل Forward لأي رسالة."
+        # محاولة البحث عن اليوزر بغض النظر عن كتابته برمز @ أو بدونه أو كرابط
+        clean_query = text.split("t.me/")[-1].split("/")[-1].strip()
+        if not clean_query.startswith("@"):
+            clean_query = "@" + clean_query
+
+        try:
+            chat_info = bot.get_chat(clean_query)
+            if chat_info.type == "private":
+                response_text = format_user(chat_info)
+            else:
+                response_text = format_chat(chat_info)
+        except Exception:
+            response_text = (
+                f"❌ مياو! لم أتمكن من جلب معلومات <b>{clean_query}</b>.\n"
+                "تأكد أن الحساب عام، أو قم بعمل <b>إعادة توجيه (Forward)</b> لرسالة مباشرة منه لضمان جلب الآيدي بدقة!"
+            )
     else:
-        response_text = "⚠️ مياو! أرسل رسالة محولة أو يوزر نيم صالح من فضلك."
+        response_text = "⚠️ مياو! يرجى إرسال يوزر نيم صالح أو رسالة محولة."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
 
