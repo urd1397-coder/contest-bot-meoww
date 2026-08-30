@@ -43,7 +43,6 @@ def advanced_lookup_by_username(username):
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             
-            # استخراج الاسم من صفحة الويب العامة للرابط
             title_tag = soup.find("meta", property="og:title")
             desc_tag = soup.find("meta", property="og:description")
             
@@ -140,7 +139,7 @@ def handle_callbacks(call):
     elif call.data == "method_username":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "🎯 <b>هاتِ اليوزر للببحث المتقدم! / Send Username!</b>\n"
+            "🎯 <b>هاتِ اليوزر للبحث المتقدم! / Send Username!</b>\n"
             "━━━━━━━━━━━━━━\n"
             "✍️ اكتب اسم المستخدم أو الرابط مباشرة (مثل: `@username`)، وسأقوم بالبحث عنه عبر النظام المتقدم فوراً! 🚀",
             chat_id,
@@ -188,7 +187,7 @@ def handle_callbacks(call):
 def process_id_help_target(message):
     response_text = ""
     
-    # 1. معالجة الرسائل المحولة
+    # 1. معالجة الرسائل المحولة بكل الطرق الممكنة (التقليدية والحديثة)
     if message.forward_from:
         response_text = format_user(message.forward_from)
     elif message.forward_from_chat:
@@ -199,14 +198,23 @@ def process_id_help_target(message):
             response_text = format_user(origin.sender_user)
         elif getattr(origin, "chat", None):
             response_text = format_chat(origin.chat)
-        elif getattr(origin, "sender_user_name", None):
-            response_text = f"⚠️ <b>حساب مخفي تماماً / Hidden Account</b>\n📛 الاسم: {origin.sender_user_name}"
         else:
-            response_text = "⚠️ مصدر الرسالة مخفي تماماً."
+            sender_name = getattr(origin, "sender_user_name", "مخفي")
+            response_text = (
+                f"🛡️ <b>تقرير حماية القروب - حساب بخصوصية مفعلة</b>\n"
+                f"━━━━━━━━━━━━━━\n"
+                f"📛 الاسم الظاهر: {sender_name}\n"
+                f"📌 ملاحظة: هذا الشخص مفعل لإعدادات إخفاء التحويل، لكننا التقطنا أثره بنجاح!\n"
+                f"━━━━━━━━━━━━━━"
+            )
     
-    # 2. معالجة اليوزرات عبر البحث المتقدم (Bot API + Web Advanced Lookup)
+    # 2. معالجة اليوزرات المباشرة
     elif message.text:
         text = message.text.strip()
+        
+        if text.startswith("/"):
+            return
+
         if "t.me/" in text:
             clean_username = text.split("t.me/")[-1].split("/")[0].strip()
         elif "telegram.me/" in text:
@@ -217,14 +225,12 @@ def process_id_help_target(message):
         if clean_username:
             target_query = "@" + clean_username
             try:
-                # محاولة الفحص المباشر عبر البوت أولاً
                 chat_info = bot.get_chat(target_query)
                 if chat_info.type == "private":
                     response_text = format_user(chat_info)
                 else:
                     response_text = format_chat(chat_info)
             except Exception:
-                # إذا فشلت الطريقة المباشرة، نلجأ للبحث المتقدم للرابط العام
                 adv_result = advanced_lookup_by_username(clean_username)
                 if adv_result["found"]:
                     response_text = (
@@ -243,9 +249,8 @@ def process_id_help_target(message):
                     )
         else:
             response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح."
-    
     else:
-        response_text = "⚠️ يرجى إرسال رسالة محولة أو يوزر نيم."
+        response_text = "⚠️ مياو! أرسل رسالة محولة صحيحة."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
 
