@@ -1,10 +1,11 @@
 import time
 import threading
 import os
-import telebot
+import html
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import telebot
 from telebot import types
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 
 # =========================================================
@@ -21,17 +22,11 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 
 # =========================================================
-# تخزين حالة المستخدم مؤقتاً
+# حالات المستخدمين
 # =========================================================
 
-# user_states:
-# {
-#     user_id: "waiting_for_target"
-# }
-#
-# نستخدمها لمعرفة أن المستخدم ضغط ID Help
-# وأصبح البوت ينتظر منه Username أو رسالة مُعاد توجيهها.
-
+# عندما يضغط المستخدم ID Help في الخاص
+# نخزن أنه ينتظر Username أو Forward
 user_states = {}
 
 
@@ -40,6 +35,7 @@ user_states = {}
 # =========================================================
 
 def main_menu():
+
     markup = types.InlineKeyboardMarkup(row_width=1)
 
     markup.add(
@@ -47,22 +43,18 @@ def main_menu():
             "🔍😼 معرفة الآيدي (id_help)",
             callback_data="cmd_id_help"
         ),
-
         types.InlineKeyboardButton(
             "🎯😸 إنشاء مسابقة (create)",
             callback_data="cmd_create"
         ),
-
         types.InlineKeyboardButton(
             "⛔😺 إنهاء المسابقة (end)",
             callback_data="cmd_end"
         ),
-
         types.InlineKeyboardButton(
             "🔄😺 إعادة البدء (restart)",
             callback_data="cmd_restart"
         ),
-
         types.InlineKeyboardButton(
             "❌😺 إلغاء العملية (cancel)",
             callback_data="cmd_cancel"
@@ -73,10 +65,11 @@ def main_menu():
 
 
 # =========================================================
-# رسالة القائمة الرئيسية
+# إرسال القائمة
 # =========================================================
 
 def send_main_menu(chat_id):
+
     bot.send_message(
         chat_id,
         "أهلاً بك في شركس 🐱\n"
@@ -86,16 +79,14 @@ def send_main_menu(chat_id):
 
 
 # =========================================================
-# /start في الخاص
+# /start
 # =========================================================
 
 @bot.message_handler(commands=["start"])
 def start_command(message):
 
-    # تنظيف أي حالة قديمة
     user_states.pop(message.from_user.id, None)
 
-    # في الخاص
     if message.chat.type == "private":
 
         bot.send_message(
@@ -106,12 +97,12 @@ def start_command(message):
         )
 
     else:
-        # إذا استُخدم /start في مجموعة
+
         send_main_menu(message.chat.id)
 
 
 # =========================================================
-# زر ID HELP
+# ID HELP
 # =========================================================
 
 @bot.callback_query_handler(func=lambda call: call.data == "cmd_id_help")
@@ -119,38 +110,32 @@ def id_help_callback(call):
 
     bot.answer_callback_query(call.id)
 
-    user_id = call.from_user.id
+    user_states[call.from_user.id] = "waiting_for_target"
 
-    # نضع المستخدم في حالة انتظار
-    user_states[user_id] = "waiting_for_target"
-
-    text = (
-        "أهلاً بك، أنا شركس 🐱\n\n"
+    bot.send_message(
+        call.message.chat.id,
+        "أهلاً، أنا شركس 🐱\n\n"
         "وأنا هنا لمساعدتك في جلب معلومات الحساب.\n\n"
-        "إذا كان لدى الشخص Username، أرسله لي بهذا الشكل:\n"
-        "@username\n\n"
+        "إذا كان لديك Username للشخص أو القناة، أرسله لي:\n"
+        "<code>@username</code>\n\n"
         "وإذا لم يكن لديه Username، قم بإعادة توجيه "
-        "أي رسالة من الحساب المطلوب إليّ.\n\n"
+        "أي رسالة من الحساب أو القناة إليّ.\n\n"
         "يمكن أن تكون الرسالة:\n"
         "• نص\n"
         "• صورة\n"
         "• فيديو\n"
         "• ملف\n"
         "• صوت\n"
-        "• رسالة صوتية\n"
+        "• Voice\n"
         "• Sticker\n"
         "• رابط\n"
-        "• أو أي نوع رسالة آخر يصلني من الحساب."
-    )
-
-    bot.send_message(
-        call.message.chat.id,
-        text
+        "• أو أي نوع رسالة آخر.",
+        parse_mode="HTML"
     )
 
 
 # =========================================================
-# زر CREATE
+# CREATE
 # =========================================================
 
 @bot.callback_query_handler(func=lambda call: call.data == "cmd_create")
@@ -165,7 +150,7 @@ def create_callback(call):
 
 
 # =========================================================
-# زر END
+# END
 # =========================================================
 
 @bot.callback_query_handler(func=lambda call: call.data == "cmd_end")
@@ -180,7 +165,7 @@ def end_callback(call):
 
 
 # =========================================================
-# زر RESTART
+# RESTART
 # =========================================================
 
 @bot.callback_query_handler(func=lambda call: call.data == "cmd_restart")
@@ -195,7 +180,7 @@ def restart_callback(call):
 
 
 # =========================================================
-# زر CANCEL
+# CANCEL
 # =========================================================
 
 @bot.callback_query_handler(func=lambda call: call.data == "cmd_cancel")
@@ -213,43 +198,190 @@ def cancel_callback(call):
 
 
 # =========================================================
-# استخراج معلومات المستخدم
+# معلومات المستخدم
 # =========================================================
 
-def get_user_info(user):
+def format_user_info(user):
 
     if not user:
-        return "❌ لم أتمكن من الحصول على معلومات المرسل."
+        return None
 
     user_id = user.id
 
-    first_name = user.first_name or "غير موجود"
-    last_name = user.last_name or "غير موجود"
+    first_name = html.escape(user.first_name or "غير موجود")
+    last_name = html.escape(user.last_name or "غير موجود")
 
     if user.username:
-        username = "@" + user.username
+        username = "@" + html.escape(user.username)
     else:
         username = "غير موجود"
 
-    # رابط tg://user?id=
-    user_link = f"tg://user?id={user_id}"
-
-    result = (
-        "👤 معلومات الحساب\n"
+    return (
+        "👤 <b>معلومات الحساب</b>\n"
         "━━━━━━━━━━━━━━\n"
         f"🆔 ID: <code>{user_id}</code>\n"
         f"👤 الاسم: {first_name}\n"
         f"📝 الاسم الأخير: {last_name}\n"
         f"🔗 Username: {username}\n"
-        f"🔐 رابط الحساب: <a href=\"{user_link}\">فتح الحساب</a>\n"
         "━━━━━━━━━━━━━━"
     )
 
-    return result
+
+# =========================================================
+# معلومات القناة
+# =========================================================
+
+def format_chat_info(chat):
+
+    if not chat:
+        return None
+
+    chat_id = chat.id
+
+    title = html.escape(
+        getattr(chat, "title", None) or
+        getattr(chat, "first_name", None) or
+        "غير موجود"
+    )
+
+    username_value = getattr(chat, "username", None)
+
+    if username_value:
+        username = "@" + html.escape(username_value)
+    else:
+        username = "غير موجود"
+
+    chat_type = getattr(chat, "type", "غير معروف")
+
+    return (
+        "📢 <b>معلومات القناة / المجموعة</b>\n"
+        "━━━━━━━━━━━━━━\n"
+        f"🆔 ID: <code>{chat_id}</code>\n"
+        f"📛 الاسم: {title}\n"
+        f"🔗 Username: {username}\n"
+        f"📌 النوع: {chat_type}\n"
+        "━━━━━━━━━━━━━━"
+    )
 
 
 # =========================================================
-# معالجة رسالة مرسلة مباشرة في الخاص بعد ID HELP
+# تحليل مصدر الـ Forward الحديث
+# =========================================================
+
+def analyze_forward(message):
+
+    # -----------------------------------------------------
+    # الطريقة القديمة
+    # -----------------------------------------------------
+
+    old_user = getattr(message, "forward_from", None)
+
+    if old_user:
+
+        return format_user_info(old_user)
+
+    old_chat = getattr(message, "forward_from_chat", None)
+
+    if old_chat:
+
+        return format_chat_info(old_chat)
+
+    # -----------------------------------------------------
+    # الطريقة الحديثة
+    # Telegram Bot API
+    # forward_origin
+    # -----------------------------------------------------
+
+    origin = getattr(message, "forward_origin", None)
+
+    if not origin:
+        return None
+
+    # -----------------------------------------------------
+    # ForwardOriginUser
+    # -----------------------------------------------------
+
+    origin_user = getattr(origin, "sender_user", None)
+
+    if origin_user:
+
+        return format_user_info(origin_user)
+
+    # -----------------------------------------------------
+    # ForwardOriginChat
+    # -----------------------------------------------------
+
+    origin_chat = getattr(origin, "sender_chat", None)
+
+    if origin_chat:
+
+        return format_chat_info(origin_chat)
+
+    # -----------------------------------------------------
+    # ForwardOriginHiddenUser
+    # -----------------------------------------------------
+
+    sender_user_name = getattr(
+        origin,
+        "sender_user_name",
+        None
+    )
+
+    if sender_user_name:
+
+        safe_name = html.escape(sender_user_name)
+
+        return (
+            "⚠️ <b>معلومات محدودة عن المصدر</b>\n"
+            "━━━━━━━━━━━━━━\n"
+            f"👤 الاسم الظاهر: {safe_name}\n\n"
+            "🔒 Telegram أخفى هوية الحساب الأصلي "
+            "عن البوت بسبب إعدادات خصوصية الـForward.\n"
+            "لذلك لا يوجد User ID يمكن للبوت استخراجه "
+            "من هذه الرسالة.\n"
+            "━━━━━━━━━━━━━━"
+        )
+
+    # -----------------------------------------------------
+    # ForwardOriginChannel
+    # -----------------------------------------------------
+
+    origin_chat = getattr(origin, "chat", None)
+
+    if origin_chat:
+
+        return format_chat_info(origin_chat)
+
+    return None
+
+
+# =========================================================
+# معالجة Forward في الخاص
+# =========================================================
+
+def process_private_target(message):
+
+    # أول شيء: هل الرسالة Forward؟
+    result = analyze_forward(message)
+
+    if result:
+
+        user_states.pop(message.from_user.id, None)
+
+        bot.send_message(
+            message.chat.id,
+            result,
+            parse_mode="HTML",
+            disable_web_page_preview=True
+        )
+
+        return True
+
+    return False
+
+
+# =========================================================
+# ID HELP في الخاص
 # =========================================================
 
 @bot.message_handler(
@@ -259,209 +391,160 @@ def get_user_info(user):
 )
 def private_id_help_handler(message):
 
-    # إذا كان المستخدم أرسل Username
+    # -----------------------------------------------------
+    # Forward
+    # -----------------------------------------------------
+
+    if process_private_target(message):
+
+        return
+
+    # -----------------------------------------------------
+    # Username
+    # -----------------------------------------------------
+
     if message.text:
 
         text = message.text.strip()
 
-        # نتأكد أنه يبدو كـ Username
         if text.startswith("@"):
 
             username = text[1:].strip()
 
-            if username:
+            if not username:
 
-                # ملاحظة:
-                # Bot API لا يوفر طريقة عامة للحصول على User
-                # عشوائي بواسطة Username.
-                #
-                # نحاول get_chat، وهذا يفيد خصوصاً مع القنوات
-                # والمجموعات العامة.
+                bot.send_message(
+                    message.chat.id,
+                    "❌ Username غير صالح."
+                )
 
-                try:
+                return
 
-                    chat = bot.get_chat("@" + username)
+            try:
 
-                    # إذا كانت قناة أو مجموعة
-                    if chat.type in ["channel", "supergroup", "group"]:
+                chat = bot.get_chat("@" + username)
 
-                        result = (
-                            "📢 معلومات الوجهة\n"
-                            "━━━━━━━━━━━━━━\n"
-                            f"🆔 ID: <code>{chat.id}</code>\n"
-                            f"👤 الاسم: {chat.title or 'غير موجود'}\n"
-                            f"🔗 Username: @{username}\n"
-                            f"📌 النوع: {chat.type}\n"
-                            "━━━━━━━━━━━━━━"
-                        )
+                result = format_chat_info(chat)
 
-                        bot.send_message(
-                            message.chat.id,
-                            result,
-                            parse_mode="HTML"
-                        )
-
-                        user_states.pop(message.from_user.id, None)
-                        return
-
-                    else:
-
-                        bot.send_message(
-                            message.chat.id,
-                            "⚠️ هذا الـUsername يشير إلى حساب مستخدم.\n\n"
-                            "لا يستطيع Bot API الاعتماد على Username "
-                            "للعثور على User ID لشخص لم يتفاعل مع البوت.\n\n"
-                            "للحصول على معلومات الحساب، قم بإعادة توجيه "
-                            "أي رسالة من هذا الحساب إليّ."
-                        )
-
-                        return
-
-                except Exception:
+                if result:
 
                     bot.send_message(
                         message.chat.id,
-                        "⚠️ لم أتمكن من الوصول إلى هذا الـUsername.\n\n"
-                        "إذا لم يكن الحساب قناة/مجموعة عامة، "
-                        "قم بإعادة توجيه أي رسالة منه إليّ."
+                        result,
+                        parse_mode="HTML"
+                    )
+
+                    user_states.pop(
+                        message.from_user.id,
+                        None
                     )
 
                     return
 
-        # إذا أرسل نصاً عادياً
-        bot.send_message(
-            message.chat.id,
-            "أرسل Username بهذا الشكل:\n"
-            "@username\n\n"
-            "أو قم بإعادة توجيه رسالة من الحساب المطلوب."
-        )
+            except Exception as e:
 
-        return
-
-    # =====================================================
-    # إذا كانت الرسالة Forwarded
-    # =====================================================
-
-    # بعض أنواع الرسائل قد تحتوي على معلومات Forward
-    if getattr(message, "forward_from", None):
-
-        user = message.forward_from
-
-        result = get_user_info(user)
-
-        bot.send_message(
-            message.chat.id,
-            result,
-            parse_mode="HTML",
-            disable_web_page_preview=True
-        )
-
-        user_states.pop(message.from_user.id, None)
-
-        return
-
-    # =====================================================
-    # إذا كانت الرسالة Forwarded من قناة
-    # =====================================================
-
-    if getattr(message, "forward_from_chat", None):
-
-        chat = message.forward_from_chat
-
-        if chat.type == "channel":
-
-            username = (
-                "@" + chat.username
-                if getattr(chat, "username", None)
-                else "غير موجود"
-            )
-
-            title = chat.title or "غير موجود"
-
-            result = (
-                "📢 معلومات القناة\n"
-                "━━━━━━━━━━━━━━\n"
-                f"🆔 ID: <code>{chat.id}</code>\n"
-                f"📛 الاسم: {title}\n"
-                f"🔗 Username: {username}\n"
-                "━━━━━━━━━━━━━━"
-            )
+                print(
+                    f"Username lookup failed: {e}"
+                )
 
             bot.send_message(
                 message.chat.id,
-                result,
-                parse_mode="HTML"
+                "⚠️ لم أتمكن من الوصول إلى هذا الـUsername "
+                "عن طريق Bot API.\n\n"
+                "إذا كان الحساب شخصًا وليس قناة أو مجموعة، "
+                "قم بإعادة توجيه أي رسالة أرسلها هذا الحساب إليّ."
             )
-
-            user_states.pop(message.from_user.id, None)
 
             return
 
-    # =====================================================
-    # إذا أرسل رسالة عادية وليس Forward
-    # =====================================================
+        bot.send_message(
+            message.chat.id,
+            "❌ لم أفهم الـUsername.\n\n"
+            "أرسله بهذا الشكل:\n"
+            "<code>@username</code>\n\n"
+            "أو قم بإعادة توجيه رسالة من الحساب المطلوب.",
+            parse_mode="HTML"
+        )
+
+        return
+
+    # -----------------------------------------------------
+    # أي نوع رسالة آخر بدون Forward
+    # -----------------------------------------------------
 
     bot.send_message(
         message.chat.id,
-        "⚠️ هذه الرسالة وصلتني منك أنت.\n\n"
-        "للحصول على معلومات حساب شخص آخر، "
-        "قم باستخدام خيار **إعادة توجيه / Forward** "
-        "لرسالة أرسلها الحساب المطلوب."
+        "⚠️ وصلتني الرسالة، لكن لا تحتوي على معلومات "
+        "مصدر Forward يمكنني استخدامها.\n\n"
+        "قم باستخدام <b>إعادة توجيه / Forward</b> "
+        "لرسالة من الحساب المطلوب.",
+        parse_mode="HTML"
     )
 
 
 # =========================================================
-# وظيفة عرض معلومات صاحب رسالة في المجموعة
+# تحليل رسالة الهدف في المجموعة
 # =========================================================
 
 def process_group_target(message):
 
-    # الرسالة التي قام المستخدم بالرد عليها
-    replied = message.reply_to_message
+    replied = getattr(message, "reply_to_message", None)
 
     if not replied:
         return False
 
-    # نحاول الحصول على صاحب الرسالة
+    # -----------------------------------------------------
+    # صاحب الرسالة كمستخدم
+    # -----------------------------------------------------
+
     user = getattr(replied, "from_user", None)
 
     if user:
 
-        result = get_user_info(user)
+        result = format_user_info(user)
 
-        bot.reply_to(
-            message,
-            result,
-            parse_mode="HTML",
-            disable_web_page_preview=True
-        )
+        if result:
 
-        return True
+            bot.reply_to(
+                message,
+                result,
+                parse_mode="HTML",
+                disable_web_page_preview=True
+            )
 
-    # إذا كانت الرسالة من قناة / مرسلة باسم قناة
-    sender_chat = getattr(replied, "sender_chat", None)
+            return True
+
+    # -----------------------------------------------------
+    # الرسالة مرسلة باسم قناة/مجموعة
+    # -----------------------------------------------------
+
+    sender_chat = getattr(
+        replied,
+        "sender_chat",
+        None
+    )
 
     if sender_chat:
 
-        username = (
-            "@" + sender_chat.username
-            if getattr(sender_chat, "username", None)
-            else "غير موجود"
-        )
+        result = format_chat_info(sender_chat)
 
-        title = (
-            sender_chat.title
-            or "غير موجود"
-        )
+        if result:
 
-        result = (
-            "📢 معلومات الحساب/القناة\n"
-            "━━━━━━━━━━━━━━\n"
-            f"🆔 ID: <code>{sender_chat.id}</code>\n"
-            f"📛 الاسم: {title}\n"
-            f"🔗 Username: {username}\n"
-            "━━━━━━━━━━━━━━"
-        )
+            bot.reply_to(
+                message,
+                result,
+                parse_mode="HTML"
+            )
+
+            return True
+
+    # -----------------------------------------------------
+    # إذا كانت الرسالة نفسها Forward
+    # -----------------------------------------------------
+
+    result = analyze_forward(replied)
+
+    if result:
 
         bot.reply_to(
             message,
@@ -475,7 +558,7 @@ def process_group_target(message):
 
 
 # =========================================================
-# التعامل مع كلمة "شركس" في المجموعات
+# كلمة "شركس" في المجموعات
 # =========================================================
 
 @bot.message_handler(
@@ -491,21 +574,22 @@ def handle_groups_full(message):
         f"{message.chat.id}"
     )
 
-    # =====================================================
-    # إذا كانت الرسالة Reply على رسالة شخص
-    # =====================================================
+    # -----------------------------------------------------
+    # إذا كانت الرسالة Reply
+    # -----------------------------------------------------
 
     if message.reply_to_message:
 
-        # نحاول مباشرة معرفة صاحب الرسالة
         processed = process_group_target(message)
 
         if processed:
+
             return
 
-    # =====================================================
-    # إذا كتب "شركس" بدون Reply
-    # =====================================================
+    # -----------------------------------------------------
+    # إذا كتب شركس بدون Reply
+    # تظهر القائمة
+    # -----------------------------------------------------
 
     bot.reply_to(
         message,
@@ -516,8 +600,7 @@ def handle_groups_full(message):
 
 
 # =========================================================
-# أوامر إضافية اختيارية
-# /id_help داخل المجموعة مع Reply
+# /id_help داخل المجموعة
 # =========================================================
 
 @bot.message_handler(
@@ -532,6 +615,7 @@ def id_help_group_command(message):
         processed = process_group_target(message)
 
         if processed:
+
             return
 
     bot.reply_to(
@@ -542,7 +626,7 @@ def id_help_group_command(message):
 
 
 # =========================================================
-# سيرفر الويب الخاص بـ Render
+# Web Server - Render
 # =========================================================
 
 class SimpleHandler(BaseHTTPRequestHandler):
