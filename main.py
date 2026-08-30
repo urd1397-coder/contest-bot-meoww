@@ -133,7 +133,8 @@ def handle_callbacks(call):
     elif call.data == "method_inline_search":
         bot.answer_callback_query(call.id)
         inline_markup = types.InlineKeyboardMarkup()
-        inline_markup.add(types.InlineKeyboardButton("🔍 ابحث الآن / Search Now", switch_inline_query_current_chat=""))
+        # تم ضبطه لتفادي أي خطأ نصي في التيليغرام
+        inline_markup.add(types.InlineKeyboardButton("🔍 ابحث الآن / Search Now", switch_inline_query=""))
         inline_markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي / Back", callback_data="cmd_id_help"))
         
         bot.edit_message_text(
@@ -192,7 +193,6 @@ def process_contact_target(message):
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
     response_text = ""
-
     
     # 1. معالجة الرسائل المحولة (Forward)
     if message.forward_from:
@@ -255,7 +255,6 @@ def query_text(inline_query):
     query = inline_query.query.strip()
     results = []
     
-    # رسالة افتراضية تظهر فور كتابة يوزر البوت
     if not query:
         results.append(
             types.InlineQueryResultArticle(
@@ -281,7 +280,7 @@ def query_text(inline_query):
         )
         
     bot.answer_inline_query(inline_query.id, results, cache_time=1)
-    
+
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
@@ -290,7 +289,6 @@ if __name__ == "__main__":
     
     time.sleep(3)
 
-    # إزالة الويب هوك القديم لمنع خطأ 409 Conflict نهائياً
     try:
         bot.remove_webhook()
         print("Old webhook removed successfully.")
