@@ -31,9 +31,15 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
-# --- دالة البحث المتقدم المتاحة للعامة (تجاوز القيود) ---
+# --- دالة البحث الشامل والمتقدم لأي حساب أو قناة عامة عبر الرابط أو اليوزر ---
 def advanced_lookup_by_username(username):
     clean_un = username.replace("@", "").strip()
+    # إزالة روابط تليجرام الشائعة للحصول على المعرف النقي
+    if "t.me/" in clean_un:
+        clean_un = clean_un.split("t.me/")[-1].split("/")[0].strip()
+    elif "telegram.me/" in clean_un:
+        clean_un = clean_un.split("telegram.me/")[-1].split("/")[0].strip()
+
     url = f"https://t.me/{clean_un}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -54,17 +60,17 @@ def advanced_lookup_by_username(username):
                 "name": name,
                 "username": f"@{clean_un}",
                 "bio": bio,
-                "note": "تم الجلب عبر البحث المتقدم للرابط العام 🌐"
+                "note": "تم جلب البيانات بنجاح عبر البحث الشامل للرابط 🌐"
             }
     except Exception:
         pass
     return {"found": False}
 
-# --- لوحة المفاتيح السفلية التفاعلية ---
+# --- لوحة المفاتيح السفلية المتاحة عند الحاجة ---
 def request_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     btn_user = types.KeyboardButton(
-        text="👤 اختيار مستخدم", 
+        text="👤 اختيار مستخدم من الهاتف", 
         request_users=types.KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)
     )
     btn_group = types.KeyboardButton(
@@ -89,7 +95,7 @@ def id_help_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📋 إظهار أزرار الاختيار السريع أسفل الشاشة", callback_data="show_keyboard"),
-        types.InlineKeyboardButton("🎯 من خلال اليوزر نيم / By Username", callback_data="method_username"),
+        types.InlineKeyboardButton("🎯 البحث الشامل باليوزر أو الرابط", callback_data="method_username"),
         types.InlineKeyboardButton("📥 من خلال الرسائل المحولة / By Forwarded Msg", callback_data="method_forward"),
         types.InlineKeyboardButton("🔙 العودة للرئيسية / Main Menu", callback_data="cmd_home")
     )
@@ -103,12 +109,12 @@ def back_menu():
 def format_user(u):
     uname = f"@{u.username}" if u.username else "لا يوجد يوزر / No Username"
     return (
-        f"🛡️ <b>تقرير حماية القروب - حساب شخصي / User Report</b>\n"
+        f"🛡️ <b>تقرير حماية القروب - حساب شخصي</b>\n"
         f"━━━━━━━━━━━━━━\n"
         f"🆔 المعرف الثابت / ID: <code>{u.id}</code>\n"
         f"📛 اسم الحساب / Name: {u.first_name}\n"
         f"🔗 اسم المستخدم / Username: {uname}\n"
-        f"📌 نوع الحساب / Type: حساب شخصي / Personal Account\n"
+        f"📌 نوع الحساب: حساب شخصي\n"
         f"━━━━━━━━━━━━━━"
     )
 
@@ -116,12 +122,12 @@ def format_chat(c):
     uname = f"@{c.username}" if c.username else "لا يوجد يوزر / No Username"
     chat_type_ar = "قناة" if c.type == "channel" else ("مجموعة" if "group" in c.type else c.type)
     return (
-        f"🛡️ <b>تقرير حماية القروب - جهة خارجية / Chat Report</b>\n"
+        f"🛡️ <b>تقرير حماية القروب - جهة خارجية</b>\n"
         f"━━━━━━━━━━━━━━\n"
         f"🆔 المعرف الثابت / ID: <code>{c.id}</code>\n"
         f"📛 الاسم / Name: {c.title}\n"
         f"🔗 اسم المستخدم / Username: {uname}\n"
-        f"📌 نوع الجهة / Type: {chat_type_ar}\n"
+        f"📌 نوع الجهة: {chat_type_ar}\n"
         f"━━━━━━━━━━━━━━"
     )
 
@@ -131,6 +137,7 @@ def start_command(message):
         message.chat.id,
         "مياو! 🐱\n"
         "أهلاً بك في بوت شركس للحماية المطور.\n"
+        "أرسل أي يوزر أو رابط لأي قناة، مجموعة، أو شخص، وسأقوم بجلبه لك فوراً!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
     )
@@ -144,7 +151,7 @@ def handle_callbacks(call):
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي.\n\n"
-            "اختر الطريقة لاستخراج المعلومات بدقة:",
+            "اختر الطريقة لاستخراج المعلومات أو أرسل الرابط مباشرة:",
             chat_id,
             message_id,
             reply_markup=id_help_menu()
@@ -159,9 +166,9 @@ def handle_callbacks(call):
     elif call.data == "method_username":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "🎯 <b>هاتِ اليوزر للبحث المتقدم! / Send Username!</b>\n"
+            "🎯 <b>البحث الشامل المفتوح!</b>\n"
             "━━━━━━━━━━━━━━\n"
-            "✍️ اكتب اسم المستخدم أو الرابط مباشرة (مثل: `@username`)، وسأقوم بالبحث عنه فوراً! 🚀",
+            "✍️ أرسل الآن أي رابط (مثل `t.me/username`) أو يوزر (`@username`) لأي شخص أو قناة أو مجموعة وسأقوم بجلبه فوراً! 🚀",
             chat_id,
             message_id,
             parse_mode="HTML",
@@ -170,7 +177,7 @@ def handle_callbacks(call):
     elif call.data == "method_forward":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "📥 <b>حوّل الرسالة ودع الباقي عليّ! / Forward the Message!</b>\n"
+            "📥 <b>حوّل الرسالة ودع الباقي عليّ!</b>\n"
             "━━━━━━━━━━━━━━\n"
             "🐾 قم بإعادة توجيه أي رسالة هنا وسأستخرج لك الآيدي والمعلومات فوراً!",
             chat_id,
@@ -260,6 +267,8 @@ def process_id_help_target(message):
         if text.startswith("/"):
             return
 
+        # تنظيف النص واستخراج اليوزر أو الرابط بأي شكل تم إرساله
+        clean_username = text
         if "t.me/" in text:
             clean_username = text.split("t.me/")[-1].split("/")[0].strip()
         elif "telegram.me/" in text:
@@ -279,19 +288,20 @@ def process_id_help_target(message):
                 adv_result = advanced_lookup_by_username(clean_username)
                 if adv_result["found"]:
                     response_text = (
-                        f"🛡️ <b>تقرير البحث المتقدم - شركس بوت</b>\n"
+                        f"🛡️ <b>تقرير البحث الشامل المفتوح - شركس بوت</b>\n"
                         f"━━━━━━━━━━━━━━\n"
                         f"📛 الاسم / Name: {adv_result['name']}\n"
                         f"🔗 اسم المستخدم / Username: {adv_result['username']}\n"
                         f"📝 الوصف / Bio: {adv_result['bio']}\n"
+                        f"📌 ملاحظة: {adv_result['note']}\n"
                         f"━━━━━━━━━━━━━━"
                     )
                 else:
-                    response_text = f"❌ مياو! لم أتمكن من العثور على الحساب <b>{target_query}</b>."
+                    response_text = f"❌ مياو! لم أتمكن من العثور على الحساب أو الرابط <b>{text}</b>."
         else:
-            response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح."
+            response_text = "⚠️ يرجى إرسال رابط صحيح أو يوزر نيم."
     else:
-        response_text = "⚠️ مياو! أرسل رسالة صحيحة."
+        response_text = "⚠️ مياو! أرسل رسالة نصية أو رابط صالح."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=id_help_menu())
 
@@ -309,7 +319,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error removing webhook: {e}")
 
-    while TimeoutError := True:
+    while True:
         try:
             print("Starting bot polling safely...")
             bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
