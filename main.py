@@ -75,7 +75,7 @@ def start_command(message):
         message.chat.id,
         "مياو! 🐱\n"
         "أهلاً بك في بوت شركس للحماية.\n"
-        "أنا قطك المطيع هيهي، جاهز لمساعدتك في حماية القروب وجلب معلومات المخربين بدقة!\n\n"
+        "أنا قطك المطيع هيهي، جاهز لمساعدتك في جلب معلومات المخربين بدقة!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
     )
@@ -87,8 +87,8 @@ def handle_callbacks(call):
     if call.data == "cmd_id_help":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي، هنا لمساعدتك في حماية القروبات.\n\n"
-            "قم بإرسال (اسم المستخدم / الـ Username) أو الرابط مباشرة، أو قم بإعادة توجيه (Forward) أي رسالة من الشخص أو القناة لأقوم بفك شفرته وجلب معلومات الحساب المفيدة للحماية!",
+            "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي.\n\n"
+            "قم بإرسال (اسم المستخدم / الـ Username) أو الرابط مباشرة، أو قم بإعادة توجيه (Forward) لأي رسالة من شخص أو قناة لأقوم بفك شفرتها وجلب الآيدي ومعلومات الحساب فوراً!",
             chat_id,
             call.message.message_id,
             reply_markup=back_menu()
@@ -107,7 +107,7 @@ def handle_callbacks(call):
             "❌ تم إلغاء العملية بنجاح.",
             chat_id,
             call.message.message_id,
-            reply_markup=back_menu()
+            reply_markup=main_menu()
         )
     else:
         bot.answer_callback_query(call.id)
@@ -122,7 +122,7 @@ def handle_callbacks(call):
 def process_id_help_target(message):
     response_text = ""
 
-    # التعامل مع جميع أنواع التوجيه القديمة والحديثة بغض النظر عن شكل الـ Forward
+    # 1. فحص الطرق التقليدية والحديثة للرسائل المحولة (Forwarded Messages)
     if message.forward_from:
         response_text = format_user(message.forward_from)
     elif message.forward_from_chat:
@@ -134,30 +134,35 @@ def process_id_help_target(message):
         elif getattr(origin, "chat", None):
             response_text = format_chat(origin.chat)
         elif getattr(origin, "sender_user_name", None):
-            # في حال كان الحساب مخفياً تماماً ولكنه يظهر اسماً نصياً
-            response_text = f"⚠️ مياو! الحساب باسم مخفي: {origin.sender_user_name} ولا يمكن جلب الآيدي الثابت بسبب إعدادات الخصوصية."
+            response_text = f"⚠️ مياو! الحساب يمتلك اسماً نصياً مخفياً: {origin.sender_user_name} ولا يمكن جلب الآيدي الثابت بسبب إعدادات الخصوصية الصارمة."
         else:
-            response_text = "⚠️ مياو! عذراً، مصدر الرسالة المحولة مخفي تماماً."
+            response_text = "⚠️ مياو! عذراً، مصدر الرسالة المحولة مخفي تماماً بواسطة إعدادات الخصوصية."
+    
+    # 2. فحص إرسال اليوزر أو الرابط النصي مباشرة
     elif message.text:
         text = message.text.strip()
-        # محاولة البحث عن اليوزر بغض النظر عن كتابته برمز @ أو بدونه أو كرابط
-        clean_query = text.split("t.me/")[-1].split("/")[-1].strip()
-        if not clean_query.startswith("@"):
-            clean_query = "@" + clean_query
+        if "t.me/" in text:
+            clean_username = text.split("t.me/")[-1].split("/")[0].strip()
+        else:
+            clean_username = text.replace("@", "").strip()
 
-        try:
-            chat_info = bot.get_chat(clean_query)
-            if chat_info.type == "private":
-                response_text = format_user(chat_info)
-            else:
-                response_text = format_chat(chat_info)
-        except Exception:
-            response_text = (
-                f"❌ مياو! لم أتمكن من جلب معلومات <b>{clean_query}</b>.\n"
-                "تأكد أن الحساب عام، أو قم بعمل <b>إعادة توجيه (Forward)</b> لرسالة مباشرة منه لضمان جلب الآيدي بدقة!"
-            )
+        if clean_username:
+            target_query = "@" + clean_username
+            try:
+                chat_info = bot.get_chat(target_query)
+                if chat_info.type == "private":
+                    response_text = format_user(chat_info)
+                else:
+                    response_text = format_chat(chat_info)
+            except Exception:
+                response_text = (
+                    f"❌ مياو! لم أتمكن من العثور على الحساب <b>{target_query}</b>.\n"
+                    "تأكد من صحة اليوزر أو أن الحساب عام، أو جرب إرسال رسالة محولة (Forward) منه."
+                )
+        else:
+            response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح."
     else:
-        response_text = "⚠️ مياو! يرجى إرسال يوزر نيم صالح أو رسالة محولة."
+        response_text = "⚠️ مياو! أرسل رسالة محولة أو يوزر نيم صالح من فضلك."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
 
