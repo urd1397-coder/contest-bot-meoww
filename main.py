@@ -1,6 +1,8 @@
 import os
 import time
 import threading
+import requests
+from bs4 import BeautifulSoup
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -29,6 +31,36 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
+# --- دالة البحث المتقدم المتاحة للعامة (تجاوز القيود) ---
+def advanced_lookup_by_username(username):
+    clean_un = username.replace("@", "").strip()
+    url = f"https://t.me/{clean_un}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # استخراج الاسم من صفحة الويب العامة للرابط
+            title_tag = soup.find("meta", property="og:title")
+            desc_tag = soup.find("meta", property="og:description")
+            
+            name = title_tag["content"] if title_tag else clean_un
+            bio = desc_tag["content"] if desc_tag else "لايوجد وصف / No bio"
+            
+            return {
+                "found": True,
+                "name": name,
+                "username": f"@{clean_un}",
+                "bio": bio,
+                "note": "تم الجلب عبر البحث المتقدم للرابط العام 🌐"
+            }
+    except Exception:
+        pass
+    return {"found": False}
+
 # --- القوائم الرئيسية ---
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -45,7 +77,6 @@ def id_help_menu():
     markup.add(
         types.InlineKeyboardButton("🎯 من خلال اليوزر نيم / By Username", callback_data="method_username"),
         types.InlineKeyboardButton("📥 من خلال الرسائل المحولة / By Forwarded Msg", callback_data="method_forward"),
-        types.InlineKeyboardButton("🔍 البحث السريع / Inline Search", callback_data="method_inline_search"),
         types.InlineKeyboardButton("🔙 العودة للرئيسية / Main Menu", callback_data="cmd_home")
     )
     return markup
@@ -85,8 +116,8 @@ def start_command(message):
     bot.send_message(
         message.chat.id,
         "مياو! 🐱\n"
-        "أهلاً بك في بوت شركس للحماية.\n"
-        "أنا قطك المطيع هيهي، جاهز لمساعدتك في جلب معلومات المخربين بدقة وتجاوز كل القيود!\n\n"
+        "أهلاً بك في بوت شركس للحماية المطور.\n"
+        "أنا قطك المطيع هيهي، جاهز لجلب معلومات المعرفات والمخربين بأحدث طرق البحث المتقدم!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
     )
@@ -100,8 +131,8 @@ def handle_callbacks(call):
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي.\n\n"
-            "اختر الطريقة التي تفضلها لاستخراج الآيدي والمعلومات بدقة:\n"
-            "Choose the method you prefer to extract ID and info accurately:",
+            "اختر الطريقة المتقدمة لاستخراج المعلومات بدقة:\n"
+            "Choose the advanced method to extract info accurately:",
             chat_id,
             message_id,
             reply_markup=id_help_menu()
@@ -109,10 +140,9 @@ def handle_callbacks(call):
     elif call.data == "method_username":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "🎯 <b>هاتِ اليوزر يا بطل! / Send the Username!</b>\n"
+            "🎯 <b>هاتِ اليوزر للببحث المتقدم! / Send Username!</b>\n"
             "━━━━━━━━━━━━━━\n"
-            "✍️ اكتب اسم المستخدم أو الرابط مباشرة (مثل: `@username` أو الرابط)، وسأجيبك بتقريره الكامل قبل أن ترمش عيونك!\n"
-            "Type the username or direct link, and I'll fetch its report instantly! 👀✨",
+            "✍️ اكتب اسم المستخدم أو الرابط مباشرة (مثل: `@username`)، وسأقوم بالبحث عنه عبر النظام المتقدم فوراً! 🚀",
             chat_id,
             message_id,
             parse_mode="HTML",
@@ -123,34 +153,16 @@ def handle_callbacks(call):
         bot.edit_message_text(
             "📥 <b>حوّل الرسالة ودع الباقي عليّ! / Forward the Message!</b>\n"
             "━━━━━━━━━━━━━━\n"
-            "🐾 قم بإعادة توجيه أي رسالة هنا (نص، صورة، فيديو...) وسأستخرج لك الآيدي والمعلومات فوراً!\n"
-            "Forward any message here and I'll extract the ID and info instantly! 🚀",
+            "🐾 قم بإعادة توجيه أي رسالة هنا وسأستخرج لك الآيدي والمعلومات فوراً!",
             chat_id,
             message_id,
             parse_mode="HTML",
             reply_markup=back_menu()
         )
-    elif call.data == "method_inline_search":
-        bot.answer_callback_query(call.id)
-        inline_markup = types.InlineKeyboardMarkup()
-        # تم ضبطه لتفادي أي خطأ نصي في التيليغرام
-        inline_markup.add(types.InlineKeyboardButton("🔍 ابحث الآن / Search Now", switch_inline_query=""))
-        inline_markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي / Back", callback_data="cmd_id_help"))
-        
-        bot.edit_message_text(
-            "🔍 <b>البحث السريع / Quick Search</b>\n"
-            "━━━━━━━━━━━━━━\n"
-            "🐾 اضغط على الزر بالأسفل للبحث عن أي شخص ومشاركته معنا مباشرة!\n"
-            "Tap the button below to search for anyone and share it directly! 🚀✨",
-            chat_id,
-            message_id,
-            parse_mode="HTML",
-            reply_markup=inline_markup
-        )
     elif call.data == "cmd_home":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "مياو العودة للقرص! 🐱 تفضل القائمة الرئيسية:\nBack to main menu:",
+            "مياو العودة للقرص! 🐱 تفضل القائمة الرئيسية:",
             chat_id,
             message_id,
             reply_markup=main_menu()
@@ -158,7 +170,7 @@ def handle_callbacks(call):
     elif call.data == "cmd_cancel":
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "❌ تم إلغاء العملية بنجاح.\nOperation cancelled successfully.",
+            "❌ تم إلغاء العملية بنجاح.",
             chat_id,
             message_id,
             reply_markup=main_menu()
@@ -166,35 +178,17 @@ def handle_callbacks(call):
     else:
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
-            "⚙️ هذه الخاصية قيد البرمجة يا بطل.\nThis feature is under development.",
+            "⚙️ هذه الخاصية قيد البرمجة يا بطل.",
             chat_id,
             message_id,
             reply_markup=back_menu()
         )
 
-@bot.message_handler(chat_types=["private"], content_types=["contact"])
-def process_contact_target(message):
-    contact = message.contact
-    if contact.user_id:
-        response_text = (
-            f"🛡️ <b>تقرير حماية القروب - جهة اتصال مستخرجة / Contact Report</b>\n"
-            f"━━━━━━━━━━━━━━\n"
-            f"🆔 المعرف الثابت / ID: <code>{contact.user_id}</code>\n"
-            f"📛 الاسم / Name: {contact.first_name}\n"
-            f"📞 الهاتف / Phone: {contact.phone_number}\n"
-            f"📌 الحالة / Status: تم استخراج الآيدي بنجاح متجاوزاً الخصوصية! / Extracted successfully!\n"
-            f"━━━━━━━━━━━━━━"
-        )
-    else:
-        response_text = "⚠️ مياو! جهة الاتصال هذه غير مرتبطة بحساب تيليغرام مباشر.\nNot linked to a direct Telegram account."
-    
-    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
-
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
     response_text = ""
     
-    # 1. معالجة الرسائل المحولة (Forward)
+    # 1. معالجة الرسائل المحولة
     if message.forward_from:
         response_text = format_user(message.forward_from)
     elif message.forward_from_chat:
@@ -206,19 +200,11 @@ def process_id_help_target(message):
         elif getattr(origin, "chat", None):
             response_text = format_chat(origin.chat)
         elif getattr(origin, "sender_user_name", None):
-            name = origin.sender_user_name
-            response_text = (
-                f"⚠️ <b>مياو! تنبيه حماية هام / Security Alert</b>\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"📛 الاسم الظاهر / Name: {name}\n"
-                f"📌 الحالة / Status: <b>حساب مخفي تماماً / Hidden Account</b>\n"
-                f"💡 هذا المستخدم قام بتفعيل إعدادات الخصوصية القصوى. استخدم البحث السريع أو اطلب منه مراسلتك.\n"
-                f"━━━━━━━━━━━━━━"
-            )
+            response_text = f"⚠️ <b>حساب مخفي تماماً / Hidden Account</b>\n📛 الاسم: {origin.sender_user_name}"
         else:
-            response_text = "⚠️ مياو! عذراً، مصدر الرسالة مخفي تماماً.\nSorry, the message source is hidden."
+            response_text = "⚠️ مصدر الرسالة مخفي تماماً."
     
-    # 2. معالجة اليوزرات والروابط النصية
+    # 2. معالجة اليوزرات عبر البحث المتقدم (Bot API + Web Advanced Lookup)
     elif message.text:
         text = message.text.strip()
         if "t.me/" in text:
@@ -231,56 +217,37 @@ def process_id_help_target(message):
         if clean_username:
             target_query = "@" + clean_username
             try:
+                # محاولة الفحص المباشر عبر البوت أولاً
                 chat_info = bot.get_chat(target_query)
                 if chat_info.type == "private":
                     response_text = format_user(chat_info)
                 else:
                     response_text = format_chat(chat_info)
-            except Exception as e:
-                    print("USERNAME ERROR:", repr(e))
+            except Exception:
+                # إذا فشلت الطريقة المباشرة، نلجأ للبحث المتقدم للرابط العام
+                adv_result = advanced_lookup_by_username(clean_username)
+                if adv_result["found"]:
                     response_text = (
-                    f"❌ مياو! لم أتمكن من جلب معلومات الحساب <b>{target_query}</b>.\n\n"
-                    f"🔍 <b>السبب / Reason:</b> يمنع تيليغرام البوتات من البحث العشوائي إلا إذا تفاعل الشخص مسبقاً.\n"
-                    f"💡 <b>الحل / Solution:</b> اطلب منه إرسال رسالة للبوت أولاً."
-                )
+                        f"🛡️ <b>تقرير البحث المتقدم - شركس بوت</b>\n"
+                        f"━━━━━━━━━━━━━━\n"
+                        f"📛 الاسم / Name: {adv_result['name']}\n"
+                        f"🔗 اسم المستخدم / Username: {adv_result['username']}\n"
+                        f"📝 الوصف / Bio: {adv_result['bio']}\n"
+                        f"📌 ملاحظة: {adv_result['note']}\n"
+                        f"━━━━━━━━━━━━━━"
+                    )
+                else:
+                    response_text = (
+                        f"❌ مياو! لم أتمكن من العثور على الحساب <b>{target_query}</b>.\n"
+                        f"🔍 تأكد من صحة اليوزر أو اطلب منه مراسلة البوت مباشرة."
+                    )
         else:
-            response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح.\nPlease send a valid username or link."
+            response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح."
     
     else:
-        response_text = "⚠️ مياو! يرجى إرسال رسالة محولة، يوزر نيم، أو جهة اتصال.\nPlease send a forwarded message, username, or contact."
+        response_text = "⚠️ يرجى إرسال رسالة محولة أو يوزر نيم."
 
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
-
-@bot.inline_handler(func=lambda query: True)
-def query_text(inline_query):
-    query = inline_query.query.strip()
-    results = []
-    
-    if not query:
-        results.append(
-            types.InlineQueryResultArticle(
-                id='help',
-                title="🔍 ابحث عن آيدي أو يوزر...",
-                description="اكتب اليوزر بعد اسم البوت لعرض النتيجة",
-                input_message_content=types.InputTextMessageContent(
-                    message_text="🔍 يرجى كتابة اليوزر المطلوب بعد يوزر البوت في خانة البحث."
-                )
-            )
-        )
-    else:
-        results.append(
-            types.InlineQueryResultArticle(
-                id='search_res',
-                title=f"النتيجة لـ: {query}",
-                description="اضغط لإرسال هذه النتيجة في المحادثة",
-                input_message_content=types.InputTextMessageContent(
-                    message_text=f"🛡️ نتيجة البحث السريع عن: <code>{query}</code>",
-                    parse_mode="HTML"
-                )
-            )
-        )
-        
-    bot.answer_inline_query(inline_query.id, results, cache_time=1)
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
