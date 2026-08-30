@@ -60,29 +60,18 @@ def advanced_lookup_by_username(username):
         pass
     return {"found": False}
 
-# --- لوحة المفاتيح السفلية التفاعلية (مطابقة للصورة المطلوبة) ---
+# --- لوحة المفاتيح السفلية التفاعلية ---
 def request_keyboard():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=3)
-    
-    # استخدام KeyboardButtonRequestUsers لجلب المستخدمين/المجموعات مباشرة من هاتف المستخدم
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     btn_user = types.KeyboardButton(
-        text="👤 User", 
+        text="👤 اختيار مستخدم", 
         request_users=types.KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)
     )
-    btn_bot = types.KeyboardButton(
-        text="🤖 Bot", 
-        request_users=types.KeyboardButtonRequestUsers(request_id=2, user_is_bot=True)
-    )
     btn_group = types.KeyboardButton(
-        text="👥 Group", 
-        request_chat=types.KeyboardButtonRequestChat(request_id=3, chat_is_channel=False)
+        text="👥 اختيار مجموعة/قناة", 
+        request_chat=types.KeyboardButtonRequestChat(request_id=2, chat_is_channel=False)
     )
-    btn_channel = types.KeyboardButton(
-        text="📢 Channel", 
-        request_chat=types.KeyboardButtonRequestChat(request_id=4, chat_is_channel=True)
-    )
-    
-    markup.add(btn_user, btn_bot, btn_group, btn_channel)
+    markup.add(btn_user, btn_group)
     return markup
 
 # --- القوائم الشفافة (Inline) ---
@@ -99,6 +88,7 @@ def main_menu():
 def id_help_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
+        types.InlineKeyboardButton("📋 إظهار أزرار الاختيار السريع أسفل الشاشة", callback_data="show_keyboard"),
         types.InlineKeyboardButton("🎯 من خلال اليوزر نيم / By Username", callback_data="method_username"),
         types.InlineKeyboardButton("📥 من خلال الرسائل المحولة / By Forwarded Msg", callback_data="method_forward"),
         types.InlineKeyboardButton("🔙 العودة للرئيسية / Main Menu", callback_data="cmd_home")
@@ -141,15 +131,8 @@ def start_command(message):
         message.chat.id,
         "مياو! 🐱\n"
         "أهلاً بك في بوت شركس للحماية المطور.\n"
-        "تم تفعيل أزرار البحث والطلبات السفلية لتختار منها مباشرة!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
-    )
-    # إرسال الكيبورد السفلي للمستخدم
-    bot.send_message(
-        message.chat.id,
-        "👇 استخدم الأزرار أدناه للبحث والمشاركة السريعة:",
-        reply_markup=request_keyboard()
     )
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -161,11 +144,17 @@ def handle_callbacks(call):
         bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "مياو! 🐾 أهلاً أنا شركس قطك المطيع هيهي.\n\n"
-            "اختر الطريقة لاستخراج المعلومات بدقة:\n"
-            "يمكنك استخدام الأزرار أسفل الشاشة (User, Group...) للبحث والمشاركة الفورية!",
+            "اختر الطريقة لاستخراج المعلومات بدقة:",
             chat_id,
             message_id,
             reply_markup=id_help_menu()
+        )
+    elif call.data == "show_keyboard":
+        bot.answer_callback_query(call.id, "تم إظهار أزرار الاختيار أسفل الشاشة بنجاح!")
+        bot.send_message(
+            chat_id,
+            "👇 اضغط على الزر أدناه لاختيار مستخدم أو مجموعة مباشرة:",
+            reply_markup=request_keyboard()
         )
     elif call.data == "method_username":
         bot.answer_callback_query(call.id)
@@ -214,7 +203,6 @@ def handle_callbacks(call):
             reply_markup=back_menu()
         )
 
-# --- معالجة طلبات المشاركة السفلية (Users & Chats Shared) ---
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
 def handle_shared_targets(message):
     response_text = ""
@@ -233,20 +221,17 @@ def handle_shared_targets(message):
             else:
                 response_text = format_chat(chat_info)
         except Exception:
-            # في حال لم يظهر عبر الـ API المباشر، نعرض الآيدي الثابت الذي أرسله تيليجرام فوراً
             response_text = (
                 f"🛡️ <b>تقرير الحماية - مشاركة مباشرة</b>\n"
                 f"━━━━━━━━━━━━━━\n"
                 f"🆔 المعرف الثابت / ID: <code>{target_id}</code>\n"
-                f"📌 ملاحظة: تم جلب الآيدي بنجاح عبر قائمة المشاركة السفلية 🚀\n"
                 f"━━━━━━━━━━━━━━"
             )
     else:
         response_text = "⚠️ لم يتم استلام أي معرف صالح."
 
-    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=request_keyboard())
+    bot.send_message(message.chat.id, response_text, parse_mode="HTML")
 
-# --- معالجة الرسائل العادية واليوزرات والتحويل ---
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
     response_text = ""
@@ -267,7 +252,6 @@ def process_id_help_target(message):
                 f"🛡️ <b>تقرير حماية القروب - حساب بخصوصية مفعلة</b>\n"
                 f"━━━━━━━━━━━━━━\n"
                 f"📛 الاسم الظاهر: {sender_name}\n"
-                f"📌 ملاحظة: هذا الشخص مفعل لإعدادات إخفاء التحويل، لكننا التقطنا أثره بنجاح!\n"
                 f"━━━━━━━━━━━━━━"
             )
     elif message.text:
@@ -300,20 +284,16 @@ def process_id_help_target(message):
                         f"📛 الاسم / Name: {adv_result['name']}\n"
                         f"🔗 اسم المستخدم / Username: {adv_result['username']}\n"
                         f"📝 الوصف / Bio: {adv_result['bio']}\n"
-                        f"📌 ملاحظة: {adv_result['note']}\n"
                         f"━━━━━━━━━━━━━━"
                     )
                 else:
-                    response_text = (
-                        f"❌ مياو! لم أتمكن من العثور على الحساب <b>{target_query}</b>.\n"
-                        f"🔍 تأكد من صحة اليوزر أو اطلب منه مراسلة البوت مباشرة."
-                    )
+                    response_text = f"❌ مياو! لم أتمكن من العثور على الحساب <b>{target_query}</b>."
         else:
             response_text = "⚠️ يرجى إرسال يوزر نيم صالح أو رابط صحيح."
     else:
-        response_text = "⚠️ مياو! أرسل رسالة محولة صحيحة."
+        response_text = "⚠️ مياو! أرسل رسالة صحيحة."
 
-    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=request_keyboard())
+    bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=id_help_menu())
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
@@ -329,7 +309,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error removing webhook: {e}")
 
-    while True:
+    while TimeoutError := True:
         try:
             print("Starting bot polling safely...")
             bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
