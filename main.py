@@ -52,31 +52,31 @@ def id_help_menu():
 
 def back_menu():
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي", callback_data="cmd_id_help"))
+    markup.add(types.InlineKeyboardButton("🔙 العودة لقائمة الآيدي / Back", callback_data="cmd_id_help"))
     return markup
 
 def format_user(u):
-    uname = f"@{u.username}" if u.username else "لا يوجد يوزر"
+    uname = f"@{u.username}" if u.username else "لا يوجد يوزر / No Username"
     return (
-        f"🛡️ <b>تقرير حماية القروب - حساب شخصي</b>\n"
+        f"🛡️ <b>تقرير حماية القروب - حساب شخصي / User Report</b>\n"
         f"━━━━━━━━━━━━━━\n"
-        f"🆔 المعرف الثابت: <code>{u.id}</code>\n"
-        f"📛 اسم الحساب: {u.first_name}\n"
-        f"🔗 اسم المستخدم: {uname}\n"
-        f"📌 نوع الحساب: حساب شخصي\n"
+        f"🆔 المعرف الثابت / ID: <code>{u.id}</code>\n"
+        f"📛 اسم الحساب / Name: {u.first_name}\n"
+        f"🔗 اسم المستخدم / Username: {uname}\n"
+        f"📌 نوع الحساب / Type: حساب شخصي / Personal Account\n"
         f"━━━━━━━━━━━━━━"
     )
 
 def format_chat(c):
-    uname = f"@{c.username}" if c.username else "لا يوجد يوزر"
+    uname = f"@{c.username}" if c.username else "لا يوجد يوزر / No Username"
     chat_type_ar = "قناة" if c.type == "channel" else ("مجموعة" if "group" in c.type else c.type)
     return (
-        f"🛡️ <b>تقرير حماية القروب - جهة خارجية</b>\n"
+        f"🛡️ <b>تقرير حماية القروب - جهة خارجية / Chat Report</b>\n"
         f"━━━━━━━━━━━━━━\n"
-        f"🆔 المعرف الثابت: <code>{c.id}</code>\n"
-        f"📛 الاسم: {c.title}\n"
-        f"🔗 اسم المستخدم: {uname}\n"
-        f"📌 نوع الجهة: {chat_type_ar}\n"
+        f"🆔 المعرف الثابت / ID: <code>{c.id}</code>\n"
+        f"📛 الاسم / Name: {c.title}\n"
+        f"🔗 اسم المستخدم / Username: {uname}\n"
+        f"📌 نوع الجهة / Type: {chat_type_ar}\n"
         f"━━━━━━━━━━━━━━"
     )
 
@@ -89,8 +89,8 @@ def start_command(message):
         "أنا قطك المطيع هيهي، جاهز لمساعدتك في جلب معلومات المخربين بدقة وتجاوز كل القيود!\n\n"
         "إليك القائمة الرئيسية:",
         reply_markup=main_menu()
-        
     )
+
 @bot.callback_query_handler(func=lambda call: True)
 def handle_callbacks(call):
     chat_id = call.message.chat.id
@@ -170,53 +170,26 @@ def handle_callbacks(call):
             message_id,
             reply_markup=back_menu()
         )
-        
+
 @bot.message_handler(chat_types=["private"], content_types=["contact"])
 def process_contact_target(message):
     contact = message.contact
     if contact.user_id:
         response_text = (
-            f"🛡️ <b>تقرير حماية القروب - جهة اتصال مستخرجة</b>\n"
+            f"🛡️ <b>تقرير حماية القروب - جهة اتصال مستخرجة / Contact Report</b>\n"
             f"━━━━━━━━━━━━━━\n"
-            f"🆔 المعرف الثابت: <code>{contact.user_id}</code>\n"
-            f"📛 الاسم: {contact.first_name}\n"
-            f"📞 الهاتف / رقم التواصل: {contact.phone_number}\n"
-            f"📌 الحالة: تم استخراج الآيدي بنجاح متجاوزاً الخصوصية!\n"
+            f"🆔 المعرف الثابت / ID: <code>{contact.user_id}</code>\n"
+            f"📛 الاسم / Name: {contact.first_name}\n"
+            f"📞 الهاتف / Phone: {contact.phone_number}\n"
+            f"📌 الحالة / Status: تم استخراج الآيدي بنجاح متجاوزاً الخصوصية! / Extracted successfully!\n"
             f"━━━━━━━━━━━━━━"
         )
     else:
-        response_text = "⚠️ مياو! جهة الاتصال هذه غير مرتبطة بحساب تيليغرام مباشر."
+        response_text = "⚠️ مياو! جهة الاتصال هذه غير مرتبطة بحساب تيليغرام مباشر.\nNot linked to a direct Telegram account."
     
     bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=back_menu())
 
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
-def process_id_help_target(message):
-    response_text = ""
-
-    if message.forward_from:
-        response_text = format_user(message.forward_from)
-    elif message.forward_from_chat:
-        response_text = format_chat(message.forward_from_chat)
-    elif hasattr(message, "forward_origin") and message.forward_origin:
-        origin = message.forward_origin
-        if getattr(origin, "sender_user", None):
-            response_text = format_user(origin.sender_user)
-        elif getattr(origin, "chat", None):
-            response_text = format_chat(origin.chat)
-        elif getattr(origin, "sender_user_name", None):
-            name = origin.sender_user_name
-            response_text = (
-                f"⚠️ <b>مياو! تنبيه حماية هام</b>\n"
-                f"━━━━━━━━━━━━━━\n"
-                f"📛 الاسم الظاهر: {name}\n"
-                f"📌 الحالة: <b>حساب مخفي تماماً</b>\n"
-                f"💡 هذا المستخدم قام بتفعيل إعدادات الخصوصية القصوى. لتجاوز ذلك والحصول على آيديه، قم بمشاركة <b>جهة الاتصال (Contact)</b> الخاصة به أو استخدم البحث السريع.\n"
-                f"━━━━━━━━━━━━━━"
-            )
-        else:
-            response_text = "⚠️ مياو! عذراً، مصدر الرسالة مخفي تماماً بواسطة إعدادات الخصوصية."
-    
-  @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def process_id_help_target(message):
     response_text = ""
 
