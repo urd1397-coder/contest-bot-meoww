@@ -39,7 +39,7 @@ def is_user_admin(chat_id, user_id):
     except Exception:
         return False
 
-# --- [دالة احترافية]: البحث الشامل عبر الإنترنت للروابط واليوزرات (للخاص) ---
+# --- [دالة احترافية]: البحث الشامل عبر الإنترنت (للخاص) ---
 def fetch_advanced_web_lookup(username):
     clean_un = username.replace("@", "").strip()
     if "t.me/" in clean_un:
@@ -80,16 +80,6 @@ def create_group_menu_markup():
         types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية (قيد التطوير)", callback_data="cmd_end"),
         types.InlineKeyboardButton("🔍 بحث عن آيدي / ID & Search", callback_data="cmd_group_id_help")
     )
-    return markup
-
-# --- [لوحة اختيار أعضاء القروب حصراً]: كيبورد سفلي مخصص للقروب ---
-def create_group_users_keyboard(chat_id):
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=1)
-    btn_user = types.KeyboardButton(
-        text="👤 اختر عضواً من أعضاء القروب", 
-        request_users=types.KeyboardButtonRequestUsers(request_id=10, user_is_bot=False)
-    )
-    markup.add(btn_user)
     return markup
 
 # --- القائمة الرئيسية الكاملة (للخاص) ---
@@ -183,23 +173,33 @@ def handle_start_command(message):
         reply_markup=create_main_menu_markup()
     )
 
-# --- معالج الأزرار الشفافة (Inline Callbacks) ---
+# --- معالج الأزرار الشفافة (Inline Callbacks) بدون أي تعليق أو تحميل دائم ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_inline_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
 
-    if call.data == "cmd_create" or call.data == "cmd_end":
-        bot.answer_callback_query(call.id, "هذه الميزة قيد التطوير حالياً 🚧", show_alert=True)
-    elif call.data == "cmd_group_id_help":
+    # إيقاف مؤشر التحميل فوراً لمنع تعليق الزر
+    try:
         bot.answer_callback_query(call.id)
+    except Exception:
+        pass
+
+    if call.data == "cmd_create" or call.data == "cmd_end":
+        try:
+            bot.answer_callback_query(call.id, "هذه الميزة قيد التطوير حالياً 🚧", show_alert=True)
+        except Exception:
+            pass
+    elif call.data == "cmd_group_id_help":
+        # طريقة سريعة ومضمونة داخل القروب لمنع التعليق وتحقيق الغاية فوراً
         bot.send_message(
             chat_id,
-            "👇 اضغط على الزر أدناه لاختيار عضو من أعضاء هذا القروب فقط:",
-            reply_markup=create_group_users_keyboard(chat_id)
+            "💡 <b>طريقة استخراج الآيدي في القروب:</b>\n"
+            "فقط قم بـ **الرد (Reply)** على أي رسالة تخص العضو المطلوب داخل القروب وارسل كلمة:\n"
+            "<code>آيدي</code> أو <code>id</code> أو <code>معلومات</code> وسأقوم بعرض تقريره فوراً!",
+            parse_mode="HTML"
         )
     elif call.data == "cmd_id_help":
-        bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "🐾 أهلاً بك في قسم البحث والتحكم المتقدم.\n"
             "Welcome to ID & Advanced Search Section.\n\n"
@@ -209,14 +209,12 @@ def handle_inline_callbacks(call):
             reply_markup=create_id_help_menu_markup()
         )
     elif call.data == "show_keyboard":
-        bot.answer_callback_query(call.id, "تم فتح لوحة الاختيار السريع!")
         bot.send_message(
             chat_id,
             "👇 استخدم الأزرار الظاهرة أسفل الشاشة للاختيار المباشر:",
             reply_markup=create_dynamic_reply_keyboard()
         )
     elif call.data == "method_username":
-        bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "🎯 <b>[ وضع البحث اليدوي المباشر ]</b>\n"
             "━━━━━━━━━━━━━━━\n"
@@ -227,7 +225,6 @@ def handle_inline_callbacks(call):
             reply_markup=create_home_return_markup()
         )
     elif call.data == "method_forward":
-        bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
             "━━━━━━━━━━━━━━━\n"
@@ -238,7 +235,6 @@ def handle_inline_callbacks(call):
             reply_markup=create_home_return_markup()
         )
     elif call.data == "cmd_home":
-        bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "🏠 عودة للقائمة الرئيسية / Main Menu 🐱:",
             chat_id,
@@ -246,7 +242,6 @@ def handle_inline_callbacks(call):
             reply_markup=create_main_menu_markup()
         )
     elif call.data == "cmd_cancel":
-        bot.answer_callback_query(call.id)
         bot.edit_message_text(
             "❌ تم إغلاق القائمة بنجاح. أرسل /start لإظهارها مجدداً.",
             chat_id,
@@ -254,7 +249,7 @@ def handle_inline_callbacks(call):
             reply_markup=None
         )
 
-# --- معالج الاختيارات السفلية (عضوي أو دردشة) ---
+# --- معالج الاختيارات السفلية ---
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
 def handle_shared_native_targets(message):
     response_text = ""
@@ -277,7 +272,7 @@ def handle_shared_native_targets(message):
                 f"🛡️ <b>[ تقرير حماية شركس - الاختيار المباشر ]</b>\n"
                 f"━━━━━━━━━━━━━━━\n"
                 f"🆔 المعرف الثابت: <code>{target_id}</code>\n"
-                f"✨ تم استلام المعرف بنجاح من القائمة.\n"
+                f"✨ تم استلام المعرف بنجاح.\n"
                 f"━━━━━━━━━━━━━━━"
             )
     else:
@@ -336,7 +331,7 @@ def handle_private_messages(message):
     if response_text:
         bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=create_home_return_markup())
 
-# --- معالج المجموعات (القروبات حصراً: 3 أزرار فقط + الرد الذكي للمشرفين) ---
+# --- معالج المجموعات (القروبات حصراً: 3 أزرار فقط + الرد الذكي الفوري للمشرفين) ---
 @bot.message_handler(chat_types=["group", "supergroup"], content_types=["text"])
 def handle_group_messages(message):
     text = message.text.strip()
@@ -352,7 +347,7 @@ def handle_group_messages(message):
         )
         return
 
-    # 2. ميزة الرد (Reply) لاستخراج معلومات الصلاحيات للأعضاء (للمشرفين حصراً)
+    # 2. ميزة الرد (Reply) لاستخراج معلومات الصلاحيات للأعضاء (للمشرفين حصراً وبشكل فوري)
     if message.reply_to_message:
         if "شركس" in text or "آيدي" in text or "id" in text.lower() or "معلومات" in text or "كشف" in text:
             if not is_user_admin(chat_id, user_id):
