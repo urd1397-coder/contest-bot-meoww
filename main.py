@@ -39,7 +39,7 @@ def is_user_admin(chat_id, user_id):
     except Exception:
         return False
 
-# --- [دالة احترافية]: البحث الشامل عبر الإنترنت (للخاص) ---
+# --- [دالة احترافية]: البحث الشامل عبر الإنترنت للقنوات واليوزرات ---
 def fetch_advanced_web_lookup(username):
     clean_un = username.replace("@", "").strip()
     if "t.me/" in clean_un:
@@ -59,20 +59,29 @@ def fetch_advanced_web_lookup(username):
             desc_tag = soup.find("meta", property="og:description")
             
             name = title_tag["content"] if title_tag else clean_un
-            bio = desc_tag["content"] if desc_tag else "لايوجد وصف / No bio"
+            bio = desc_tag["content"] if desc_tag else "لا يوجد وصف متاح 🐾"
             
             return {
                 "found": True,
                 "name": name,
                 "username": f"@{clean_un}",
                 "bio": bio,
-                "note": "✨ تم جلب البيانات بنجاح عبر البحث الشامل 🌐"
+                "note": "✨ تم إحضار البيانات بنجاح من شبكة تيليجرام 🌐"
             }
     except Exception:
         pass
     return {"found": False}
 
-# --- [قائمة القروب المخصصة]: زرين فقط (إنشاء مسابقة وإنهاء مسابقة) ---
+# --- [أزرار التنقل الثابتة بطابع شركس الحيوي] ---
+def create_navigation_markup(back_callback="cmd_id_help"):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("🔙 العودة للسابق", callback_data=back_callback),
+        types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home")
+    )
+    return markup
+
+# --- [قائمة القروب المخصصة]: زرين فقط للمسابقات ---
 def create_group_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -85,78 +94,76 @@ def create_group_menu_markup():
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🔍 استخراج الآيدي والبحث / ID & Search ⚡", callback_data="cmd_id_help"),
+        types.InlineKeyboardButton("🔍 استخراج الآيدي والبحث الشامل ⚡", callback_data="cmd_id_help"),
         types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية (قيد التطوير)", callback_data="cmd_create"),
         types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية (قيد التطوير)", callback_data="cmd_end"),
-        types.InlineKeyboardButton("❌ إغلاق القائمة / Close", callback_data="cmd_cancel")
+        types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
     )
     return markup
 
 def create_id_help_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("📂 لوحة الاختيار السريع / Quick Selection", callback_data="show_keyboard"),
-        types.InlineKeyboardButton("🌐 البحث اليدوي المباشر / Manual Search", callback_data="method_username"),
-        types.InlineKeyboardButton("📥 تحليل الرسائل المحولة / Forward Analysis", callback_data="method_forward"),
-        types.InlineKeyboardButton("🔙 العودة للقائمة الرئيسية / Home 🏠", callback_data="cmd_home")
+        types.InlineKeyboardButton("📂 لوحة الاختيار السريع للأعضاء والجهات", callback_data="show_keyboard"),
+        types.InlineKeyboardButton("🌐 البحث اليدوي المباشر (يوزر / رابط / قناة)", callback_data="method_username"),
+        types.InlineKeyboardButton("📥 تحليل الرسائل المحولة الذكي", callback_data="method_forward"),
+        types.InlineKeyboardButton("🏠 العودة للقائمة الرئيسية", callback_data="cmd_home")
     )
     return markup
 
 def create_dynamic_reply_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     btn_user = types.KeyboardButton(
-        text="👤 اختر مستخدم / Select User", 
+        text="👤 اختر مستخدم", 
         request_users=types.KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)
     )
     btn_group = types.KeyboardButton(
-        text="👥 اختر مجموعة أو قناة / Select Chat", 
+        text="👥 اختر مجموعة أو قناة", 
         request_chat=types.KeyboardButtonRequestChat(request_id=2, chat_is_channel=False)
     )
     markup.add(btn_user, btn_group)
     return markup
 
-def create_home_return_markup():
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔙 العودة للقائمة الرئيسية / Home 🏠", callback_data="cmd_home"))
-    return markup
-
+# --- [تنسيق تقرير شركس الاحترافي والأنيق للحسابات والجهات] ---
 def format_user_report(u, chat_id=None):
-    uname = f"@{u.username}" if u.username else "لا يوجد يوزر / No Username"
-    role_status = "عضو عادي (Member)"
+    uname = f"@{u.username}" if u.username else "لا يوجد يوزر"
+    role_status = "عضو نشط 🐱"
     
     if chat_id:
         try:
             member = bot.get_chat_member(chat_id, u.id)
             if member.status == 'creator':
-                role_status = "👑 مالك القروب (Creator)"
+                role_status = "👑 مالك القروب الملكي"
             elif member.status == 'administrator':
-                role_status = "🛡️ مشرف في القروب (Admin)"
+                role_status = "🛡️ مشرف الحماية"
             else:
-                role_status = "👤 عضو أساسي في القروب (Member)"
+                role_status = "👤 عضو أساسي"
         except Exception:
-            role_status = "👤 عضو"
+            role_status = "👤 عضو القروب"
 
     return (
-        f"🛡️ <b>[ تقرير حماية شركس - سجل الحساب ]</b>\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"🆔 المعرف الثابت: <code>{u.id}</code>\n"
-        f"📛 اسم الحساب: {u.first_name}\n"
-        f"🔗 اليوزر: {uname}\n"
-        f"📌 الصلاحية: {role_status}\n"
-        f"━━━━━━━━━━━━━━━"
+        f"🐾 <b>[ بطاقة حماية شركس الذكية ]</b> 🐱✨\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>الاسم:</b> {u.first_name}\n"
+        f"🔗 <b>المعرف:</b> {uname}\n"
+        f"🆔 <b>الآيدي:</b> <code>{u.id}</code>\n"
+        f"📌 <b>الرتبة:</b> {role_status}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"✨ <i>نظام شركس السريع والمؤقت لخدمتكم!</i>"
     )
 
 def format_chat_report(c):
-    uname = f"@{c.username}" if c.username else "لا يوجد يوزر / No Username"
-    chat_type_ar = "قناة عامة" if c.type == "channel" else "مجموعة تفاعلية"
+    uname = f"@{c.username}" if c.username else "بدون معرف عام"
+    chat_type_ar = "📢 قناة عامة / إخبارية" if c.type == "channel" else "👥 مجموعة تفاعلية نشطة"
     return (
-        f"🛡️ <b>[ تقرير حماية شركس - جهة خارجية ]</b>\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"🆔 المعرف الثابت: <code>{c.id}</code>\n"
-        f"📛 اسم الجهة: {c.title}\n"
-        f"🔗 اليوزر: {uname}\n"
-        f"📌 التصنيف: {chat_type_ar}\n"
-        f"━━━━━━━━━━━━━━━"
+        f"🐾 <b>[ بطاقة جهة شركس الخارجية ]</b> 🐱⚡\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📛 <b>اسم الجهة:</b> {c.title}\n"
+        f"🔗 <b>اليوزر:</b> {uname}\n"
+        f"🆔 <b>آيدي الجهة:</b> <code>{c.id}</code>\n"
+        f"📌 <b>التصنيف:</b> {chat_type_ar}\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"✨ <i>جاري فحص وتأمين البيانات بنجاح!</i>"
     )
 
 # --- معالج أمر البداية /start (للخاص) ---
@@ -166,9 +173,9 @@ def handle_start_command(message):
         return
     bot.send_message(
         message.chat.id,
-        "مياو! 🐱✨\n"
-        "أهلاً بك في النسخة المطورّة من بوت حماية شركس.\n"
-        "اختر ما يناسبك من القائمة أدناه:",
+        "مياو أهلاً بك في عالم شركس! 🐱✨\n"
+        "البوت الأنيق والسريع لإدارة وحماية مجموعاتك وقنواتك بكل احترافية.\n"
+        "اختر ما يناسبك من الخيارات أدناه:",
         reply_markup=create_main_menu_markup()
     )
 
@@ -185,54 +192,54 @@ def handle_inline_callbacks(call):
 
     if call.data == "cmd_create" or call.data == "cmd_end":
         try:
-            bot.answer_callback_query(call.id, "هذه الميزة قيد التطوير حالياً 🚧", show_alert=True)
+            bot.answer_callback_query(call.id, "هذه الميزة الرائعة قيد التطوير حالياً 🚧", show_alert=True)
         except Exception:
             pass
     elif call.data == "cmd_id_help":
         bot.edit_message_text(
-            "🐾 أهلاً بك في قسم البحث والتحكم المتقدم.\n"
-            "Welcome to ID & Advanced Search Section.\n\n"
-            "اختر الطريقة / Choose method:",
+            "⚡ <b>قسم البحث والاستخراج المتقدم</b> 🐾\n\n"
+            "اختر الطريقة المناسبة لجلب البيانات بسرعة وسلاسة:",
             chat_id,
             message_id,
+            parse_mode="HTML",
             reply_markup=create_id_help_menu_markup()
         )
     elif call.data == "show_keyboard":
         bot.send_message(
             chat_id,
-            "👇 استخدم الأزرار الظاهرة أسفل الشاشة للاختيار المباشر:",
+            "👇 استخدم لوحة المفاتيح السفلية أدناه للاختيار السريع:",
             reply_markup=create_dynamic_reply_keyboard()
         )
     elif call.data == "method_username":
         bot.edit_message_text(
-            "🎯 <b>[ وضع البحث اليدوي المباشر ]</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "✍️ أرسل الآن اليوزر (مثل `@username`) أو الرابط لجلب نتائجه فوراً 🚀",
+            "🌐 <b>[ وضع البحث اليدوي والروابط والقنوات ]</b>\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "✍️ أرسل الآن اليوزر (مثل `@username`)، رابط القناة، أو معرفها وسأقوم بجلب تفاصيلها فوراً بقالب شركس الأنيق 🚀",
             chat_id,
             message_id,
             parse_mode="HTML",
-            reply_markup=create_home_return_markup()
+            reply_markup=create_navigation_markup("cmd_id_help")
         )
     elif call.data == "method_forward":
         bot.edit_message_text(
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "🐾 قم بإعادة توجيه أي رسالة لاستخراج بيانات صاحبها السرية!",
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "🐾 قم بإعادة توجيه أي رسالة من أي شخص أو قناة لاستخراج بياناتها السرية فوراً!",
             chat_id,
             message_id,
             parse_mode="HTML",
-            reply_markup=create_home_return_markup()
+            reply_markup=create_navigation_markup("cmd_id_help")
         )
     elif call.data == "cmd_home":
         bot.edit_message_text(
-            "🏠 عودة للقائمة الرئيسية / Main Menu 🐱:",
+            "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:",
             chat_id,
             message_id,
             reply_markup=create_main_menu_markup()
         )
     elif call.data == "cmd_cancel":
         bot.edit_message_text(
-            "❌ تم إغلاق القائمة بنجاح. أرسل /start لإظهارها مجدداً.",
+            "❌ تم إغلاق القائمة بنجاح. أرسل /start في أي وقت لإظهارها مجدداً.",
             chat_id,
             message_id,
             reply_markup=None
@@ -258,14 +265,13 @@ def handle_shared_native_targets(message):
                 response_text = format_chat_report(chat_info)
         except Exception:
             response_text = (
-                f"🛡️ <b>[ تقرير حماية شركس - الاختيار المباشر ]</b>\n"
-                f"━━━━━━━━━━━━━━━\n"
-                f"🆔 المعرف الثابت: <code>{target_id}</code>\n"
-                f"✨ تم استلام المعرف بنجاح.\n"
-                f"━━━━━━━━━━━━━━━"
+                f"🐾 <b>[ بطاقة شركس المباشرة ]</b> 🐱\n"
+                f"━━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 الآيدي المستلم: <code>{target_id}</code>\n"
+                f"✨ تم جلب المعرف بنجاح دون أي تخزين دائم."
             )
     else:
-        response_text = "⚠️ لم يتم استلام أي معرف صالح."
+        response_text = "⚠️ عذراً، لم يتم استلام أي معرف صالح."
 
     bot.send_message(
         message.chat.id, 
@@ -274,7 +280,7 @@ def handle_shared_native_targets(message):
         reply_markup=types.ReplyKeyboardRemove()
     )
 
-# --- معالج الدردشة الخاصة (Private) بالكامل ---
+# --- معالج الدردشة الخاصة (Private) ودعم القنوات والبحث الشامل ---
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handle_private_messages(message):
     response_text = ""
@@ -296,31 +302,34 @@ def handle_private_messages(message):
         else:
             clean_username = text.replace("@", "").strip()
 
-        if len(clean_username) >= 3:
+        if len(clean_username) >= 2:
             try:
-                chat_info = bot.get_chat("@" + clean_username)
+                # محاولة جلب المستخدم أو القناة مباشرة عبر تيليجرام
+                chat_info = bot.get_chat("@" + clean_username if not text.startswith("@") and "t.me" not in text else text)
                 if chat_info.type == "private":
                     response_text = format_user_report(chat_info)
                 else:
                     response_text = format_chat_report(chat_info)
             except Exception:
+                # البحث الشامل الداعم للقنوات واليوزرات عبر الويب في حال عدم التوفر المباشر
                 adv_result = fetch_advanced_web_lookup(clean_username)
                 if adv_result["found"]:
                     response_text = (
-                        f"🛡️ <b>[ تقرير البحث الشامل - شركس بوت ]</b>\n"
-                        f"━━━━━━━━━━━━━━━\n"
-                        f"📛 الاسم: {adv_result['name']}\n"
-                        f"🔗 اليوزر: {adv_result['username']}\n"
-                        f"📝 الوصف: {adv_result['bio']}\n"
-                        f"━━━━━━━━━━━━━━━"
+                        f"🐾 <b>[ بطاقة شركس للبحث الشامل ]</b> 🌐✨\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"📛 <b>الاسم / العنوان:</b> {adv_result['name']}\n"
+                        f"🔗 <b>المعرف:</b> {adv_result['username']}\n"
+                        f"📝 <b>الوصف:</b> {adv_result['bio']}\n"
+                        f"━━━━━━━━━━━━━━━━━━━\n"
+                        f"✨ {adv_result['note']}"
                     )
                 else:
-                    response_text = f"❌ لم يتم العثور على نتائج مطابقة لـ: <b>{text}</b>"
+                    response_text = f"❌ لم نتمكن من العثور على أي نتائج مطابقة لـ: <b>{text}</b> 🐾"
 
     if response_text:
-        bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=create_home_return_markup())
+        bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
 
-# --- معالج المجموعات (القروبات حصراً: زرين للمسابقات + ظهور القائمة بمناداة "شركس" + كشف الرد للمشرفين) ---
+# --- معالج المجموعات (القروبات حصراً: زرين للمسابقات + ظهور القائمة بمناداة "شركس" + الرد الفوري للمشرفين) ---
 @bot.message_handler(chat_types=["group", "supergroup"], content_types=["text"])
 def handle_group_messages(message):
     text = message.text.strip()
@@ -331,7 +340,7 @@ def handle_group_messages(message):
     if "شركس" in text and not message.reply_to_message:
         bot.reply_to(
             message,
-            "مياو! 🐱 أهلاً بك. إليك خيارات المسابقات:",
+            "مياو! 🐱 أهلاً بك يا رئيس. إليك خيارات المسابقات المتاحة:",
             reply_markup=create_group_menu_markup()
         )
         return
@@ -340,7 +349,7 @@ def handle_group_messages(message):
     if message.reply_to_message:
         if "شركس" in text or "آيدي" in text or "id" in text.lower() or "معلومات" in text:
             if not is_user_admin(chat_id, user_id):
-                bot.reply_to(message, "⚠️ عذراً، هذه الميزة مخصصة لمشرفي المجموعة فقط!")
+                bot.reply_to(message, "⚠️ عذراً صديقي، هذه الميزة مخصصة لمشرفي المجموعة فقط!")
                 return
 
             target_user = message.reply_to_message.from_user
@@ -366,5 +375,5 @@ if __name__ == "__main__":
             print("Starting bot polling safely...")
             bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
         except Exception as e:
-            print(f"Polling error: {e}. Retrying in 5 seconds...")
+            print(f"Polling error: {e}. Retrying in 5 secondscharts...")
             time.sleep(5)
