@@ -72,13 +72,12 @@ def fetch_advanced_web_lookup(username):
         pass
     return {"found": False}
 
-# --- [قائمة القروب المخصصة]: 3 أزرار فقط حصراً للقروبات ---
+# --- [قائمة القروب المخصصة]: زرين فقط (إنشاء مسابقة وإنهاء مسابقة) ---
 def create_group_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية (قيد التطوير)", callback_data="cmd_create"),
-        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية (قيد التطوير)", callback_data="cmd_end"),
-        types.InlineKeyboardButton("🔍 بحث عن آيدي / ID & Search", callback_data="cmd_group_id_help")
+        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية (قيد التطوير)", callback_data="cmd_end")
     )
     return markup
 
@@ -173,13 +172,12 @@ def handle_start_command(message):
         reply_markup=create_main_menu_markup()
     )
 
-# --- معالج الأزرار الشفافة (Inline Callbacks) بدون أي تعليق أو تحميل دائم ---
+# --- معالج الأزرار الشفافة (Inline Callbacks) ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_inline_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
 
-    # إيقاف مؤشر التحميل فوراً لمنع تعليق الزر
     try:
         bot.answer_callback_query(call.id)
     except Exception:
@@ -190,15 +188,6 @@ def handle_inline_callbacks(call):
             bot.answer_callback_query(call.id, "هذه الميزة قيد التطوير حالياً 🚧", show_alert=True)
         except Exception:
             pass
-    elif call.data == "cmd_group_id_help":
-        # طريقة سريعة ومضمونة داخل القروب لمنع التعليق وتحقيق الغاية فوراً
-        bot.send_message(
-            chat_id,
-            "💡 <b>طريقة استخراج الآيدي في القروب:</b>\n"
-            "فقط قم بـ **الرد (Reply)** على أي رسالة تخص العضو المطلوب داخل القروب وارسل كلمة:\n"
-            "<code>آيدي</code> أو <code>id</code> أو <code>معلومات</code> وسأقوم بعرض تقريره فوراً!",
-            parse_mode="HTML"
-        )
     elif call.data == "cmd_id_help":
         bot.edit_message_text(
             "🐾 أهلاً بك في قسم البحث والتحكم المتقدم.\n"
@@ -331,25 +320,25 @@ def handle_private_messages(message):
     if response_text:
         bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=create_home_return_markup())
 
-# --- معالج المجموعات (القروبات حصراً: 3 أزرار فقط + الرد الذكي الفوري للمشرفين) ---
+# --- معالج المجموعات (القروبات حصراً: زرين للمسابقات + ظهور القائمة بمناداة "شركس" + كشف الرد للمشرفين) ---
 @bot.message_handler(chat_types=["group", "supergroup"], content_types=["text"])
 def handle_group_messages(message):
     text = message.text.strip()
     chat_id = message.chat.id
     user_id = message.from_user.id
 
-    # 1. إذا نادى البوت باسمه في القروب -> يرسل الأزرار الثلاثة فقط
+    # 1. إذا نادى البوت بكلمة "شركس" ولم يكن رد (Reply) -> يظهر زرين المسابقات فقط
     if "شركس" in text and not message.reply_to_message:
         bot.reply_to(
             message,
-            "مياو! 🐱 أهلاً بك. إليك لوحة التحكم الخاصة بالمجموعة:",
+            "مياو! 🐱 أهلاً بك. إليك خيارات المسابقات:",
             reply_markup=create_group_menu_markup()
         )
         return
 
-    # 2. ميزة الرد (Reply) لاستخراج معلومات الصلاحيات للأعضاء (للمشرفين حصراً وبشكل فوري)
+    # 2. ميزة الرد (Reply) مع مناداة البوت (مثل "شركس" أو "آيدي") لجلب معلومات الشخص المردود عليه (للمشرفين حصراً)
     if message.reply_to_message:
-        if "شركس" in text or "آيدي" in text or "id" in text.lower() or "معلومات" in text or "كشف" in text:
+        if "شركس" in text or "آيدي" in text or "id" in text.lower() or "معلومات" in text:
             if not is_user_admin(chat_id, user_id):
                 bot.reply_to(message, "⚠️ عذراً، هذه الميزة مخصصة لمشرفي المجموعة فقط!")
                 return
