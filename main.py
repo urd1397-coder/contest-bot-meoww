@@ -149,6 +149,10 @@ def handle_start_command(message):
     if message.chat.type != "private":
         return
     user_search_mode[message.chat.id] = False
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception:
+        pass
     text = (
         "مياو أهلاً بك في عالم شركس! 🐱✨\n"
         "البوت الأنيق والسريع لإدارة وحماية مجموعاتك وقنواتك بكل احترافية.\n"
@@ -188,11 +192,6 @@ def handle_inline_callbacks(call):
             "👇 استخدم لوحة المفاتيح السفلية الظاهرة لديك لاختيار مستخدم أو مجموعة، وسأعرض لك بطاقته هنا فوراً 🚀",
             create_navigation_markup("cmd_id_help")
         )
-        bot.send_message(
-            chat_id,
-            "👇 اختر من لوحة المفاتيح السفلية:",
-            reply_markup=create_dynamic_reply_keyboard()
-        )
     elif call.data == "method_username":
         user_search_mode[chat_id] = True
         update_or_send_panel(
@@ -228,6 +227,12 @@ def handle_inline_callbacks(call):
 
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
 def handle_shared_native_targets(message):
+    chat_id = message.chat.id
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
     target_id = None
     is_chat = False
     
@@ -252,22 +257,23 @@ def handle_shared_native_targets(message):
                 acc_type = "حساب بوت رسمي" if getattr(chat_info, 'is_bot', False) else "مستخدم شخصي"
 
             report_text = format_unified_report(name, uname, chat_info.id, acc_type)
-            update_or_send_panel(message.chat.id, report_text, create_navigation_markup("cmd_id_help"))
+            update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         except Exception:
             fallback_type = "مجموعة أو قناة تيليجرام" if is_chat else "مستخدم شخصي"
             report_text = format_unified_report("جهة مختارة", None, target_id, fallback_type)
-            update_or_send_panel(message.chat.id, report_text, create_navigation_markup("cmd_id_help"))
+            update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
     else:
-        update_or_send_panel(message.chat.id, "⚠️ عذراً، لم يتم استلام أي معرف صالح.", create_navigation_markup("cmd_id_help"))
-
-    try:
-        bot.send_message(message.chat.id, "🔹 تم إتمام الاستخراج بنجاح:", reply_markup=types.ReplyKeyboardRemove())
-    except Exception:
-        pass
+        update_or_send_panel(chat_id, "⚠️ عذراً، لم يتم استلام أي معرف صالح.", create_navigation_markup("cmd_id_help"))
 
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handle_private_messages(message):
     chat_id = message.chat.id
+
+    if message.forward_from or message.forward_from_chat or message.forward_sender_name:
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
 
     if message.forward_from:
         user = message.forward_from
@@ -292,10 +298,19 @@ def handle_private_messages(message):
     if message.text:
         text = message.text.strip()
         if text.startswith("/"):
+            try:
+                bot.delete_message(chat_id, message.message_id)
+            except Exception:
+                pass
             return
 
         if not user_search_mode.get(chat_id, False):
             return
+
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
 
         clean_username = text
         if "t.me/" in text:
