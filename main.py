@@ -15,9 +15,6 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# قاموس لتخزين مسودات المسابقات مؤقتاً في الذاكرة
-contest_drafts = {}
-
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -79,8 +76,8 @@ def fetch_advanced_web_lookup(username):
 def create_group_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية", callback_data="cmd_create"),
-        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end")
+        types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية (قيد التطوير)", callback_data="cmd_create"),
+        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية (قيد التطوير)", callback_data="cmd_end")
     )
     return markup
 
@@ -89,8 +86,8 @@ def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🔍 استخراج الآيدي والبحث / ID & Search ⚡", callback_data="cmd_id_help"),
-        types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية", callback_data="cmd_create"),
-        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
+        types.InlineKeyboardButton("🎯 إنشاء مسابقة تفاعلية (قيد التطوير)", callback_data="cmd_create"),
+        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية (قيد التطوير)", callback_data="cmd_end"),
         types.InlineKeyboardButton("❌ إغلاق القائمة / Close", callback_data="cmd_cancel")
     )
     return markup
@@ -176,7 +173,7 @@ def handle_start_command(message):
     )
 
 # --- معالج الأزرار الشفافة (Inline Callbacks) ---
-@bot.callback_query_handler(func=lambda call: call.data in ["cmd_end", "cmd_id_help", "show_keyboard", "method_username", "method_forward", "cmd_home", "cmd_cancel"])
+@bot.callback_query_handler(func=lambda call: True)
 def handle_inline_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
@@ -186,7 +183,7 @@ def handle_inline_callbacks(call):
     except Exception:
         pass
 
-    if call.data == "cmd_end":
+    if call.data == "cmd_create" or call.data == "cmd_end":
         try:
             bot.answer_callback_query(call.id, "هذه الميزة قيد التطوير حالياً 🚧", show_alert=True)
         except Exception:
@@ -323,13 +320,14 @@ def handle_private_messages(message):
     if response_text:
         bot.send_message(message.chat.id, response_text, parse_mode="HTML", reply_markup=create_home_return_markup())
 
-# --- معالج المجموعات (القروبات حصراً) ---
+# --- معالج المجموعات (القروبات حصراً: زرين للمسابقات + ظهور القائمة بمناداة "شركس" + كشف الرد للمشرفين) ---
 @bot.message_handler(chat_types=["group", "supergroup"], content_types=["text"])
 def handle_group_messages(message):
     text = message.text.strip()
     chat_id = message.chat.id
     user_id = message.from_user.id
 
+    # 1. إذا نادى البوت بكلمة "شركس" ولم يكن رد (Reply) -> يظهر زرين المسابقات فقط
     if "شركس" in text and not message.reply_to_message:
         bot.reply_to(
             message,
@@ -338,6 +336,7 @@ def handle_group_messages(message):
         )
         return
 
+    # 2. ميزة الرد (Reply) مع مناداة البوت (مثل "شركس" أو "آيدي") لجلب معلومات الشخص المردود عليه (للمشرفين حصراً)
     if message.reply_to_message:
         if "شركس" in text or "آيدي" in text or "id" in text.lower() or "معلومات" in text:
             if not is_user_admin(chat_id, user_id):
@@ -348,243 +347,6 @@ def handle_group_messages(message):
             if target_user:
                 report = format_user_report(target_user, chat_id)
                 bot.reply_to(message, report, parse_mode="HTML")
-
-@bot.callback_query_handler(func=lambda call: call.data == "cmd_create")
-def start_contest_flow(call):
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-    chat_id = call.message.chat.id
-    
-    contest_drafts[chat_id] = {}
-    
-    bot.send_message(
-        chat_id,
-        "🐾  تبي تسوي مسابقة؟ يا سلام سلم!\n\n"
-        "أرسل لي الآن نص إعلان المسابقة مع الشرح والقوانين في رسالة واحدة."
-    )
-    bot.register_next_step_handler(call.message, step_receive_text)
-
-def step_receive_text(message):
-    chat_id = message.chat.id
-    
-    try: 
-        bot.delete_message(chat_id, message.message_id)
-    except: 
-        pass
-    
-    contest_drafts[chat_id]['text'] = message.text
-    
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("🔍 معرفة الأيدي (id_help)", callback_data="cmd_id_help"))
-    
-    msg = bot.send_message(
-        chat_id,
-        "تمام! الحين أرسل لي معرف القناة/القروب أو رابطها.\n"
-        "وإذا ما تعرف، ببساطة حوّل (Forward) أي رسالة منها هنا وأنا بتكفل بالباقي.\n\n"
-        "💡 (يمكنك الاستعانة بزر معرفة الأيدي أدناه عند الحاجة):",
-        reply_markup=markup
-    )
-    
-    bot.register_next_step_handler(msg, step_receive_channel_or_group)
-
-def step_receive_channel_or_group(message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    
-    try: 
-        bot.delete_message(chat_id, message.message_id)
-    except: 
-        pass
-    
-    target_identifier = None
-    
-    if message.forward_from_chat:
-        target_identifier = message.forward_from_chat.id
-    else:
-        target_identifier = message.text.strip()
-        
-    contest_drafts[chat_id]['target_chat'] = target_identifier
-
-    if not is_user_admin(target_identifier, user_id):
-        bot.send_message(
-            chat_id, 
-            "❌ عذراً، يبدو أنك لست مشرفاً (Admin) في هذه القناة أو المجموعة! لا يمكنني إتمام إنشاء المسابقة."
-        )
-        contest_drafts.pop(chat_id, None)
-        return
-
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("نعم ✅", callback_data="reg_yes"),
-        types.InlineKeyboardButton("لا ❌", callback_data="reg_no")
-    )
-    bot.send_message(
-        chat_id, 
-        "✅ تم التحقق من صلاحيات الإشراف بنجاح!\n\n"
-        "هل تريد إرفاق زر للتسجيل بالمسابقة؟", 
-        reply_markup=markup
-    )
-
-@bot.callback_query_handler(func=lambda call: call.data in ["reg_yes", "reg_no"])
-def step_reg_decision(call):
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-    chat_id = call.message.chat.id
-    try: bot.delete_message(chat_id, call.message.message_id)
-    except: pass
-    
-    if call.data == "reg_yes":
-        contest_drafts[chat_id]['has_reg_btn'] = True
-        msg = bot.send_message(chat_id, "وش حاب يكون مكتوب على الزر؟ (مثال: اشترك الآن 🐾)")
-        bot.register_next_step_handler(msg, step_save_reg_btn_text)
-    else:
-        contest_drafts[chat_id]['has_reg_btn'] = False
-        contest_drafts[chat_id]['reg_btn_text'] = None
-        ask_prize_type_flow(chat_id)
-
-def step_save_reg_btn_text(message):
-    chat_id = message.chat.id
-    try: bot.delete_message(chat_id, message.message_id)
-    except: pass
-    
-    contest_drafts[chat_id]['reg_btn_text'] = message.text
-    ask_prize_type_flow(chat_id)
-
-def ask_prize_type_flow(chat_id):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("صورة 🖼️", callback_data="prize_img"),
-        types.InlineKeyboardButton("رابط مقتنى 💎", callback_data="prize_col"),
-        types.InlineKeyboardButton("تخطي ➡️", callback_data="prize_skip")
-    )
-    bot.send_message(chat_id, "هل تريد إرفاق صورة أو رابط جائزة/مقتنى تيليجرام مع النشر؟", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data in ["prize_img", "prize_col", "prize_skip"])
-def step_prize_choice(call):
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-    chat_id = call.message.chat.id
-    try: bot.delete_message(chat_id, call.message.message_id)
-    except: pass
-    
-    if call.data == "prize_img":
-        contest_drafts[chat_id]['prize_type'] = 'image'
-        msg = bot.send_message(chat_id, "أرسل لي صورة الجائزة الآن 📸")
-        bot.register_next_step_handler(msg, step_save_prize_media)
-    elif call.data == "prize_col":
-        contest_drafts[chat_id]['prize_type'] = 'collectible'
-        msg = bot.send_message(chat_id, "أرسل رابط المقتنى (مثل رابط هدية أو Fragment) 🔗\n(ملاحظة: سيتم إرفاقه كنص آمن بدون فتحه)")
-        bot.register_next_step_handler(msg, step_save_prize_media)
-    else:
-        contest_drafts[chat_id]['prize_type'] = None
-        contest_drafts[chat_id]['prize_value'] = None
-        ask_entry_message_flow(chat_id)
-
-def step_save_prize_media(message):
-    chat_id = message.chat.id
-    try: bot.delete_message(chat_id, message.message_id)
-    except: pass
-    
-    if message.photo:
-        contest_drafts[chat_id]['prize_value'] = message.photo[-1].file_id
-    else:
-        contest_drafts[chat_id]['prize_value'] = message.text.strip()
-        
-    ask_entry_message_flow(chat_id)
-
-def ask_entry_message_flow(chat_id):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("نعم ✅", callback_data="entry_yes"),
-        types.InlineKeyboardButton("لا ❌", callback_data="entry_no")
-    )
-    bot.send_message(chat_id, "هل تريد إرسال رسالة خاصة في القناة أو المجموعة كلما دخل أحد المسابقة؟", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data in ["entry_yes", "entry_no"])
-def step_entry_decision(call):
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-    chat_id = call.message.chat.id
-    try: bot.delete_message(chat_id, call.message.message_id)
-    except: pass
-    
-    if call.data == "entry_yes":
-        contest_drafts[chat_id]['has_entry_msg'] = True
-        msg = bot.send_message(chat_id, "أرسل لي نص رسالة الدخول التي ستظهر عند تفاعل المشارك:")
-        bot.register_next_step_handler(msg, step_save_entry_text)
-    else:
-        contest_drafts[chat_id]['has_entry_msg'] = False
-        contest_drafts[chat_id]['entry_msg_text'] = None
-        ask_username_inclusion_flow(chat_id)
-
-def step_save_entry_text(message):
-    chat_id = message.chat.id
-    try: bot.delete_message(chat_id, message.message_id)
-    except: pass
-    
-    contest_drafts[chat_id]['entry_msg_text'] = message.text.strip()
-    ask_username_inclusion_flow(chat_id)
-
-def ask_username_inclusion_flow(chat_id):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("نعم ✅", callback_data="uname_yes"),
-        types.InlineKeyboardButton("لا ❌", callback_data="uname_no")
-    )
-    bot.send_message(chat_id, "هل تريد تضمين معرف المشارك (Username) عند تسجيل دخوله؟", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data in ["uname_yes", "uname_no"])
-def step_username_decision(call):
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-    chat_id = call.message.chat.id
-    try: bot.delete_message(chat_id, call.message.message_id)
-    except: pass
-    
-    contest_drafts[chat_id]['include_username'] = (call.data == "uname_yes")
-    publish_contest(chat_id)
-
-def publish_contest(chat_id):
-    draft = contest_drafts.get(chat_id)
-    if not draft:
-        bot.send_message(chat_id, "❌ حدث خطأ، انتهت مسودة المسابقة. حاول مرة أخرى.")
-        return
-        
-    target_chat = draft['target_chat']
-    text = draft['text']
-    
-    markup = types.InlineKeyboardMarkup()
-    if draft.get('has_reg_btn') and draft.get('reg_btn_text'):
-        markup.add(types.InlineKeyboardButton(draft['reg_btn_text'], callback_data="contest_join_action"))
-        
-    try:
-        if draft.get('prize_type') == 'image' and draft.get('prize_value'):
-            bot.send_photo(target_chat, draft['prize_value'], caption=text, reply_markup=markup)
-        else:
-            final_text = text
-            if draft.get('prize_type') == 'collectible' and draft.get('prize_value'):
-                final_text += f"\n\n💎 الجائزة/المقتنى: {draft['prize_value']}"
-            bot.send_message(target_chat, final_text, reply_markup=markup)
-            
-        bot.send_message(chat_id, "🎉 يا سلام سلم! تم نشر المسابقة بنجاح في القناة/المجموعة المطلوبة بطابع قططي نظيف وآمن!")
-    except Exception as e:
-        bot.send_message(chat_id, f"❌ حدث خطأ أثناء النشر: تأكد أن البوت مشرف في القناة/المجموعة.\nالتفاصيل: {e}")
-    
-    clear_contest_draft(chat_id)
-
-def clear_contest_draft(chat_id):
-    if chat_id in contest_drafts:
-        contest_drafts.pop(chat_id, None)
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
