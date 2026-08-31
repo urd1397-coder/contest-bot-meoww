@@ -361,7 +361,7 @@ def start_contest_flow(call):
     
     bot.send_message(
         chat_id,
-        "🐾 بطبق قططي جميل وليس كرنج! تبي تسوي مسابقة؟ يا سلام سلم!\n\n"
+        "🐾  تبي تسوي مسابقة؟ يا سلام سلم!\n\n"
         "أرسل لي الآن نص إعلان المسابقة مع الشرح والقوانين في رسالة واحدة."
     )
     bot.register_next_step_handler(call.message, step_receive_text)
