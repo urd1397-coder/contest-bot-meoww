@@ -504,7 +504,7 @@ def step_save_prize_media(message):
         
     ask_entry_message_flow(chat_id)
     
-    def ask_entry_message_flow(chat_id):
+  def ask_entry_message_flow(chat_id):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton("نعم ✅", callback_data="entry_yes"),
