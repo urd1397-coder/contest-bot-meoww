@@ -16,6 +16,7 @@ if not BOT_TOKEN:
 bot = telebot.TeleBot(BOT_TOKEN)
 
 user_search_mode = {}
+last_panel_message = {}
 
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -32,13 +33,6 @@ class SimpleHandler(BaseHTTPRequestHandler):
 def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
-
-def is_user_admin(chat_id, user_id):
-    try:
-        member = bot.get_chat_member(chat_id, user_id)
-        return member.status in ['creator', 'administrator']
-    except Exception:
-        return False
 
 def fetch_advanced_web_lookup(username):
     clean_un = username.replace("@", "").strip()
@@ -120,7 +114,7 @@ def create_dynamic_reply_keyboard():
 
 def format_unified_report(name, username, user_id, account_type):
     formatted_username = f"@{username}" if username and not str(username).startswith("@") else (username if username else "لا يوجد يوزر")
-    clean_name = name if name and name != "None" else "بدون اسم"
+    clean_name = name if name and name != "None" and str(name).strip() != "" else "جهة مختارة"
     
     return (
         f"🐾 <b>[ بطاقة شركس الذكية ]</b> 🐱✨\n"
@@ -133,23 +127,40 @@ def format_unified_report(name, username, user_id, account_type):
         f"✨ <i>نظام شركس السريع لخدمتكم!</i>"
     )
 
+def update_or_send_panel(chat_id, text, reply_markup):
+    if chat_id in last_panel_message:
+        try:
+            bot.edit_message_text(
+                text,
+                chat_id=chat_id,
+                message_id=last_panel_message[chat_id],
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+            return
+        except Exception:
+            pass
+    
+    sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=reply_markup)
+    last_panel_message[chat_id] = sent.message_id
+
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
     if message.chat.type != "private":
         return
     user_search_mode[message.chat.id] = False
-    bot.send_message(
-        message.chat.id,
+    text = (
         "مياو أهلاً بك في عالم شركس! 🐱✨\n"
         "البوت الأنيق والسريع لإدارة وحماية مجموعاتك وقنواتك بكل احترافية.\n"
-        "اختر ما يناسبك من الخيارات أدناه:",
-        reply_markup=create_main_menu_markup()
+        "اختر ما يناسبك من الخيارات أدناه:"
     )
+    update_or_send_panel(message.chat.id, text, create_main_menu_markup())
 
 @bot.callback_query_handler(func=lambda call: True)
 def handle_inline_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
+    last_panel_message[chat_id] = message_id
 
     try:
         bot.answer_callback_query(call.id)
@@ -163,23 +174,19 @@ def handle_inline_callbacks(call):
             pass
     elif call.data == "cmd_id_help":
         user_search_mode[chat_id] = False
-        bot.edit_message_text(
+        update_or_send_panel(
+            chat_id,
             "⚡ <b>قسم البحث والاستخراج المتقدم</b> 🐾\n\n"
             "اختر الطريقة المناسبة لجلب البيانات بسرعة وسلاسة:",
-            chat_id,
-            message_id,
-            parse_mode="HTML",
-            reply_markup=create_id_help_menu_markup()
+            create_id_help_menu_markup()
         )
     elif call.data == "show_keyboard":
         user_search_mode[chat_id] = False
-        bot.edit_message_text(
+        update_or_send_panel(
+            chat_id,
             "📂 <b>[ لوحة الاختيار السريع ]</b>\n\n"
             "👇 استخدم لوحة المفاتيح السفلية الظاهرة لديك لاختيار مستخدم أو مجموعة، وسأعرض لك بطاقته هنا فوراً 🚀",
-            chat_id,
-            message_id,
-            parse_mode="HTML",
-            reply_markup=create_navigation_markup("cmd_id_help")
+            create_navigation_markup("cmd_id_help")
         )
         bot.send_message(
             chat_id,
@@ -188,41 +195,35 @@ def handle_inline_callbacks(call):
         )
     elif call.data == "method_username":
         user_search_mode[chat_id] = True
-        bot.edit_message_text(
+        update_or_send_panel(
+            chat_id,
             "🌐 <b>[ وضع البحث اليدوي والروابط والقنوات ]</b>\n"
             "━━━━━━━━━━━━━━━━━━━\n"
             "✍️ أرسل الآن اليوزر المطلوب (مثل `@username`)، رابط القناة، أو معرفها وسأقوم بجلب تفاصيلها فوراً 🚀",
-            chat_id,
-            message_id,
-            parse_mode="HTML",
-            reply_markup=create_navigation_markup("cmd_id_help")
+            create_navigation_markup("cmd_id_help")
         )
     elif call.data == "method_forward":
         user_search_mode[chat_id] = False
-        bot.edit_message_text(
+        update_or_send_panel(
+            chat_id,
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
             "━━━━━━━━━━━━━━━━━━━\n"
             "🐾 قم بإعادة توجيه أي رسالة من أي شخص أو قناة هنا لاستخراج بياناتها بدقة!",
-            chat_id,
-            message_id,
-            parse_mode="HTML",
-            reply_markup=create_navigation_markup("cmd_id_help")
+            create_navigation_markup("cmd_id_help")
         )
     elif call.data == "cmd_home":
         user_search_mode[chat_id] = False
-        bot.edit_message_text(
-            "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:",
+        update_or_send_panel(
             chat_id,
-            message_id,
-            reply_markup=create_main_menu_markup()
+            "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:",
+            create_main_menu_markup()
         )
     elif call.data == "cmd_cancel":
         user_search_mode[chat_id] = False
-        bot.edit_message_text(
-            "❌ تم إغلاق القائمة بنجاح. أرسل /start في أي وقت لإظهارها مجدداً.",
+        update_or_send_panel(
             chat_id,
-            message_id,
-            reply_markup=None
+            "❌ تم إغلاق القائمة بنجاح. أرسل /start في أي وقت لإظهارها مجدداً.",
+            None
         )
 
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
@@ -251,15 +252,18 @@ def handle_shared_native_targets(message):
                 acc_type = "حساب بوت رسمي" if getattr(chat_info, 'is_bot', False) else "مستخدم شخصي"
 
             report_text = format_unified_report(name, uname, chat_info.id, acc_type)
-            bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
-        except Exception as e:
+            update_or_send_panel(message.chat.id, report_text, create_navigation_markup("cmd_id_help"))
+        except Exception:
             fallback_type = "مجموعة أو قناة تيليجرام" if is_chat else "مستخدم شخصي"
             report_text = format_unified_report("جهة مختارة", None, target_id, fallback_type)
-            bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+            update_or_send_panel(message.chat.id, report_text, create_navigation_markup("cmd_id_help"))
     else:
-        bot.send_message(message.chat.id, "⚠️ عذراً، لم يتم استلام أي معرف صالح.", reply_markup=create_navigation_markup("cmd_id_help"))
+        update_or_send_panel(message.chat.id, "⚠️ عذراً، لم يتم استلام أي معرف صالح.", create_navigation_markup("cmd_id_help"))
 
-    bot.send_message(message.chat.id, "🔹 تم إتمام الاستخراج بنجاح:", reply_markup=types.ReplyKeyboardRemove())
+    try:
+        bot.send_message(message.chat.id, "🔹 تم إتمام الاستخراج بنجاح:", reply_markup=types.ReplyKeyboardRemove())
+    except Exception:
+        pass
 
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handle_private_messages(message):
@@ -271,18 +275,18 @@ def handle_private_messages(message):
         name = f"{user.first_name or ''} {user.last_name or ''}".strip()
         acc_type = "حساب بوت رسمي" if user.is_bot else "مستخدم شخصي"
         report_text = format_unified_report(name, uname, user.id, acc_type)
-        bot.send_message(chat_id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+        update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         return
     elif message.forward_from_chat:
         chat = message.forward_from_chat
         uname = chat.username if chat.username else None
         acc_type = "قناة تيليجرام" if chat.type == "channel" else "مجموعة تيليجرام"
         report_text = format_unified_report(chat.title, uname, chat.id, acc_type)
-        bot.send_message(chat_id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+        update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         return
     elif message.forward_sender_name:
         report_text = format_unified_report(message.forward_sender_name, None, "غير متاح", "حساب شخصي مخفي الهوية")
-        bot.send_message(chat_id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+        update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         return
 
     if message.text:
@@ -311,16 +315,17 @@ def handle_private_messages(message):
                 acc_type = "مستخدم شخصي" if chat_info.type == "private" else ("قناة عامة" if chat_info.type == "channel" else "مجموعة تفاعلية")
                 
                 report_text = format_unified_report(name, uname, chat_info.id, acc_type)
-                bot.send_message(chat_id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+                update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
                 return
             except Exception:
                 adv_result = fetch_advanced_web_lookup(clean_username)
                 if adv_result["found"]:
                     report_text = format_unified_report(adv_result['name'], adv_result['username'], "رابط خارجي / عام", adv_result['type'])
-                    bot.send_message(chat_id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+                    update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
                     return
                 else:
-                    bot.send_message(chat_id, f"❌ ملاحظة: بالنسبة للقنوات أو المجموعات <b>الخاصة</b>، لا يمكن للبوت جلب بياناتها إلا إذا كان مشرفاً فيها.\n\nلم يتم العثور على نتائج مطابقة لـ: <b>{text}</b> 🐾", parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+                    err_text = f"❌ ملاحظة: بالنسبة للقنوات أو المجموعات <b>الخاصة</b>، لا يمكن للبوت جلب بياناتها إلا إذا كان مشرفاً فيها.\n\nلم يتم العثور على نتائج مطابقة لـ: <b>{text}</b> 🐾"
+                    update_or_send_panel(chat_id, err_text, create_navigation_markup("cmd_id_help"))
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
