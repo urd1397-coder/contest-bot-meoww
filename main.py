@@ -31,7 +31,7 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
-# --- دالة التحقق مما إذا كان المستخدم مشرفاً في القروب ---
+# --- التحقق من الإشراف ---
 def is_user_admin(chat_id, user_id):
     try:
         member = bot.get_chat_member(chat_id, user_id)
@@ -39,7 +39,7 @@ def is_user_admin(chat_id, user_id):
     except Exception:
         return False
 
-# --- البحث الشامل عبر الإنترنت في حال عدم توفر المعرف المباشر ---
+# --- البحث الويب الدقيق (للكشف عن نوع الحساب واليوزر) ---
 def fetch_advanced_web_lookup(username):
     clean_un = username.replace("@", "").strip()
     if "t.me/" in clean_un:
@@ -59,20 +59,26 @@ def fetch_advanced_web_lookup(username):
             desc_tag = soup.find("meta", property="og:description")
             
             name = title_tag["content"] if title_tag else clean_un
-            bio = desc_tag["content"] if desc_tag else "لا يوجد وصف متاح 🐾"
+            bio = desc_tag["content"] if desc_tag else ""
             
+            # تحديد نوع الحساب بدقة من خلال تحليل الصفحة
+            account_type = "قناة عامة على تيليجرام"
+            if bio and ("is telegram" in bio.lower() or "chat group" in bio.lower() or "group" in bio.lower()):
+                account_type = "مجموعة عامة على تيليجرام"
+            elif not bio or "fast secure powerful" in bio.lower() or "telegram - a new era" in bio.lower():
+                account_type = "حساب شخصي أو قناة عامة"
+
             return {
                 "found": True,
                 "name": name,
                 "username": f"@{clean_un}",
-                "bio": bio,
-                "note": "✨ تم إحضار البيانات بنجاح من شبكة تيليجرام 🌐"
+                "type": account_type
             }
     except Exception:
         pass
     return {"found": False}
 
-# --- أزرار التنقل الثابتة تحت كل رسالة إجابة ---
+# --- أزرار التنقل الثابتة ---
 def create_navigation_markup(back_callback="cmd_id_help"):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -81,7 +87,6 @@ def create_navigation_markup(back_callback="cmd_id_help"):
     )
     return markup
 
-# --- أزرار القروب (زرين للمسابقات فقط) ---
 def create_group_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -90,7 +95,6 @@ def create_group_menu_markup():
     )
     return markup
 
-# --- القائمة الرئيسية (للخاص) ---
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -124,49 +128,19 @@ def create_dynamic_reply_keyboard():
     markup.add(btn_user, btn_group)
     return markup
 
-# --- تنسيق تقرير الحساب الاحترافي ---
-def format_user_report(chat_info, source_chat_id=None):
-    uname = f"@{chat_info.username}" if getattr(chat_info, 'username', None) else "لا يوجد يوزر عام"
-    role_status = "عضو نشط 🐱"
+# --- تنسيق التقرير الدقيق الموحد لكل الحالات ---
+def format_unified_report(name, username, user_id, account_type):
+    formatted_username = username if username and username != "None" else "لا يوجد يوزر"
     
-    if source_chat_id:
-        try:
-            member = bot.get_chat_member(source_chat_id, chat_info.id)
-            if member.status == 'creator':
-                role_status = "👑 مالك القروب الملكي"
-            elif member.status == 'administrator':
-                role_status = "🛡️ مشرف الحماية"
-            else:
-                role_status = "👤 عضو أساسي"
-        except Exception:
-            role_status = "👤 عضو القروب"
-
-    name = getattr(chat_info, 'first_name', None) or getattr(chat_info, 'title', None) or "مستخدم تيليجرام"
-
     return (
-        f"🐾 <b>[ بطاقة حماية شركس الذكية ]</b> 🐱✨\n"
+        f"🐾 <b>[ بطاقة شركس الذكية ]</b> 🐱✨\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>username:</b> {formatted_username}\n"
         f"👤 <b>الاسم:</b> {name}\n"
-        f"🔗 <b>المعرف:</b> {uname}\n"
-        f"🆔 <b>الآيدي:</b> <code>{chat_info.id}</code>\n"
-        f"📌 <b>الرتبة:</b> {role_status}\n"
+        f"🆔 <b>الآيدي:</b> <code>{user_id}</code>\n"
+        f"📌 <b>نوع الحساب:</b> {account_type}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"✨ <i>نظام شركس السريع والمؤقت لخدمتكم!</i>"
-    )
-
-def format_chat_report(c):
-    uname = f"@{c.username}" if getattr(c, 'username', None) else "بدون معرف عام"
-    chat_type_ar = "📢 قناة عامة / إخبارية" if getattr(c, 'type', '') == "channel" else "👥 مجموعة تفاعلية نشطة"
-    title = getattr(c, 'title', 'جهة تيليجرام')
-    return (
-        f"🐾 <b>[ بطاقة جهة شركس الخارجية ]</b> 🐱⚡\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"📛 <b>اسم الجهة:</b> {title}\n"
-        f"🔗 <b>اليوزر:</b> {uname}\n"
-        f"🆔 <b>آيدي الجهة:</b> <code>{c.id}</code>\n"
-        f"📌 <b>التصنيف:</b> {chat_type_ar}\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
-        f"✨ <i>جاري فحص وتأمين البيانات بنجاح!</i>"
+        f"✨ <i>نظام شركس السريع لخدمتكم!</i>"
     )
 
 @bot.message_handler(commands=["start"])
@@ -225,7 +199,7 @@ def handle_inline_callbacks(call):
         bot.edit_message_text(
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
             "━━━━━━━━━━━━━━━━━━━\n"
-            "🐾 قم بإعادة توجيه أي رسالة من أي شخص أو قناة لاستخراج بياناتها السرية فوراً!",
+            "🐾 قم بإعادة توجيه أي رسالة من أي شخص أو قناة لاستخراج بياناتها بدقة!",
             chat_id,
             message_id,
             parse_mode="HTML",
@@ -246,10 +220,10 @@ def handle_inline_callbacks(call):
             reply_markup=None
         )
 
+# --- معالج الاختيارات السفلية ---
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
 def handle_shared_native_targets(message):
     target_id = None
-
     if message.users_shared:
         target_id = message.users_shared.user_ids[0]
     elif message.chat_shared:
@@ -258,35 +232,46 @@ def handle_shared_native_targets(message):
     if target_id:
         try:
             chat_info = bot.get_chat(target_id)
-            if chat_info.type == "private":
-                report_text = format_user_report(chat_info, message.chat.id)
-            else:
-                report_text = format_chat_report(chat_info)
+            uname = f"@{chat_info.username}" if getattr(chat_info, 'username', None) else "لا يوجد يوزر"
+            name = getattr(chat_info, 'first_name', None) or getattr(chat_info, 'title', 'جهة غير معروفة')
+            
+            # تحديد النوع بدقة بناءً على جلب التيليجرام
+            acc_type = "مستخدم شخصي" if chat_info.type == "private" else ("قناة عامة" if chat_info.type == "channel" else "مجموعة تفاعلية")
+            
+            report_text = format_unified_report(name, uname, chat_info.id, acc_type)
             bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
         except Exception:
-            class TempObj:
-                pass
-            t = TempObj()
-            t.id = target_id
-            t.username = None
-            t.first_name = "مستخدم مختار"
-            report_text = format_user_report(t, message.chat.id)
+            report_text = format_unified_report("مستخدم مختار", "لا يوجد يوزر", target_id, "مستخدم شخصي")
             bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
     else:
         bot.send_message(message.chat.id, "⚠️ عذراً، لم يتم استلام أي معرف صالح.", reply_markup=create_navigation_markup("cmd_id_help"))
 
     bot.send_message(message.chat.id, "🔹 لوحة التحكم السريعة:", reply_markup=types.ReplyKeyboardRemove())
 
+# --- معالج الرسائل الخاصة (Forward + اليوزرات المباشرة) ---
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handle_private_messages(message):
+    # 1. معالجة التحويل (Forward) بدقة تامة لتحديد نوع الحساب واليوزر والاسم
     if message.forward_from:
-        report_text = format_user_report(message.forward_from)
+        user = message.forward_from
+        uname = f"@{user.username}" if user.username else "لا يوجد يوزر"
+        acc_type = "حساب بوت رسمي" if user.is_bot else "حساب شخصي"
+        report_text = format_unified_report(user.first_name, uname, user.id, acc_type)
         bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
         return
     elif message.forward_from_chat:
-        report_text = format_chat_report(message.forward_from_chat)
+        chat = message.forward_from_chat
+        uname = f"@{chat.username}" if chat.username else "قناة/مجموعة خاصة"
+        acc_type = "قناة تيليجرام" if chat.type == "channel" else "مجموعة تيليجرام"
+        report_text = format_unified_report(chat.title, uname, chat.id, acc_type)
         bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
         return
+    elif message.forward_sender_name:
+        report_text = format_unified_report(message.forward_sender_name, "حساب مخفي الإعدادات", "غير متاح", "حساب شخصي مخفي الهوية")
+        bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+        return
+
+    # 2. معالجة النصوص واليوزرات المباشرة
     elif message.text:
         text = message.text.strip()
         if text.startswith("/"):
@@ -304,29 +289,24 @@ def handle_private_messages(message):
             try:
                 target_query = "@" + clean_username if not text.startswith("@") and "t.me" not in text else text
                 chat_info = bot.get_chat(target_query)
-                if chat_info.type == "private":
-                    report_text = format_user_report(chat_info)
-                else:
-                    report_text = format_chat_report(chat_info)
+                uname = f"@{chat_info.username}" if getattr(chat_info, 'username', None) else "لا يوجد يوزر"
+                name = getattr(chat_info, 'first_name', None) or getattr(chat_info, 'title', 'جهة تيليجرام')
+                
+                acc_type = "مستخدم شخصي" if chat_info.type == "private" else ("قناة عامة" if chat_info.type == "channel" else "مجموعة تفاعلية")
+                
+                report_text = format_unified_report(name, uname, chat_info.id, acc_type)
                 bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
                 return
             except Exception:
                 adv_result = fetch_advanced_web_lookup(clean_username)
                 if adv_result["found"]:
-                    report_text = (
-                        f"🐾 <b>[ بطاقة شركس للبحث الشامل ]</b> 🌐✨\n"
-                        f"━━━━━━━━━━━━━━━━━━━\n"
-                        f"📛 <b>الاسم / العنوان:</b> {adv_result['name']}\n"
-                        f"🔗 <b>المعرف:</b> {adv_result['username']}\n"
-                        f"📝 <b>الوصف:</b> {adv_result['bio']}\n"
-                        f"━━━━━━━━━━━━━━━━━━━\n"
-                        f"✨ {adv_result['note']}"
-                    )
+                    report_text = format_unified_report(adv_result['name'], adv_result['username'], "رابط خارجي / عام", adv_result['type'])
                     bot.send_message(message.chat.id, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
                     return
                 else:
-                    bot.send_message(message.chat.id, f"❌ لم نتمكن من العثور على أي نتائج مطابقة لـ: <b>{text}</b> 🐾", parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
+                    bot.send_message(message.chat.id, f"❌ ملاحظة: بالنسبة للقنوات أو المجموعات <b>الخاصة</b>، لا يمكن للبوت جلب بياناتها إلا إذا كان مشرفاً فيها.\n\nلم يتم العثور على نتائج مطابقة لـ: <b>{text}</b> 🐾", parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
 
+# --- معالج القروبات ---
 @bot.message_handler(chat_types=["group", "supergroup"], content_types=["text"])
 def handle_group_messages(message):
     text = message.text.strip()
@@ -349,7 +329,9 @@ def handle_group_messages(message):
 
             target_user = message.reply_to_message.from_user
             if target_user:
-                report_text = format_user_report(target_user, chat_id)
+                uname = f"@{target_user.username}" if target_user.username else "لا يوجد يوزر"
+                acc_type = "حساب بوت رسمي" if target_user.is_bot else "عضو في المجموعة"
+                report_text = format_unified_report(target_user.first_name, uname, target_user.id, acc_type)
                 bot.reply_to(message, report_text, parse_mode="HTML", reply_markup=create_navigation_markup("cmd_id_help"))
 
 if __name__ == "__main__":
