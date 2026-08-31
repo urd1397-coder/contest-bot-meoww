@@ -176,7 +176,7 @@ def handle_start_command(message):
     )
 
 # --- معالج الأزرار الشفافة (Inline Callbacks) ---
-@bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(func=lambda call: call.data in ["cmd_end", "cmd_id_help", "show_keyboard", "method_username", "method_forward", "cmd_home", "cmd_cancel"])
 def handle_inline_callbacks(call):
     chat_id = call.message.chat.id
     message_id = call.message.message_id
@@ -351,7 +351,10 @@ def handle_group_messages(message):
 
 @bot.callback_query_handler(func=lambda call: call.data == "cmd_create")
 def start_contest_flow(call):
-    bot.answer_callback_query(call.id)
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
     chat_id = call.message.chat.id
     
     contest_drafts[chat_id] = {}
@@ -426,6 +429,10 @@ def step_receive_channel_or_group(message):
 
 @bot.callback_query_handler(func=lambda call: call.data in ["reg_yes", "reg_no"])
 def step_reg_decision(call):
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
     chat_id = call.message.chat.id
     try: bot.delete_message(chat_id, call.message.message_id)
     except: pass
@@ -458,6 +465,10 @@ def ask_prize_type_flow(chat_id):
 
 @bot.callback_query_handler(func=lambda call: call.data in ["prize_img", "prize_col", "prize_skip"])
 def step_prize_choice(call):
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
     chat_id = call.message.chat.id
     try: bot.delete_message(chat_id, call.message.message_id)
     except: pass
@@ -497,6 +508,10 @@ def ask_entry_message_flow(chat_id):
 
 @bot.callback_query_handler(func=lambda call: call.data in ["entry_yes", "entry_no"])
 def step_entry_decision(call):
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
     chat_id = call.message.chat.id
     try: bot.delete_message(chat_id, call.message.message_id)
     except: pass
@@ -528,6 +543,10 @@ def ask_username_inclusion_flow(chat_id):
 
 @bot.callback_query_handler(func=lambda call: call.data in ["uname_yes", "uname_no"])
 def step_username_decision(call):
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
     chat_id = call.message.chat.id
     try: bot.delete_message(chat_id, call.message.message_id)
     except: pass
@@ -563,7 +582,6 @@ def publish_contest(chat_id):
     
     clear_contest_draft(chat_id)
 
-# دالة حذف وتطهير المسودة بالكامل فور انتهاء الإنشاء ونشر المسابقة
 def clear_contest_draft(chat_id):
     if chat_id in contest_drafts:
         contest_drafts.pop(chat_id, None)
