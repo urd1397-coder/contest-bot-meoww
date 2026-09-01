@@ -293,6 +293,72 @@ def handler_private_messages(message):
             bot.delete_message(chat_id, message.message_id)
         except Exception:
             pass
+            
+@bot.message_handler(chat_types=["supergroup", "group"], content_types=["text"])
+def handler_group_messages(message):
+    chat_id = message.chat.id
+    text = message.text.strip() if message.text else ""
+
+    # التحقق من أن الكلمة المطلوبة هي "شركس"
+    if text != "شركس":
+        return
+
+    # التحقق مما إذا كان المرسل مشرفاً في المجموعة
+    try:
+        member_status = bot.get_chat_member(chat_id, message.from_user.id)
+        if member_status.status not in ["creator", "administrator"]:
+            # إذا لم يكن مشرفاً، نتجاهل الطلب أو نكتفي بإرسال القائمة العامة بحسب الرغبة
+            return
+    except Exception:
+        return
+
+    # إذا كان مشرفاً، نتحقق هل قام بالرد (Reply) على رسالة شخص آخر
+    if message.reply_to_message:
+        target_msg = message.reply_to_message
+        target_user = target_msg.from_user
+        
+        if target_user:
+            uname = target_user.username if target_user.username else None
+            name = f"{target_user.first_name or ''} {target_user.last_name or ''}".strip()
+            acc_type = "حساب بوت رسمي" if target_user.is_bot else "مستخدم شخصي"
+            
+            report_text = format_unified_report(name, uname, target_user.id, acc_type)
+            
+            # لوحة خيارات المسابقات المصغرة لطابع شركس
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("🎯 إنشاء مسابقة", callback_data="cmd_create"),
+                types.InlineKeyboardButton("⛔ إنهاء المسابقة", callback_data="cmd_end")
+            )
+            
+            try:
+                bot.delete_message(chat_id, message.message_id)
+            except Exception:
+                pass
+                
+            update_or_send_panel(chat_id, report_text, markup)
+            return
+
+    # إذا كتب "شركس" بدون الرد على رسالة، نرسل أو نحدث قائمة المسابقات المصغرة الثابتة
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("🎯 إنشاء مسابقة", callback_data="cmd_create"),
+        types.InlineKeyboardButton("⛔ إنهاء المسابقة", callback_data="cmd_end")
+    )
+    
+    menu_text = (
+        "🐾 <b>[ لوحة إدارة المسابقات - شركس ]</b> 🐱✨\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "أهلاً بك يا مشرفنا العزيز! اختر الإجراء المطلوب:"
+    )
+    
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+        
+    update_or_send_panel(chat_id, menu_text, markup)
+    
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
