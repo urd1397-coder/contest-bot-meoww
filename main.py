@@ -296,7 +296,7 @@ def handler_private_messages(message):
             pass
 
         # استخراج اليوزر الصافي أو الرابط الصحيح 100%
-       @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
+@bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handler_private_messages(message):
     chat_id = message.chat.id
 
