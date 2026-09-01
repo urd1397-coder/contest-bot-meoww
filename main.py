@@ -76,16 +76,15 @@ def create_dynamic_reply_keyboard():
 def format_unified_report(name, username, user_id, account_type):
     clean_name = name if name and name != "None" and str(name).strip() != "" else "جهة مختارة"
     
-    # تنسيق اليوزرنيم: يظهر فقط إن وجد تماماً، وإلا يتم تجاوزه بالكامل
-    username_line = ""
+    username_section = ""
     if username and str(username).strip() != "" and str(username).lower() != "none":
         formatted_un = f"@{username.replace('@', '')}"
-        username_line = f"username: {formatted_un}\n"
+        username_section = f"username: {formatted_un}\n"
 
     return (
         f"🐾 <b>[ بطاقة شركس الذكية ]</b> 🐱✨\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"{username_line}"
+        f"{username_section}"
         f"👤 <b>الاسم:</b> {clean_name}\n"
         f"id: <code>{user_id}</code>\n"
         f"📌 <b>نوع الحساب:</b> {account_type}\n"
