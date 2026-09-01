@@ -295,7 +295,7 @@ def handler_private_messages(message):
         except Exception:
             pass
 
-       clean_target = text
+      clean_target = text
         if "t.me/" in text:
             clean_target = "https://t.me/" + text.split("t.me/")[-1].split("/")[0].strip()
         elif "telegram.me/" in text:
