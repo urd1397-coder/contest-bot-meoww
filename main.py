@@ -54,7 +54,6 @@ def create_id_help_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📂 لوحة الاختيار السريع للأعضاء والجهات", callback_data="show_keyboard"),
-        types.InlineKeyboardButton("🌐 البحث اليدوي المباشر (يوزر / رابط / قناة)", callback_data="method_username"),
         types.InlineKeyboardButton("📥 تحليل الرسائل المحولة الذكي", callback_data="method_forward"),
         types.InlineKeyboardButton("🏠 العودة للقائمة الرئيسية", callback_data="cmd_home")
     )
