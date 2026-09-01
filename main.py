@@ -295,45 +295,6 @@ def handler_private_messages(message):
         except Exception:
             pass
 
-    # تنظيف اليوزر وإعداد الرابط للبحث
-        clean_target = text
-        if "t.me/" in text:
-            clean_target = "https://t.me/" + text.split("t.me/")[-1].split("/")[0].strip()
-        elif "telegram.me/" in text:
-            clean_target = "https://t.me/" + text.split("telegram.me/")[-1].split("/")[0].strip()
-        else:
-            username_clean = text.replace("@", "").strip()
-            clean_target = f"@{username_clean}"
-
-        # إغلاق وضع البحث مؤقتاً لمنع التكرار
-        user_search_mode[chat_id] = False
-
-        try:
-            # محاولة جلب البيانات من تيليجرام
-            chat_info = bot.get_chat(clean_target)
-            uname = getattr(chat_info, 'username', None)
-            
-            if chat_info.type == "private":
-                first = getattr(chat_info, 'first_name', '') or ''
-                last = getattr(chat_info, 'last_name', '') or ''
-                name = f"{first} {last}".strip() or "مستخدم تيليجرام"
-                acc_type = "حساب بوت رسمي" if getattr(chat_info, 'is_bot', False) else "مستخدم شخصي"
-            elif chat_info.type == "channel":
-                name = getattr(chat_info, 'title', 'قناة تيليجرام')
-                acc_type = "قناة عامة"
-            else:
-                name = getattr(chat_info, 'title', 'مجموعة تيليجرام')
-                acc_type = "مجموعة تفاعلية"
-            
-            report_text = format_unified_report(name, uname, chat_info.id, acc_type)
-            update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
-            
-        except Exception as e:
-            # طباعة الخطأ الحقيقي على سيرفر Render لنعرف السبب بالتحديد، وإرسال تنبيه واضح للمستخدم
-            print(f"Search Error for {text}: {e}")
-            err_text = f"❌ <b>عذراً، فشل البحث عن:</b> {text}\n\n<b>السبب التقني:</b> {str(e)}\n\n💡 <i>تأكد أن الحساب متفاعل مع البوت مسبقاً أو جرب إعادة توجيه رسالة مباشرة 🐾</i>"
-            update_or_send_panel(chat_id, err_text, create_navigation_markup("cmd_id_help"))
-            
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
