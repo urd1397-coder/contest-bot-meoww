@@ -352,7 +352,6 @@ def handler_group_messages(message):
         "أهلاً بك يا مشرفنا العزيز! اختر الإجراء المطلوب:"
     )
     
-    try:
         bot.delete_message(chat_id, message.message_id)
     except Exception:
         pass
@@ -362,7 +361,7 @@ def handler_group_messages(message):
     
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
-    chat_id = call.message.chat.id
+    chat_id = call.message.chat.id 
     user_id = call.from_user.id
     data = call.data
 
