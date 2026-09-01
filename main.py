@@ -295,16 +295,17 @@ def handler_private_messages(message):
         except Exception:
             pass
 
+        # استخراج اليوزر الصافي أو الرابط الصحيح 100%
         clean_target = text
         if "t.me/" in text:
             clean_target = "https://t.me/" + text.split("t.me/")[-1].split("/")[0].strip()
         elif "telegram.me/" in text:
             clean_target = "https://t.me/" + text.split("telegram.me/")[-1].split("/")[0].strip()
-        elif text.startswith("@"):
-            clean_target = "https://t.me/" + text.replace("@", "").strip()
         else:
-            clean_target = "https://t.me/" + text.strip()
-            
+            # إذا كان النص يوزراً مجرداً، نجعله يبدأ بـ @ لضمان قبوله كمعرف رسمي
+            username_clean = text.replace("@", "").strip()
+            clean_target = f"@{username_clean}"
+
         user_search_mode[chat_id] = False
         try:
             chat_info = bot.get_chat(clean_target)
@@ -327,7 +328,7 @@ def handler_private_messages(message):
         except Exception as e:
             err_text = f"❌ عذراً، لم أتمكن من جلب البيانات لـ: <b>{text}</b>\n\nتأكد أن اليوزر صحيح أو جرب إعادة توجيه رسالة منه مباشرة 🐾"
             update_or_send_panel(chat_id, err_text, create_navigation_markup("cmd_id_help"))
-
+            
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
