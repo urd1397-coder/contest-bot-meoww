@@ -295,14 +295,16 @@ def handler_private_messages(message):
         except Exception:
             pass
 
-        clean_target = text
+       clean_target = text
         if "t.me/" in text:
-            clean_target = "@" + text.split("t.me/")[-1].split("/")[0].strip()
+            clean_target = "https://t.me/" + text.split("t.me/")[-1].split("/")[0].strip()
         elif "telegram.me/" in text:
-            clean_target = "@" + text.split("telegram.me/")[-1].split("/")[0].strip()
-        elif not text.startswith("@"):
-            clean_target = "@" + text
-
+            clean_target = "https://t.me/" + text.split("telegram.me/")[-1].split("/")[0].strip()
+        elif text.startswith("@"):
+            clean_target = "https://t.me/" + text.replace("@", "").strip()
+        else:
+            clean_target = "https://t.me/" + text.strip()
+            
         user_search_mode[chat_id] = False
         try:
             chat_info = bot.get_chat(clean_target)
