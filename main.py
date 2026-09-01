@@ -233,7 +233,7 @@ def handle_shared_native_targets(message):
     if target_id:
         try:
             chat_info = bot.get_chat(target_id)
-            uname = chat_info.username if getattr(chat_info, 'username', None) else None
+            uname = getattr(chat_info, 'username', None)
             
             if is_chat:
                 name = getattr(chat_info, 'title', 'قناة أو مجموعة')
@@ -309,7 +309,7 @@ def handle_private_messages(message):
         user_search_mode[chat_id] = False
         try:
             chat_info = bot.get_chat(clean_target)
-            uname = chat_info.username if getattr(chat_info, 'username', None) else clean_target.replace("@", "")
+            uname = getattr(chat_info, 'username', None) or clean_target.replace("@", "")
             
             if chat_info.type == "private":
                 first = getattr(chat_info, 'first_name', '') or ''
@@ -326,7 +326,7 @@ def handle_private_messages(message):
             report_text = format_unified_report(name, uname, chat_info.id, acc_type)
             update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         except Exception as e:
-            err_text = f"❌ عذراً، لم أتمكن من جلب الآيدي لـ: <b>{text}</b>\n\nتأكد أن اليوزر صحيح أو جرب إعادة توجيه رسالة منه مباشرة 🐾"
+            err_text = f"❌ عذراً، لم أتمكن من جلب البيانات لـ: <b>{text}</b>\n\nتأكد أن اليوزر صحيح أو جرب إعادة توجيه رسالة منه مباشرة 🐾"
             update_or_send_panel(chat_id, err_text, create_navigation_markup("cmd_id_help"))
 
 if __name__ == "__main__":
@@ -347,5 +347,5 @@ if __name__ == "__main__":
             print("Starting bot polling safely...")
             bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
         except Exception as e:
-            print(f"Polling error: {e}. Retrying in 5 seconds...")
+            print(f"Polling error: {e}. Retrying in 5 secondscharts...")
             time.sleep(5)
