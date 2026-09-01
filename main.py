@@ -143,10 +143,6 @@ def handle_inline_callbacks(call):
             pass
     elif call.data == "cmd_id_help":
         user_search_mode[chat_id] = False
-        try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
-        except Exception:
-            pass
         update_or_send_panel(
             chat_id,
             "⚡ <b>قسم البحث والاستخراج المتقدم</b> 🐾\n\n"
@@ -162,17 +158,11 @@ def handle_inline_callbacks(call):
             create_navigation_markup("cmd_id_help")
         )
         try:
-            msg = bot.send_message(chat_id, "👇 لوحة المفاتيح السفلية جاهزة:", reply_markup=create_dynamic_reply_keyboard())
-            time.sleep(0.5)
-            bot.delete_message(chat_id, msg.message_id)
+            bot.send_message(chat_id, "👇 لوحة المفاتيح السفلية جاهزة:", reply_markup=create_dynamic_reply_keyboard())
         except Exception:
             pass
     elif call.data == "method_username":
         user_search_mode[chat_id] = True
-        try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
-        except Exception:
-            pass
         update_or_send_panel(
             chat_id,
             "🌐 <b>[ وضع البحث اليدوي والروابط والقنوات ]</b>\n"
@@ -182,10 +172,6 @@ def handle_inline_callbacks(call):
         )
     elif call.data == "method_forward":
         user_search_mode[chat_id] = False
-        try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
-        except Exception:
-            pass
         update_or_send_panel(
             chat_id,
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
@@ -195,10 +181,6 @@ def handle_inline_callbacks(call):
         )
     elif call.data == "cmd_home":
         user_search_mode[chat_id] = False
-        try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
-        except Exception:
-            pass
         update_or_send_panel(
             chat_id,
             "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:",
@@ -207,7 +189,7 @@ def handle_inline_callbacks(call):
     elif call.data == "cmd_cancel":
         user_search_mode[chat_id] = False
         try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, "❌ تم إغلاق القائمة بنجاح.", reply_markup=types.ReplyKeyboardRemove())
         except Exception:
             pass
         update_or_send_panel(
@@ -255,7 +237,7 @@ def handle_shared_native_targets(message):
             update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
 
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
-def handle_private_messages(message):
+def handler_private_messages(message):
     chat_id = message.chat.id
 
     if message.forward_from or message.forward_from_chat or message.forward_sender_name:
@@ -336,19 +318,19 @@ if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
     server_thread.start()
-    print(f"HTTP Server started on port {PORT}")
+    print(f"HTTP Server started on port %s" % PORT)
     
     time.sleep(3)
     try:
         bot.remove_webhook()
         print("Old webhook removed successfully.")
     except Exception as e:
-        print(f"Error removing webhook: {e}")
+        print(f"Error removing webhook: %s" % e)
 
     while True:
         try:
             print("Starting bot polling safely...")
             bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
         except Exception as e:
-            print(f"Polling error: {e}. Retrying in 5 seconds...")
+            print(f"Polling error: %s. Retrying in 5 seconds..." % e)
             time.sleep(5)
