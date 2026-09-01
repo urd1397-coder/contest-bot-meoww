@@ -352,7 +352,7 @@ def handler_group_messages(message):
         "أهلاً بك يا مشرفنا العزيز! اختر الإجراء المطلوب:"
     )
     
-        bot.delete_message(chat_id, message.message_id)
+    bot.delete_message(chat_id, message.message_id)
     except Exception:
         pass
         
