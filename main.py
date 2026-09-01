@@ -160,7 +160,7 @@ def handle_inline_callbacks(call):
         try:
             bot.send_message(
                 chat_id, 
-                "👇 تفضل، لوحة الاختيار السفلية مفعلة الآن:", 
+                "👇 لوحة الاختيار السفلية:", 
                 reply_markup=create_dynamic_reply_keyboard()
             )
         except Exception:
