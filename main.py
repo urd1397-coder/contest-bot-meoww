@@ -61,7 +61,7 @@ def create_id_help_menu_markup():
     return markup
 
 def create_dynamic_reply_keyboard():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, one_time_keyboard=True)
     btn_user = types.KeyboardButton(
         text="👤 اختر مستخدم", 
         request_users=types.KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)
@@ -158,7 +158,11 @@ def handle_inline_callbacks(call):
             create_navigation_markup("cmd_id_help")
         )
         try:
-            bot.send_message(chat_id, "👇 لوحة المفاتيح السفلية جاهزة:", reply_markup=create_dynamic_reply_keyboard())
+            bot.send_message(
+                chat_id, 
+                "👇 تفضل، لوحة الاختيار السفلية مفعلة الآن:", 
+                reply_markup=create_dynamic_reply_keyboard()
+            )
         except Exception:
             pass
     elif call.data == "method_username":
@@ -189,7 +193,7 @@ def handle_inline_callbacks(call):
     elif call.data == "cmd_cancel":
         user_search_mode[chat_id] = False
         try:
-            bot.send_message(chat_id, "❌ تم إغلاق القائمة بنجاح.", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, "❌ تم إغلاق القائمة.", reply_markup=types.ReplyKeyboardRemove())
         except Exception:
             pass
         update_or_send_panel(
