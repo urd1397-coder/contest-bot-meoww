@@ -296,13 +296,60 @@ def handler_private_messages(message):
             pass
 
         # استخراج اليوزر الصافي أو الرابط الصحيح 100%
+       @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
+def handler_private_messages(message):
+    chat_id = message.chat.id
+
+    if message.forward_from or message.forward_from_chat or message.forward_sender_name:
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
+
+    if message.forward_from:
+        user = message.forward_from
+        uname = user.username if user.username else None
+        name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        acc_type = "حساب بوت رسمي" if user.is_bot else "مستخدم شخصي"
+        report_text = format_unified_report(name, uname, user.id, acc_type)
+        update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
+        return
+        
+    elif message.forward_from_chat:
+        chat = message.forward_from_chat
+        uname = chat.username if chat.username else None
+        acc_type = "قناة عامة" if chat.type == "channel" else "مجموعة تفاعلية"
+        report_text = format_unified_report(chat.title, uname, chat.id, acc_type)
+        update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
+        return
+    elif message.forward_sender_name:
+        report_text = format_unified_report(message.forward_sender_name, None, "غير متاح", "مستخدم شخصي (مخفي الهوية)")
+        update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
+        return
+
+    if message.text:
+        text = message.text.strip()
+        if text.startswith("/"):
+            try:
+                bot.delete_message(chat_id, message.message_id)
+            except Exception:
+                pass
+            return
+
+        if not user_search_mode.get(chat_id, False):
+            return
+
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
+
         clean_target = text
         if "t.me/" in text:
             clean_target = "https://t.me/" + text.split("t.me/")[-1].split("/")[0].strip()
         elif "telegram.me/" in text:
             clean_target = "https://t.me/" + text.split("telegram.me/")[-1].split("/")[0].strip()
         else:
-            # إذا كان النص يوزراً مجرداً، نجعله يبدأ بـ @ لضمان قبوله كمعرف رسمي
             username_clean = text.replace("@", "").strip()
             clean_target = f"@{username_clean}"
 
