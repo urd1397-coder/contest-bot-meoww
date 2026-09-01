@@ -34,43 +34,6 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
-def fetch_advanced_web_lookup(username):
-    clean_un = username.replace("@", "").strip()
-    if "t.me/" in clean_un:
-        clean_un = clean_un.split("t.me/")[-1].split("/")[0].strip()
-    elif "telegram.me/" in clean_un:
-        clean_un = clean_un.split("telegram.me/")[-1].split("/")[0].strip()
-        
-    url = f"https://t.me/{clean_un}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=5)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            title_tag = soup.find("meta", property="og:title")
-            desc_tag = soup.find("meta", property="og:description")
-            
-            name = title_tag["content"] if title_tag else clean_un
-            bio = desc_tag["content"] if desc_tag else ""
-            
-            account_type = "قناة عامة على تيليجرام"
-            if bio and ("is telegram" in bio.lower() or "chat group" in bio.lower() or "group" in bio.lower()):
-                account_type = "مجموعة عامة على تيليجرام"
-            elif not bio or "fast secure powerful" in bio.lower() or "telegram - a new era" in bio.lower():
-                account_type = "حساب شخصي أو قناة عامة"
-
-            return {
-                "found": True,
-                "name": name,
-                "username": f"@{clean_un}",
-                "type": account_type
-            }
-    except Exception:
-        pass
-    return {"found": False}
-
 def create_navigation_markup(back_callback="cmd_id_help"):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -178,6 +141,10 @@ def handle_inline_callbacks(call):
             pass
     elif call.data == "cmd_id_help":
         user_search_mode[chat_id] = False
+        try:
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+        except Exception:
+            pass
         update_or_send_panel(
             chat_id,
             "⚡ <b>قسم البحث والاستخراج المتقدم</b> 🐾\n\n"
@@ -188,12 +155,21 @@ def handle_inline_callbacks(call):
         user_search_mode[chat_id] = False
         update_or_send_panel(
             chat_id,
-            "📂 <b>[ لوحة الاختيار السريع ]</b>\n\n"
-            "👇 استخدم لوحة المفاتيح السفلية الظاهرة لديك لاختيار مستخدم أو مجموعة، وسأعرض لك بطاقته هنا فوراً 🚀",
+            "📂 <b>[ لوحة الاختيار السريع للأعضاء والجهات ]</b>\n\n"
+            "👇 استخدم لوحة المفاتيح السفلية الظاهرة لديك الآن لاختيار مستخدم أو مجموعة، وسأعرض لك بطاقته هنا فوراً 🚀",
             create_navigation_markup("cmd_id_help")
+        )
+        bot.send_message(
+            chat_id,
+            "👇 لوحة المفاتيح السفلية جاهزة للاختيار:",
+            reply_markup=create_dynamic_reply_keyboard()
         )
     elif call.data == "method_username":
         user_search_mode[chat_id] = True
+        try:
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+        except Exception:
+            pass
         update_or_send_panel(
             chat_id,
             "🌐 <b>[ وضع البحث اليدوي والروابط والقنوات ]</b>\n"
@@ -203,6 +179,10 @@ def handle_inline_callbacks(call):
         )
     elif call.data == "method_forward":
         user_search_mode[chat_id] = False
+        try:
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+        except Exception:
+            pass
         update_or_send_panel(
             chat_id,
             "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
@@ -212,6 +192,10 @@ def handle_inline_callbacks(call):
         )
     elif call.data == "cmd_home":
         user_search_mode[chat_id] = False
+        try:
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+        except Exception:
+            pass
         update_or_send_panel(
             chat_id,
             "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:",
@@ -219,6 +203,10 @@ def handle_inline_callbacks(call):
         )
     elif call.data == "cmd_cancel":
         user_search_mode[chat_id] = False
+        try:
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+        except Exception:
+            pass
         update_or_send_panel(
             chat_id,
             "❌ تم إغلاق القائمة بنجاح. أرسل /start في أي وقت لإظهارها مجدداً.",
@@ -262,8 +250,6 @@ def handle_shared_native_targets(message):
             fallback_type = "مجموعة أو قناة تيليجرام" if is_chat else "مستخدم شخصي"
             report_text = format_unified_report("جهة مختارة", None, target_id, fallback_type)
             update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
-    else:
-        update_or_send_panel(chat_id, "⚠️ عذراً، لم يتم استلام أي معرف صالح.", create_navigation_markup("cmd_id_help"))
 
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handle_private_messages(message):
@@ -312,35 +298,36 @@ def handle_private_messages(message):
         except Exception:
             pass
 
-        clean_username = text
+        clean_target = text
         if "t.me/" in text:
-            clean_username = text.split("t.me/")[-1].split("/")[0].strip()
+            clean_target = "@" + text.split("t.me/")[-1].split("/")[0].strip()
         elif "telegram.me/" in text:
-            clean_username = text.split("telegram.me/")[-1].split("/")[0].strip()
-        else:
-            clean_username = text.replace("@", "").strip()
+            clean_target = "@" + text.split("telegram.me/")[-1].split("/")[0].strip()
+        elif not text.startswith("@"):
+            clean_target = "@" + text
 
-        if len(clean_username) >= 2:
-            user_search_mode[chat_id] = False
-            try:
-                target_query = "@" + clean_username if not text.startswith("@") and "t.me" not in text else text
-                chat_info = bot.get_chat(target_query)
-                uname = chat_info.username if getattr(chat_info, 'username', None) else None
-                name = getattr(chat_info, 'first_name', None) or getattr(chat_info, 'title', 'جهة تيليجرام')
-                acc_type = "مستخدم شخصي" if chat_info.type == "private" else ("قناة عامة" if chat_info.type == "channel" else "مجموعة تفاعلية")
-                
-                report_text = format_unified_report(name, uname, chat_info.id, acc_type)
-                update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
-                return
-            except Exception:
-                adv_result = fetch_advanced_web_lookup(clean_username)
-                if adv_result["found"]:
-                    report_text = format_unified_report(adv_result['name'], adv_result['username'], "رابط خارجي / عام", adv_result['type'])
-                    update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
-                    return
-                else:
-                    err_text = f"❌ ملاحظة: بالنسبة للقنوات أو المجموعات <b>الخاصة</b>، لا يمكن للبوت جلب بياناتها إلا إذا كان مشرفاً فيها.\n\nلم يتم العثور على نتائج مطابقة لـ: <b>{text}</b> 🐾"
-                    update_or_send_panel(chat_id, err_text, create_navigation_markup("cmd_id_help"))
+        user_search_mode[chat_id] = False
+        try:
+            chat_info = bot.get_chat(clean_target)
+            uname = chat_info.username if getattr(chat_info, 'username', None) else clean_target.replace("@", "")
+            
+            if chat_info.type == "private":
+                first = getattr(chat_info, 'first_name', '') or ''
+                last = getattr(chat_info, 'last_name', '') or ''
+                name = f"{first} {last}".strip() or "مستخدم تيليجرام"
+                acc_type = "حساب بوت رسمي" if getattr(chat_info, 'is_bot', False) else "مستخدم شخصي"
+            elif chat_info.type == "channel":
+                name = getattr(chat_info, 'title', 'قناة تيليجرام')
+                acc_type = "قناة عامة على تيليجرام"
+            else:
+                name = getattr(chat_info, 'title', 'مجموعة تيليجرام')
+                acc_type = "مجموعة تفاعلية على تيليجرام"
+            
+            report_text = format_unified_report(name, uname, chat_info.id, acc_type)
+            update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
+        except Exception as e:
+            err_text = f"❌ عذراً، لم أتمكن من جلب الآيدي لـ: <b>{text}</b>\n\nتأكد أن اليوزر صحيح أو جرب إعادة توجيه رسالة منه مباشرة 🐾"
+            update_or_send_panel(chat_id, err_text, create_navigation_markup("cmd_id_help"))
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
