@@ -15,6 +15,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 user_search_mode = {}
 last_panel_message = {}
+contest_creation_state = {}
 
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -123,8 +124,10 @@ def handle_start_command(message):
     last_panel_message[message.chat.id] = sent.message_id
 
 @bot.callback_query_handler(func=lambda call: True)
-def handle_inline_callbacks(call):
-    chat_id = call.message.chat.id
+def handle_all_callbacks(call):
+    chat_id = call.message.chat.id 
+    user_id = call.from_user.id
+    data = call.data
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
 
@@ -133,71 +136,131 @@ def handle_inline_callbacks(call):
     except Exception:
         pass
 
-    if call.data == "cmd_create" or call.data == "cmd_end":
-        try:
-            bot.answer_callback_query(call.id, "هذه الميزة الرائعة قيد التطوير حالياً 🚧", show_alert=True)
-        except Exception:
-            pass
-    elif call.data == "cmd_id_help":
-        user_search_mode[chat_id] = False
-        update_or_send_panel(
-            chat_id,
-            "⚡ <b>قسم البحث والاستخراج المتقدم</b> 🐾\n\n"
-            "اختر الطريقة المناسبة لجلب البيانات بسرعة وسلاسة:",
-            create_id_help_menu_markup()
-        )
-    elif call.data == "show_keyboard":
-        user_search_mode[chat_id] = False
-        update_or_send_panel(
-            chat_id,
-            "📂 <b>[ لوحة الاختيار السريع للأعضاء والجهات ]</b>\n\n"
-            "👇 استخدم لوحة المفاتيح السفلية الظاهرة لديك الآن لاختيار مستخدم أو مجموعة، وسأعرض لك بطاقته هنا فوراً 🚀",
-            create_navigation_markup("cmd_id_help")
-        )
-        try:
-            bot.send_message(
-                chat_id, 
-                "👇 لوحة الاختيار السفلية:", 
-                reply_markup=create_dynamic_reply_keyboard()
+    try:
+        if data == "cmd_create":
+            contest_creation_state[user_id] = {"step": 1}
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("❓ لا أعرف كيف أجلب الآيدي (مساعدة)", callback_data="cmd_id_help_sub"),
+                types.InlineKeyboardButton("❌ إلغاء", callback_data="cmd_cancel")
             )
-        except Exception:
-            pass
-    elif call.data == "method_username":
-        user_search_mode[chat_id] = True
-        update_or_send_panel(
-            chat_id,
-            "🌐 <b>[ وضع البحث اليدوي والروابط والقنوات ]</b>\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "✍️ أرسل الآن اليوزر المطلوب (مثل `@username`)، رابط القناة، أو معرفها وسأقوم بجلب تفاصيلها فوراً 🚀",
-            create_navigation_markup("cmd_id_help")
-        )
-    elif call.data == "method_forward":
-        user_search_mode[chat_id] = False
-        update_or_send_panel(
-            chat_id,
-            "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "🐾 قم بإعادة توجيه أي رسالة من أي شخص أو قناة هنا لاستخراج بياناتها بدقة!",
-            create_navigation_markup("cmd_id_help")
-        )
-    elif call.data == "cmd_home":
-        user_search_mode[chat_id] = False
-        update_or_send_panel(
-            chat_id,
-            "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:",
-            create_main_menu_markup()
-        )
-    elif call.data == "cmd_cancel":
-        user_search_mode[chat_id] = False
+            text = (
+                "🐾 <b>[ إنشاء مسابقة شركس - الخطوة 1/4 ]</b> 🐱✨\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "أرسل لي الآن <b>رابط أو معرف (Username) القناة</b> المستهدفة للنشر:"
+            )
+            bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
+
+        elif data == "cmd_end":
+            bot.answer_callback_query(call.id, "هذه الميزة الرائعة قيد التطوير حالياً 🚧", show_alert=True)
+
+        elif data == "cmd_id_help" or data == "cmd_id_help_sub":
+            if data == "cmd_id_help":
+                user_search_mode[chat_id] = False
+                help_text = (
+                    "⚡ <b>قسم البحث والاستخراج المتقدم</b> 🐾\n\n"
+                    "اختر الطريقة المناسبة لجلب البيانات بسرعة وسلاسة:"
+                )
+                markup = create_id_help_menu_markup()
+            else:
+                help_text = (
+                    "💡 <b>طريقة جلب معرف القناة أو الآيدي:</b>\n\n"
+                    "1. قم بتحويل أي رسالة من القناة إلى البوت هنا، وسيعطيك الآيدي فوراً.\n"
+                    "2. أو أرسل معرف القناة مباشرة مثل: <code>@ChannelName</code>"
+                )
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton("⬅️ رجوع لإنشاء المسابقة", callback_data="cmd_create"))
+            
+            update_or_send_panel(chat_id, help_text, markup)
+
+        elif data == "show_keyboard":
+            user_search_mode[chat_id] = False
+            update_or_send_panel(
+                chat_id,
+                "📂 <b>[ لوحة الاختيار السريع للأعضاء والجهات ]</b>\n\n"
+                "👇 استخدم لوحة المفاتيح السفلية الظاهرة لديك الآن لاختيار مستخدم أو مجموعة، وسأعرض لك بطاقته هنا فوراً 🚀",
+                create_navigation_markup("cmd_id_help")
+            )
+            try:
+                bot.send_message(
+                    chat_id, 
+                    "👇 لوحة الاختيار السفلية:", 
+                    reply_markup=create_dynamic_reply_keyboard()
+                )
+            except Exception:
+                pass
+
+        elif data == "method_username":
+            user_search_mode[chat_id] = True
+            update_or_send_panel(
+                chat_id,
+                "🌐 <b>[ وضع البحث اليدوي والروابط والقنوات ]</b>\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "✍️ أرسل الآن اليوزر المطلوب (مثل `@username`)، رابط القناة، أو معرفها وسأقوم بجلب تفاصيلها فوراً 🚀",
+                create_navigation_markup("cmd_id_help")
+            )
+
+        elif data == "method_forward":
+            user_search_mode[chat_id] = False
+            update_or_send_panel(
+                chat_id,
+                "📥 <b>[ وضع تحليل الرسائل المحولة ]</b>\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "🐾 قم بإعادة توجيه أي رسالة من أي شخص أو قناة هنا لاستخراج بياناتها بدقة!",
+                create_navigation_markup("cmd_id_help")
+            )
+
+        elif data == "sub_yes":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["step"] = 4
+                contest_creation_state[user_id]["has_sub_button"] = True
+                text = (
+                    "🐾 <b>[ إنشاء مسابقة شركس - الخطوة الأخيرة ]</b> 🐱✨\n\n"
+                    "أرسل لي الآن <b>النص الذي سيتم إرساله لكل شخص يضغط على زر الاشتراك</b>، "
+                    "وسنقوم بنشر المسابقة فوراً."
+                )
+                bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML")
+
+        elif data == "sub_no":
+            if user_id in contest_creation_state:
+                data_dict = contest_creation_state.pop(user_id, None)
+                channel = data_dict.get("channel", "@Channel") if data_dict else "@Channel"
+                announcement = data_dict.get("announcement", "مسابقة جديدة!") if data_dict else "مسابقة جديدة!"
+                
+                final_text = (
+                    f"🎉 <b>مسابقة شركس الجديدة!</b> 🐾\n\n"
+                    f"{announcement}\n\n"
+                    f"✨ <i>تم النشر بنجاح وأدى البوت مهامه!</i>"
+                )
+                bot.send_message(channel, final_text, parse_mode="HTML")
+                bot.edit_message_text("✅ <b>تم إنشاء ونشر المسابقة بنجاح في القناة!</b> 🐾", chat_id, message_id, parse_mode="HTML")
+
+        elif data == "cmd_home":
+            user_search_mode[chat_id] = False
+            update_or_send_panel(
+                chat_id,
+                "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:",
+                create_main_menu_markup()
+            )
+
+        elif data == "cmd_cancel":
+            contest_creation_state.pop(user_id, None)
+            try:
+                bot.send_message(chat_id, "❌ تم إغلاق القائمة.", reply_markup=types.ReplyKeyboardRemove())
+            except Exception:
+                pass
+            update_or_send_panel(
+                chat_id,
+                "❌ تم إغلاق القائمة بنجاح. أرسل /start في أي وقت لإظهارها مجدداً.",
+                None
+            )
+
+    except Exception as e:
+        print(f"Callback Error ({data}): {e}")
         try:
-            bot.send_message(chat_id, "❌ تم إغلاق القائمة.", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, f"⚠️ حدث خطأ تقني مؤقت: {e}")
         except Exception:
             pass
-        update_or_send_panel(
-            chat_id,
-            "❌ تم إغلاق القائمة بنجاح. أرسل /start في أي وقت لإظهارها مجدداً.",
-            None
-        )
 
 @bot.message_handler(content_types=["users_shared", "chat_shared"])
 def handle_shared_native_targets(message):
@@ -299,20 +362,16 @@ def handler_group_messages(message):
     chat_id = message.chat.id
     text = message.text.strip() if message.text else ""
 
-    # التحقق من أن الكلمة المطلوبة هي "شركس"
     if text != "شركس":
         return
 
-    # التحقق مما إذا كان المرسل مشرفاً في المجموعة
     try:
         member_status = bot.get_chat_member(chat_id, message.from_user.id)
         if member_status.status not in ["creator", "administrator"]:
-            # إذا لم يكن مشرفاً، نتجاهل الطلب أو نكتفي بإرسال القائمة العامة بحسب الرغبة
             return
     except Exception:
         return
 
-    # إذا كان مشرفاً، نتحقق هل قام بالرد (Reply) على رسالة شخص آخر
     if message.reply_to_message:
         target_msg = message.reply_to_message
         target_user = target_msg.from_user
@@ -324,7 +383,6 @@ def handler_group_messages(message):
             
             report_text = format_unified_report(name, uname, target_user.id, acc_type)
             
-            # لوحة خيارات المسابقات المصغرة لطابع شركس
             markup = types.InlineKeyboardMarkup(row_width=1)
             markup.add(
                 types.InlineKeyboardButton("🎯 إنشاء مسابقة", callback_data="cmd_create"),
@@ -339,7 +397,6 @@ def handler_group_messages(message):
             update_or_send_panel(chat_id, report_text, markup)
             return
 
-    # إذا كتب "شركس" بدون الرد على رسالة، نرسل أو نحدث قائمة المسابقات المصغرة الثابتة
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🎯 إنشاء مسابقة", callback_data="cmd_create"),
@@ -352,84 +409,13 @@ def handler_group_messages(message):
         "أهلاً بك يا مشرفنا العزيز! اختر الإجراء المطلوب:"
     )
     
-    bot.delete_message(chat_id, message.message_id)
+    try:
+        bot.delete_message(chat_id, message.message_id)
     except Exception:
         pass
         
     update_or_send_panel(chat_id, menu_text, markup)
-    
-    
-@bot.callback_query_handler(func=lambda call: True)
-def handle_all_callbacks(call):
-    chat_id = call.message.chat.id 
-    user_id = call.from_user.id
-    data = call.data
 
-    # إيقاف إشارة التحميل من تيليجرام فوراً لمنع الوميض والتجمد
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-
-    try:
-        if data == "cmd_create":
-            contest_creation_state[user_id] = {"step": 1}
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton("❓ لا أعرف كيف أجلب الآيدي (مساعدة)", callback_data="cmd_id_help"),
-                types.InlineKeyboardButton("❌ إلغاء", callback_data="cmd_cancel")
-            )
-            text = (
-                "🐾 <b>[ إنشاء مسابقة شركس - الخطوة 1/4 ]</b> 🐱✨\n"
-                "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن <b>رابط أو معرف (Username) القناة</b> المستهدفة للنشر:"
-            )
-            bot.edit_message_text(text, chat_id, call.message.message_id, reply_markup=markup)
-
-        elif data == "cmd_id_help":
-            help_text = (
-                "💡 <b>طريقة جلب معرف القناة أو الآيدي:</b>\n\n"
-                "1. قم بتحويل أي رسالة من القناة إلى البوت هنا، وسيعطيك الآيدي فوراً.\n"
-                "2. أو أرسل معرف القناة مباشرة مثل: <code>@ChannelName</code>"
-            )
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("⬅️ رجوع لإنشاء المسابقة", callback_data="cmd_create"))
-            bot.edit_message_text(help_text, chat_id, call.message.message_id, reply_markup=markup)
-
-        elif data == "sub_yes":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["step"] = 4
-                contest_creation_state[user_id]["has_sub_button"] = True
-                text = (
-                    "🐾 <b>[ إنشاء مسابقة شركس - الخطوة الأخيرة ]</b> 🐱✨\n\n"
-                    "أرسل لي الآن <b>النص الذي سيتم إرساله لكل شخص يضغط على زر الاشتراك</b>، "
-                    "وسنقوم بنشر المسابقة فوراً."
-                )
-                bot.edit_message_text(text, chat_id, call.message.message_id)
-
-        elif data == "sub_no":
-            if user_id in contest_creation_state:
-                data_dict = contest_creation_state.pop(user_id, None)
-                channel = data_dict.get("channel", "@Channel")
-                announcement = data_dict.get("announcement", "مسابقة جديدة!")
-                
-                final_text = (
-                    f"🎉 <b>مسابقة شركس الجديدة!</b> 🐾\n\n"
-                    f"{announcement}\n\n"
-                    f"✨ <i>تم النشر بنجاح وأدى البوت مهامه!</i>"
-                )
-                bot.send_message(channel, final_text)
-                bot.edit_message_text("✅ <b>تم إنشاء ونشر المسابقة بنجاح في القناة!</b> 🐾", chat_id, call.message.message_id)
-
-        elif data == "cmd_cancel":
-            contest_creation_state.pop(user_id, None)
-            bot.delete_message(chat_id, call.message.message_id)
-
-    except Exception as e:
-        print(f"Callback Error ({data}): {e}")
-        bot.send_message(chat_id, f"⚠️ حدث خطأ تقني مؤقت: {e}")
-        
-            
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
