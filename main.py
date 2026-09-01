@@ -1,8 +1,6 @@
 import os
 import time
 import threading
-import requests
-from bs4 import BeautifulSoup
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -76,15 +74,20 @@ def create_dynamic_reply_keyboard():
     return markup
 
 def format_unified_report(name, username, user_id, account_type):
-    formatted_username = f"@{username}" if username and not str(username).startswith("@") else (username if username else "لا يوجد يوزر")
     clean_name = name if name and name != "None" and str(name).strip() != "" else "جهة مختارة"
     
+    # تنسيق اليوزرنيم: يظهر فقط إن وجد تماماً، وإلا يتم تجاوزه بالكامل
+    username_line = ""
+    if username and str(username).strip() != "" and str(username).lower() != "none":
+        formatted_un = f"@{username.replace('@', '')}"
+        username_line = f"username: {formatted_un}\n"
+
     return (
         f"🐾 <b>[ بطاقة شركس الذكية ]</b> 🐱✨\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>username:</b> {formatted_username}\n"
+        f"{username_line}"
         f"👤 <b>الاسم:</b> {clean_name}\n"
-        f"🆔 <b>الآيدي:</b> <code>{user_id}</code>\n"
+        f"id: <code>{user_id}</code>\n"
         f"📌 <b>نوع الحساب:</b> {account_type}\n"
         f"━━━━━━━━━━━━━━━━━━━\n"
         f"✨ <i>نظام شركس السريع لخدمتكم!</i>"
@@ -142,7 +145,7 @@ def handle_inline_callbacks(call):
     elif call.data == "cmd_id_help":
         user_search_mode[chat_id] = False
         try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
         except Exception:
             pass
         update_or_send_panel(
@@ -159,15 +162,16 @@ def handle_inline_callbacks(call):
             "👇 استخدم لوحة المفاتيح السفلية الظاهرة لديك الآن لاختيار مستخدم أو مجموعة، وسأعرض لك بطاقته هنا فوراً 🚀",
             create_navigation_markup("cmd_id_help")
         )
-        bot.send_message(
-            chat_id,
-            "👇 لوحة المفاتيح السفلية جاهزة للاختيار:",
-            reply_markup=create_dynamic_reply_keyboard()
-        )
+        try:
+            msg = bot.send_message(chat_id, "👇 لوحة المفاتيح السفلية جاهزة:", reply_markup=create_dynamic_reply_keyboard())
+            time.sleep(0.5)
+            bot.delete_message(chat_id, msg.message_id)
+        except Exception:
+            pass
     elif call.data == "method_username":
         user_search_mode[chat_id] = True
         try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
         except Exception:
             pass
         update_or_send_panel(
@@ -180,7 +184,7 @@ def handle_inline_callbacks(call):
     elif call.data == "method_forward":
         user_search_mode[chat_id] = False
         try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
         except Exception:
             pass
         update_or_send_panel(
@@ -193,7 +197,7 @@ def handle_inline_callbacks(call):
     elif call.data == "cmd_home":
         user_search_mode[chat_id] = False
         try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
         except Exception:
             pass
         update_or_send_panel(
@@ -204,7 +208,7 @@ def handle_inline_callbacks(call):
     elif call.data == "cmd_cancel":
         user_search_mode[chat_id] = False
         try:
-            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار السابقة:", reply_markup=types.ReplyKeyboardRemove())
+            bot.send_message(chat_id, "🧹 إزالة لوحة الاختيار:", reply_markup=types.ReplyKeyboardRemove())
         except Exception:
             pass
         update_or_send_panel(
@@ -237,7 +241,7 @@ def handle_shared_native_targets(message):
             
             if is_chat:
                 name = getattr(chat_info, 'title', 'قناة أو مجموعة')
-                acc_type = "قناة عامة على تيليجرام" if chat_info.type == "channel" else "مجموعة تفاعلية على تيليجرام"
+                acc_type = "قناة عامة" if chat_info.type == "channel" else "مجموعة تفاعلية"
             else:
                 first = getattr(chat_info, 'first_name', '') or ''
                 last = getattr(chat_info, 'last_name', '') or ''
@@ -247,7 +251,7 @@ def handle_shared_native_targets(message):
             report_text = format_unified_report(name, uname, chat_info.id, acc_type)
             update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         except Exception:
-            fallback_type = "مجموعة أو قناة تيليجرام" if is_chat else "مستخدم شخصي"
+            fallback_type = "مجموعة أو قناة" if is_chat else "مستخدم شخصي"
             report_text = format_unified_report("جهة مختارة", None, target_id, fallback_type)
             update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
 
@@ -272,12 +276,12 @@ def handle_private_messages(message):
     elif message.forward_from_chat:
         chat = message.forward_from_chat
         uname = chat.username if chat.username else None
-        acc_type = "قناة تيليجرام" if chat.type == "channel" else "مجموعة تيليجرام"
+        acc_type = "قناة عامة" if chat.type == "channel" else "مجموعة تفاعلية"
         report_text = format_unified_report(chat.title, uname, chat.id, acc_type)
         update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         return
     elif message.forward_sender_name:
-        report_text = format_unified_report(message.forward_sender_name, None, "غير متاح", "حساب شخصي مخفي الهوية")
+        report_text = format_unified_report(message.forward_sender_name, None, "غير متاح", "مستخدم شخصي (مخفي الهوية)")
         update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
         return
 
@@ -309,7 +313,7 @@ def handle_private_messages(message):
         user_search_mode[chat_id] = False
         try:
             chat_info = bot.get_chat(clean_target)
-            uname = getattr(chat_info, 'username', None) or clean_target.replace("@", "")
+            uname = getattr(chat_info, 'username', None)
             
             if chat_info.type == "private":
                 first = getattr(chat_info, 'first_name', '') or ''
@@ -318,10 +322,10 @@ def handle_private_messages(message):
                 acc_type = "حساب بوت رسمي" if getattr(chat_info, 'is_bot', False) else "مستخدم شخصي"
             elif chat_info.type == "channel":
                 name = getattr(chat_info, 'title', 'قناة تيليجرام')
-                acc_type = "قناة عامة على تيليجرام"
+                acc_type = "قناة عامة"
             else:
                 name = getattr(chat_info, 'title', 'مجموعة تيليجرام')
-                acc_type = "مجموعة تفاعلية على تيليجرام"
+                acc_type = "مجموعة تفاعلية"
             
             report_text = format_unified_report(name, uname, chat_info.id, acc_type)
             update_or_send_panel(chat_id, report_text, create_navigation_markup("cmd_id_help"))
@@ -347,5 +351,5 @@ if __name__ == "__main__":
             print("Starting bot polling safely...")
             bot.infinity_polling(skip_pending=True, timeout=20, long_polling_timeout=20)
         except Exception as e:
-            print(f"Polling error: {e}. Retrying in 5 secondscharts...")
+            print(f"Polling error: {e}. Retrying in 5 seconds...")
             time.sleep(5)
