@@ -359,12 +359,18 @@ def handler_group_messages(message):
         
     update_or_send_panel(chat_id, menu_text, markup)
     
-# معالج ضغطات الأزرار لخطوات إنشاء المسابقة والتفرعات
+# معالج واحد وموحد لجميع أزرار البوت لمنع التعليق والتحميل الوهمي
 @bot.callback_query_handler(func=lambda call: True)
-def handle_contest_callbacks(call):
+def handle_all_callbacks(call):
     chat_id = call.message.chat.id
     user_id = call.from_user.id
     data = call.data
+
+    # إنهاء حالة التحميل من تيليجرام فوراً ليتوقف الزر عن الدوران
+    try:
+        bot.answer_callback_query(call.id)
+    except Exception:
+        pass
 
     if data == "cmd_create":
         contest_creation_state[user_id] = {"step": 1}
@@ -397,14 +403,13 @@ def handle_contest_callbacks(call):
             bot.send_message(chat_id, help_text, reply_markup=markup)
 
     elif data == "sub_yes":
-        # إذا اختار نعم لزر الاشتراك، ننتقل للخطوة التالية لتحديد نص رسالة المشاركة والمنشن
         if user_id in contest_creation_state:
             contest_creation_state[user_id]["step"] = 4
             contest_creation_state[user_id]["has_sub_button"] = True
             text = (
                 "🐾 <b>[ إنشاء مسابقة شركس - الخطوة الأخيرة ]</b> 🐱✨\n\n"
                 "أرسل لي الآن <b>النص الذي سيتم إرساله لكل شخص يضغط على زر الاشتراك</b>، "
-                "وهل تريد إرفاق منشن باسمه؟ (أرسل النص المطلوب وسنقوم بنشر المسابقة فوراً)."
+                "وسنقوم بنشر المسابقة فوراً."
             )
             try:
                 bot.edit_message_text(text, chat_id, call.message.message_id)
@@ -412,7 +417,6 @@ def handle_contest_callbacks(call):
                 bot.send_message(chat_id, text)
 
     elif data == "sub_no":
-        # إذا اختار لا، تموت المسابقة عند البوت فوراً وتُنشر حالاً دون زر اشتراك
         if user_id in contest_creation_state:
             data_dict = contest_creation_state.pop(user_id, None)
             channel = data_dict.get("channel", "@Channel")
@@ -424,7 +428,6 @@ def handle_contest_callbacks(call):
                 f"✨ <i>تم النشر بنجاح وأدى البوت مهامه!</i>"
             )
             try:
-                # نشر المسابقة في القناة المحددة مباشرة
                 bot.send_message(channel, final_text)
                 bot.edit_message_text("✅ <b>تم إنشاء ونشر المسابقة بنجاح في القناة!</b> 🐾", chat_id, call.message.message_id)
             except Exception as e:
@@ -436,8 +439,7 @@ def handle_contest_callbacks(call):
             bot.delete_message(chat_id, call.message.message_id)
         except Exception:
             pass
-        bot.answer_callback_query(call.id, "تم إلغاء إنشاء المسابقة بنجاح 🐾")
-
+            
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
