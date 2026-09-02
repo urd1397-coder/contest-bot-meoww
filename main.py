@@ -4,6 +4,7 @@
 import os
 import time
 import threading
+import uuid
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -19,6 +20,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 user_search_mode = {}
 last_panel_message = {}
 contest_creation_state = {}
+temp_button_storage = {}
 
 
 # ==========================================
@@ -153,7 +155,7 @@ def handle_start_command(message):
 # ==========================================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
-    """8. معالجة كافة تفاعلات الأزرار الشفافة Inline وتحكم خطوات المسابقات بترتيبها الصحيح."""
+    """8. معالجة كافة تفاعلات الأزرار الشفافة Inline وتحكم خطوات المسابقات بترتيبها الصحيح عبر تعديل الرسالة حصراً."""
     chat_id = call.message.chat.id 
     user_id = call.from_user.id
     data = call.data
@@ -278,7 +280,7 @@ def handle_all_callbacks(call):
 
         elif data == "has_prize_yes":
             if user_id in contest_creation_state:
-                contest_creation_state[user_id]["step"] = 3.5  # طلب إرسال الصورة أو الرابط للجائزة
+                contest_creation_state[user_id]["step"] = 3.5
                 markup = types.InlineKeyboardMarkup(row_width=2)
                 markup.add(
                     types.InlineKeyboardButton("🔙 رجوع", callback_data="step_back_2"),
@@ -312,7 +314,6 @@ def handle_all_callbacks(call):
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "btn_add_no":
-            # النشر المباشر إذا اختار "لا" في الخطوة الرابعة لإضافة الزر
             if user_id in contest_creation_state:
                 state_data = contest_creation_state.pop(user_id, None)
                 channel = state_data.get("channel", "@Channel")
@@ -331,7 +332,7 @@ def handle_all_callbacks(call):
 
         elif data == "btn_add_yes":
             if user_id in contest_creation_state:
-                contest_creation_state[user_id]["step"] = 4.1  # الخطوة الفرعية 1: طلب تسمية الزر
+                contest_creation_state[user_id]["step"] = 4.1
                 markup = types.InlineKeyboardMarkup(row_width=2)
                 markup.add(
                     types.InlineKeyboardButton("🔙 رجوع", callback_data="step_back_3"),
@@ -347,25 +348,18 @@ def handle_all_callbacks(call):
         elif data == "mention_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["include_mention"] = True
-                # انهاء النشر وتطبيق الإعدادات الكاملة
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
         elif data == "mention_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["include_mention"] = False
-                # انهاء النشر وتطبيق الإعدادات الكاملة
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
         elif data.startswith("part_cb_"):
-            # التعامل مع ضغط الزر في القناة وعرض الرسالة مع أو بدون منشن حسب رغبة المستخدم
-            parts = data.replace("part_cb_", "").split("_", 1)
-            action_id = parts[0]
-            
+            action_id = data.replace("part_cb_", "")
             user_id_click = call.from_user.id
             user_first_name = call.from_user.first_name or "المشارك"
             
-            # جلب البيانات المخزنة مؤقتاً أو استخراجها من الـ callback إذا لزم
-            # هنا نقوم بتطبيق المنشن إذا كان مفعلاً
             stored_info = temp_button_storage.get(action_id, {"msg": "تم استلام مشاركتك!", "mention": True})
             
             text_response = stored_info["msg"]
@@ -402,11 +396,8 @@ def handle_all_callbacks(call):
         print(f"Callback Error ({data}): {e}")
 
 
-# تخزين مؤقت لربط معلومات الزر المخصص
-temp_button_storage = {}
-
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
-    """دالة مساعدة لنشر المسابقة النهائية في القناة بعد استكمال كافة الخطوات."""
+    """دالة مساعدة لنشر المسابقة النهائية في القناة بعد استكمال كافة الخطوات وتعديل اللوحة الحالية."""
     state_data = contest_creation_state.pop(user_id, None)
     if not state_data:
         return
@@ -422,7 +413,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     if prize:
         final_text += f"\n\n🎁 <b>الجائزة:</b> {prize}"
 
-    import uuid
     unique_key = str(uuid.uuid4())[:8]
     temp_button_storage[unique_key] = {
         "msg": btn_msg,
@@ -493,7 +483,7 @@ def handle_shared_native_targets(message):
 
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo", "video", "document", "audio", "voice", "sticker", "animation"])
 def handler_private_messages(message):
-    """10. معالجة الرسائل الواردة في المحادثة الخاصة لخطوات المسابقات بدقة."""
+    """10. معالجة الرسائل الواردة في المحادثة الخاصة لخطوات المسابقات عبر تعديل نفس رسالة اللوحة وحذف ردك فوراً."""
     chat_id = message.chat.id
     user_id = message.from_user.id
 
@@ -502,10 +492,13 @@ def handler_private_messages(message):
         step = state_data.get("step", 1)
         text_content = message.text.strip() if message.text else ""
 
+        # حذف رسالتك النصية فور استلامها لتنظيف الدردشة تماماً
         try:
             bot.delete_message(chat_id, message.message_id)
         except Exception:
             pass
+
+        target_message_id = last_panel_message.get(chat_id)
 
         if step == 1:
             state_data["channel"] = text_content
@@ -520,7 +513,14 @@ def handler_private_messages(message):
                 "━━━━━━━━━━━━━━━━━━━\n"
                 "أرسل لي الآن <b>نص المسابقة</b>:"
             )
-            bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
             return
 
         elif step == 2:
@@ -540,7 +540,14 @@ def handler_private_messages(message):
                 "━━━━━━━━━━━━━━━━━━━\n"
                 "هل تريد إدراج <b>صورة أو رابط لجائزة</b>؟"
             )
-            bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
             return
 
         elif step == 3.5:
@@ -560,11 +567,17 @@ def handler_private_messages(message):
                 "━━━━━━━━━━━━━━━━━━━\n"
                 "هل تود إضافة <b>زر تفاعلي للمشاركة</b>؟"
             )
-            bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
             return
 
         elif step == 4.1:
-            # الخطوة الفرعية 1: استلام تسمية الزر والانتقال لطلب نص الرسالة
             state_data["button_text"] = text_content if text_content else "مشاركة 🏆"
             state_data["step"] = 4.2
             markup = types.InlineKeyboardMarkup(row_width=2)
@@ -577,11 +590,17 @@ def handler_private_messages(message):
                 "━━━━━━━━━━━━━━━━━━━\n"
                 "أرسل لي الآن <b>النص أو التنبيه الذي سيتم إرساله وإظهاره</b> لكل شخص يضغط على الزر:"
             )
-            bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
             return
 
         elif step == 4.2:
-            # الخطوة الفرعية 2: استلام نص الرسالة والانتقال لطلب خيار المنشن (كرسالة ترحيب)
             state_data["button_msg"] = text_content if text_content else "تم تسجيل مشاركتك!"
             state_data["step"] = 4.3
             markup = types.InlineKeyboardMarkup(row_width=2)
@@ -598,7 +617,14 @@ def handler_private_messages(message):
                 "━━━━━━━━━━━━━━━━━━━\n"
                 "هل تود <b>إرفاق منشن (إشارة ترحيبية)</b> باسم الشخص الذي ضغط على الزر داخل الرسالة؟"
             )
-            bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
             return
 
     # معالجة الرسائل المحولة لاستخراج البيانات
