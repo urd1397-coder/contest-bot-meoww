@@ -168,25 +168,30 @@ def handle_all_callbacks(call):
     if check_memory_guard(chat_id):
         return
 
-    # معالجة زر مشاركة المسابقة في القناة بشكل فورى ودون تأخير
+    # معالجة زر مشاركة المسابقة في القناة (نافذة منبثقة + إرسال النص المخصص)
     if data.startswith("part_cb_"):
         action_id = data.replace("part_cb_", "")
         user_first_name = call.from_user.first_name or "المشارك"
         
-        # جلب البيانات من الذاكرة المؤقتة بأمان
-        stored_info = temp_button_storage.get(action_id, {"msg": "تم استلام مشاركتك بنجاح!", "mention": True})
+        # جلب البيانات المخزنة من الذاكرة المؤقتة
+        stored_info = temp_button_storage.get(action_id, {"msg": "تم تسجيل مشاركتك بنجاح!", "mention": True})
         
         text_response = stored_info["msg"]
+        
+        # النافذة المنبثقة: علامة صح + إيموجي قط + اسم المشارك
         if stored_info["mention"]:
-            user_mention = f'<a href="tg://user?id={user_id}">{user_first_name}</a>'
-            alert_text = f"👤 أهلاً بك: {user_mention}\n\n{text_response}"
+            alert_text = f"✅ 🐱 أهلاً بك يا {user_first_name}\nتم تسجيل مشاركتك بنجاح!"
         else:
-            alert_text = text_response
+            alert_text = f"✅ 🐱 تم تسجيل مشاركتك بنجاح!"
             
         try:
+            # 1. إظهار النافذة المنبثقة أولاً للمشارك
             bot.answer_callback_query(call.id, alert_text, show_alert=True)
+            
+            # 2. إرسال النص الذي طلبه المنشئ للمسابقة للمستخدم بشكل خاص أو في الشات
+            bot.send_message(chat_id, text_response, parse_mode="HTML")
         except Exception as e:
-            print(f"Error answering contest button: {e}")
+            print(f"Error handling contest button click: {e}")
         return
 
     try:
