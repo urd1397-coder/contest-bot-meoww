@@ -131,57 +131,61 @@ def handle_all_callbacks(call):
     data = call.data
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
-
-    # **معالجة ضغطة زر المشاركة/التسجيل في مسابقات القنوات أو القروبات**
+    
+# **معالجة ضغطة زر المشاركة/التسجيل المعتمدة على رسالة تليجرام مباشرة بدون ملفات**
     if data.startswith("contest_vote_"):
-        contest_key = (chat_id, message_id)
-        
-        # التأكد من وجود المسابقة في الذاكرة
-        if contest_key not in active_contests:
-            try:
-                bot.answer_callback_query(call.id, "⚠️ عذراً، هذه المسابقة غير نشطة أو انتهت!", show_alert=True)
-            except Exception:
-                pass
-            return
-
-        c_data = active_contests[contest_key]
-        voters = c_data["voters"]
-
-        # التحقق مما إذا كان المستخدم قد صوت مسبقاً
-        if user_id in voters:
-            try:
-                bot.answer_callback_query(call.id, f"⚠️ عذراً يا {call.from_user.first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
-            except Exception:
-                pass
-            return
-
-        # تسجيل المستخدم في الذاكرة
-        user_first_name = call.from_user.first_name or "المشارك"
-        user_username = call.from_user.username
-        
-        if c_data["use_mention"] and user_username:
-            user_identity = f"@{user_username}"
-        else:
-            user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
-
-        voters.append(user_id)
-        c_data["voters_list_text"].append(user_identity)
-        
-        new_count = len(voters)
-
-        # إعادة بناء نص رسالة المسابقة وتحديثها
-        base_question = c_data["announcement"]
-        updated_text = (
-            f"🎉 <b>مسابقة / تصويت شركس التفاعلي!</b> 🐾\n\n"
-            f"❓ <b>السؤال / النص:</b>\n{base_question}\n\n"
-            f"👥 عدد المسجلين: <b>{new_count}</b>\n"
-            f"📋 قائمة المشاركين: {', '.join(c_data['voters_list_text'])}"
-        )
-
         try:
+            message_text = call.message.text or call.message.caption or ""
+            user_id = call.from_user.id
+            user_first_name = call.from_user.first_name or "المشارك"
+            user_username = call.from_user.username
+            
+            if user_username:
+                user_identity = f"@{user_username}"
+            else:
+                user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
+
+            # التحقق مما إذا كان المستخدم مسجلاً مسبقاً داخل نص الرسالة
+            if str(user_id) in message_text or (user_username and f"@{user_username}" in message_text):
+                try:
+                    bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
+                except Exception:
+                    pass
+                return
+
+            lines = message_text.split("\n")
+            new_lines = []
+            current_count = 0
+            participants_line_idx = -1
+            
+            for i, line in enumerate(lines):
+                if "عدد المسجلين:" in line:
+                    import re
+                    nums = re.findall(r'\d+', line)
+                    if nums:
+                        current_count = int(nums[0])
+                    current_count += 1
+                    new_lines.append(f"👥 عدد المسجلين: <b>{current_count}</b>")
+                elif "قائمة المشاركين:" in line:
+                    participants_line_idx = i
+                    new_lines.append(line)
+                else:
+                    new_lines.append(line)
+
+            if participants_line_idx != -1:
+                old_participants_text = lines[participants_line_idx].replace("📋 قائمة المشاركين:", "").strip()
+                if "لا يوجد مشاركين" in old_participants_text or not old_participants_text:
+                    updated_participants = user_identity
+                else:
+                    updated_participants = f"{old_participants_text}, {user_identity}"
+                
+                new_lines[participants_line_idx] = f"📋 قائمة المشاركين: {updated_participants}"
+
+            updated_full_text = "\n".join(new_lines)
+
             if call.message.photo:
                 bot.edit_message_caption(
-                    caption=updated_text,
+                    caption=updated_full_text,
                     chat_id=chat_id,
                     message_id=message_id,
                     parse_mode="HTML",
@@ -189,38 +193,22 @@ def handle_all_callbacks(call):
                 )
             else:
                 bot.edit_message_text(
-                    text=updated_text,
+                    text=updated_full_text,
                     chat_id=chat_id,
                     message_id=message_id,
                     parse_mode="HTML",
                     reply_markup=call.message.reply_markup
                 )
-        except Exception as e:
-            print(f"Error updating contest message: {e}")
 
-        # إرسال رسالة "تعلم من دخل" في القروب/القناة إذا كانت مفعلة
-        if c_data["send_join_msg"]:
-            msg_template = c_data["join_msg_text"]
-            if c_data["msg_mention"]:
-                announcement_to_send = f"🎯 {user_identity} {msg_template}"
-            else:
-                announcement_to_send = f"🎯 المبدع <b>{user_first_name}</b> {msg_template}"
-            
             try:
-                sent_notif = bot.send_message(chat_id, announcement_to_send, parse_mode="HTML", reply_to_message_id=message_id)
-                try:
-                    bot.pin_chat_message(chat_id, sent_notif.message_id)
-                except Exception:
-                    pass
-            except Exception as e:
-                print(f"Error sending join notification: {e}")
+                bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
+            except Exception:
+                pass
 
-        try:
-            bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error handling contest vote via telegram message: {e}")
         return
-
+        
     # الرد السريع لجميع الأزرار الداخلية الأخرى
     try:
         bot.answer_callback_query(call.id)
