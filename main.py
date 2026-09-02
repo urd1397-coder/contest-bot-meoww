@@ -24,12 +24,13 @@ contest_creation_state = {}
 temp_button_storage = {}
 end_contest_state = {}
 contest_participants = {}  # لتتبع المشاركين ومنع تكرار مشاركة نفس الشخص
+active_contests = {}      # لتخزين بيانات الرسالة والقناة لكل مسابقة لكي يتم حذفها لاحقاً
 
 MAX_MEMORY_ITEMS = 500
 
 def check_memory_guard(chat_id):
     """إجراء احترازي لحماية الذاكرة والابتعاد عن حظر تيليجرام عند كثرة الطلبات."""
-    if len(temp_button_storage) > MAX_MEMORY_ITEMS or len(contest_creation_state) > MAX_MEMORY_ITEMS:
+    if len(temp_button_storage) > MAX_MEMORY_ITEMS or len(contest_creation_state) > MAX_MEMORY_ITEMS or len(active_contests) > MAX_MEMORY_ITEMS:
         try:
             bot.send_message(chat_id, "⚠️ جاري تحديث البيانات والذاكرة مؤقتاً، يرجى المحاولة بعد قليل...")
         except Exception:
@@ -169,16 +170,14 @@ def handle_all_callbacks(call):
     if check_memory_guard(chat_id):
         return
 
-    # معالجة زر مشاركة المسابقة (منع التكرار + نافذة منبثقة + إرسال النص مرة واحدة)
+    # معالجة زر مشاركة المسابقة (منع التكرار + نافذة منبثقة + إرسال النص الخاص للمستخدم)
     if data.startswith("part_cb_"):
         action_id = data.replace("part_cb_", "")
         user_first_name = call.from_user.first_name or "المشارك"
         
-        # تهيئة سجل المشاركين لهذه المسابقة إذا لم يكن موجوداً
         if action_id not in contest_participants:
             contest_participants[action_id] = set()
             
-        # التحقق مما إذا كان المستخدم قد شارك مسبقاً
         if user_id in contest_participants[action_id]:
             try:
                 bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد شاركت في هذه المسابقة مسبقاً ولا يمكنك المشاركة مرة أخرى! 🚫", show_alert=True)
@@ -186,24 +185,20 @@ def handle_all_callbacks(call):
                 pass
             return
             
-        # تسجيل المشارك لمنع تكراره لاحقاً
         contest_participants[action_id].add(user_id)
         
-        # جلب البيانات المخزنة من الذاكرة المؤقتة
+        # جلب البيانات المخزنة بشكل آمن ومضمون من الذاكرة
         stored_info = temp_button_storage.get(action_id, {"msg": "تم تسجيل مشاركتك بنجاح!", "mention": True})
         text_response = stored_info["msg"]
         
-        # النافذة المنبثقة: علامة صح + إيموجي قط + اسم المشارك
         if stored_info["mention"]:
             alert_text = f"✅ 🐱 أهلاً بك يا {user_first_name}\nتم تسجيل مشاركتك بنجاح!"
         else:
             alert_text = f"✅ 🐱 تم تسجيل مشاركتك بنجاح!"
             
         try:
-            # 1. إظهار النافذة المنبثقة للمشارك
             bot.answer_callback_query(call.id, alert_text, show_alert=True)
-            
-            # 2. إرسال النص الذي طلبه المنشئ للمسابقة للمستخدم بشكل خاص
+            # إرسال النص الذي تم تحديده أثناء إنشاء المسابقة للمستخدم بالخاص بشكل مؤكد
             bot.send_message(user_id, text_response, parse_mode="HTML")
         except Exception as e:
             print(f"Error handling contest button click: {e}")
@@ -278,9 +273,6 @@ def handle_all_callbacks(call):
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
-        # ==========================================
-        # تسلسل زر إنهاء المسابقة والحساب الذكي
-        # ==========================================
         elif data == "cmd_end":
             end_contest_state[user_id] = {"step": 1}
             markup = types.InlineKeyboardMarkup(row_width=2)
@@ -291,7 +283,7 @@ def handle_all_callbacks(call):
             text = (
                 "⛔ <b>[ إنهاء مسابقة شركس - الخطوة 1 ]</b> 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن <b>رابط أو معرف القناة</b> المراد إنهاء المسابقة وحساب نتائجها:"
+                "أرسل لي الآن <b>رابط أو معرف القناة</b> المراد إنهاء المسابقة وحساب نتائجها وحذف منشورها:"
             )
             bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
@@ -311,18 +303,30 @@ def handle_all_callbacks(call):
                 text = (
                     "📊 <b>[ إنهاء المسابقة - طريقة الحساب ]</b> 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "هل للتفاعلات العادية أو المدفوعة (النجوم) <b>طريقة حساب مختلفة؟</b>\n"
-                    "<i>(مثال: صوت للتفاعل العادي، وصوتان للنجمة المدفوعة)</i>"
+                    "هل للتفاعلات العادية أو المدفوعة (النجوم) <b>طريقة حساب مختلفة؟</b>"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "calc_results_no":
             if user_id in end_contest_state:
+                state_end = end_contest_state.get(user_id, {})
+                channel_target = state_end.get("channel")
+                
+                # حذف المنشور من القناة تلقائياً
+                if channel_target and channel_target in active_contests:
+                    try:
+                        c_id, m_id, u_key = active_contests[channel_target]
+                        bot.delete_message(c_id, m_id)
+                        active_contests.pop(channel_target, None)
+                        contest_participants.pop(u_key, None)
+                    except Exception as e:
+                        print(f"Error deleting contest message: {e}")
+
                 end_contest_state.pop(user_id, None)
                 temp_button_storage.clear()
                 update_or_send_panel(
                     chat_id,
-                    "⛔ <b>تم إنهاء المسابقة بنجاح دون حساب نتائج!</b>\nتم تفريغ الذاكرة بالكامل لتبدأ من الصفر 🐾",
+                    "⛔ <b>تم إنهاء المسابقة وحذف منشورها بنجاح!</b>\nتم تفريغ الذاكرة بالكامل 🐾",
                     create_main_menu_markup()
                 )
 
@@ -335,8 +339,7 @@ def handle_all_callbacks(call):
                 text = (
                     "🔢 <b>[ إنهاء المسابقة - أصوات التفاعل العادي ]</b> 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "كم عدد الأصوات التي يتم حسابها لكل <b>تفاعل عادي</b> (ريأكشن / إيموجي)؟\n"
-                    "<i>أرسل الرقم عبر رسالة نصية (مثال: 1)</i>:"
+                    "كم عدد الأصوات التي يتم حسابها لكل <b>تفاعل عادي</b>؟"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
@@ -349,17 +352,29 @@ def handle_all_callbacks(call):
                 text = (
                     "🎉 <b>[ إنهاء المسابقة - رسالة التهنئة ]</b> 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن <b>نص رسالة التهنئة النهائية</b> التي ستنشر في القناة أو القروب:"
+                    "أرسل لي الآن <b>نص رسالة التهنئة النهائية</b>:"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "congrats_no":
             if user_id in end_contest_state:
+                state_end = end_contest_state.get(user_id, {})
+                channel_target = state_end.get("channel")
+                
+                if channel_target and channel_target in active_contests:
+                    try:
+                        c_id, m_id, u_key = active_contests[channel_target]
+                        bot.delete_message(c_id, m_id)
+                        active_contests.pop(channel_target, None)
+                        contest_participants.pop(u_key, None)
+                    except Exception as e:
+                        print(f"Error deleting contest message: {e}")
+
                 end_contest_state.pop(user_id, None)
                 temp_button_storage.clear()
                 update_or_send_panel(
                     chat_id,
-                    "🏆 <b>تم حساب النتائج وإنهاء المسابقة بنجاح!</b>\nتم مسح الذاكرة بالكامل وتصفير النظام 🐾",
+                    "🏆 <b>تم حساب النتائج وحذف منشور المسابقة بنجاح!</b>\nتم مسح الذاكرة بالكامل 🐾",
                     create_main_menu_markup()
                 )
 
@@ -442,20 +457,10 @@ def handle_all_callbacks(call):
 
         elif data == "btn_add_no":
             if user_id in contest_creation_state:
-                state_data = contest_creation_state.pop(user_id, None)
-                channel = state_data.get("channel", "@Channel")
-                announcement = state_data.get("announcement", "مسابقة جديدة!")
-                prize = state_data.get("prize")
-                
-                final_text = f"🎉 <b>مسابقة شركس الجديدة!</b> 🐾\n\n{announcement}"
-                if prize:
-                    final_text += f"\n\n🎁 <b>الجائزة:</b> {prize}"
-
-                try:
-                    bot.send_message(channel, final_text, parse_mode="HTML")
-                    bot.edit_message_text("✅ <b>تم نشر المسابقة في القناة بنجاح!</b> 🐾", chat_id, message_id, parse_mode="HTML")
-                except Exception as e:
-                    bot.edit_message_text(f"⚠️ تعذر النشر في القناة تأكد من صلاحيات البوت: {e}", chat_id, message_id, parse_mode="HTML")
+                contest_creation_state[user_id]["button_text"] = "مشاركة 🏆"
+                contest_creation_state[user_id]["button_msg"] = "تم تسجيل مشاركتك بنجاح!"
+                contest_creation_state[user_id]["include_mention"] = True
+                finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
         elif data == "btn_add_yes":
             if user_id in contest_creation_state:
@@ -535,7 +540,11 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     channel_markup.add(types.InlineKeyboardButton(btn_text, callback_data=f"part_cb_{unique_key}"))
 
     try:
-        bot_instance.send_message(channel, final_text, parse_mode="HTML", reply_markup=channel_markup)
+        sent_msg = bot_instance.send_message(channel, final_text, parse_mode="HTML", reply_markup=channel_markup)
+        
+        # تخزين بيانات رسالة المسابقة لكي يتم مسحها تلقائياً عند طلب إنهاء المسابقة
+        active_contests[channel] = (sent_msg.chat.id, sent_msg.message_id, unique_key)
+        
         bot_instance.edit_message_text("✅ <b>تم نشر المسابقة وزر التفاعل في القناة بنجاح!</b> 🐾", chat_id, message_id, parse_mode="HTML")
     except Exception as e:
         bot_instance.edit_message_text(f"⚠️ تعذر النشر في القناة تأكد من صلاحيات البوت: {e}", chat_id, message_id, parse_mode="HTML")
@@ -592,7 +601,6 @@ def handler_private_and_group_messages(message):
     is_group = message.chat.type in ["supergroup", "group"]
     text_content = message.text.strip() if message.text else ""
 
-    # تفعيل إنشاء أو إنهاء المسابقة مباشرة من المجموعات للآدمنز عبر الكلمات المفتاحية
     if is_group:
         if text_content in ["إنشاء مسابقة", "إنهاء المسابقة"]:
             try:
@@ -632,7 +640,7 @@ def handler_private_and_group_messages(message):
                 text = (
                     "⛔ <b>[ إنهاء مسابقة شركس - الخطوة 1 ]</b> 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن <b>رابط أو معرف القناة</b> المراد إنهاء المسابقة وحساب نتائجها:"
+                    "أرسل لي الآن <b>رابط أو معرف القناة</b> المراد إنهاء المسابقة وحساب نتائجها وحذف منشورها:"
                 )
                 sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
                 last_panel_message[chat_id] = sent.message_id
@@ -686,8 +694,7 @@ def handler_private_and_group_messages(message):
             text = (
                 "⭐ <b>[ إنهاء المسابقة - أصوات التفاعل المدفوع ]</b> 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "كم عدد الأصوات لكل <b>تفاعل مدفوع (نجوم تيليجرام)</b>؟\n"
-                "<i>أرسل الرقم عبر رسالة نصية (مثال: 2)</i>:"
+                "كم عدد الأصوات لكل <b>تفاعل مدفوع (نجوم تيليجرام)</b>؟"
             )
             if target_message_id:
                 try:
@@ -707,8 +714,7 @@ def handler_private_and_group_messages(message):
             text = (
                 "🏆 <b>[ إنهاء المسابقة - عدد الفائزين ]</b> 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "كم عدد الفائزين المطلوب إعلاناً عنهم؟\n"
-                "<i>أرسل رقماً صحيحاً (مثال: 1 أو 2 أو 3)</i>:"
+                "كم عدد الفائزين المطلوب إعلاناً عنهم؟"
             )
             if target_message_id:
                 try:
@@ -735,7 +741,7 @@ def handler_private_and_group_messages(message):
             text = (
                 "🎉 <b>[ إنهاء المسابقة - رسالة التهنئة ]</b> 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود إرسال <b>رسالة تهنئة للفائزين</b> في القناة أو القروب؟"
+                "هل تود إرسال <b>رسالة تهنئة للفائزين</b>؟"
             )
             if target_message_id:
                 try:
@@ -751,6 +757,16 @@ def handler_private_and_group_messages(message):
             state["congrats_text"] = text_content
             channel_target = state.get("channel", "@Channel")
             
+            # حذف منشور المسابقة تلقائياً عند إنهاء المسابقة نهائياً
+            if channel_target in active_contests:
+                try:
+                    c_id, m_id, u_key = active_contests[channel_target]
+                    bot.delete_message(c_id, m_id)
+                    active_contests.pop(channel_target, None)
+                    contest_participants.pop(u_key, None)
+                except Exception as e:
+                    print(f"Error deleting contest message: {e}")
+
             try:
                 bot.send_message(channel_target, f"🎉 <b>تهنئة الفائزين بالمسابقة!</b>\n\n{text_content}", parse_mode="HTML")
             except Exception as e:
@@ -761,7 +777,7 @@ def handler_private_and_group_messages(message):
             
             update_or_send_panel(
                 chat_id,
-                "✅ <b>تم إنهاء المسابقة ونشر التهنئة بنجاح!</b>\nتمت تصصفية الذاكرة بالكامل والعودة للصفر 🐾",
+                "✅ <b>تم إنهاء المسابقة وحذف منشورها ونشر التهنئة بنجاح!</b>\nتمت تصفية الذاكرة بالكامل 🐾",
                 create_main_menu_markup()
             )
             return
