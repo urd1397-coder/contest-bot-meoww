@@ -133,16 +133,12 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
 
-    # **قراءة وتحديث الأصوات والأسماء مباشرة من نص رسالة القناة نفسها دون ملفات خارجية**
+    # **تفاعل التصويت في القناة (يمنع علامة التحميل المعلقة فوراً)**
     if data.startswith("part_cb_"):
         user_first_name = call.from_user.first_name or "المشارك"
         user_username = call.from_user.username
-        
-        # معرفة ما إذا كان هناك خيار منشن مفعل في الزر أو النص المخفي
         current_text = call.message.text or call.message.caption or ""
         
-        # تحديد طريقة العرض (منشن أو اسم عادي) بناءً على ما هو موجود بالرسالة أو الزر
-        # سنحدد المنشن إذا كان زر البيانات يدعم ذلك
         use_mention = "mention:yes" in call.message.reply_markup.inline_keyboard[0][0].callback_data if call.message.reply_markup else True
         
         if use_mention and user_username:
@@ -150,7 +146,6 @@ def handle_all_callbacks(call):
         else:
             user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
 
-        # التحقق إن كان اسم المستخدم أو آيديه موجوداً مسبقاً في نص الرسالة لئلا يصوت مرتين
         if f"id:{user_id}" in current_text or user_identity in current_text:
             try:
                 bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتصويت مسبقاً! 🚫", show_alert=True)
@@ -158,12 +153,10 @@ def handle_all_callbacks(call):
                 pass
             return
 
-        # استخراج عداد الأصوات الحالي من نص الرسالة وزيادته بواحدة
         try:
             if "👥 عدد الأصوات:" in current_text:
                 parts = current_text.split("👥 عدد الأصوات:")
                 count_part = parts[1].split("\n")[0].strip()
-                # تنظيف الرقم من وسوم الـ HTML
                 clean_count = ''.join(filter(str.isdigit, count_part))
                 current_count = int(clean_count) if clean_count else 0
             else:
@@ -173,7 +166,6 @@ def handle_all_callbacks(call):
 
         new_count = current_count + 1
 
-        # استخراج قائمة المصوتين القديمة وإضافة الاسم الجديد إليها مع كود مخفي للآيدي لضمان عدم التكرار
         voters_line = ""
         if "📋 قائمة المصوتين:" in current_text:
             try:
@@ -187,8 +179,6 @@ def handle_all_callbacks(call):
         else:
             voters_line = user_identity
 
-        # بناء النص الجديد للرسالة المنشورة في القناة
-        # نحتفظ بالسؤال الأساسي ونحدث العداد والقائمة والبيانات المخفية لمنع التكرار
         try:
             base_question = current_text.split("👥 عدد الأصوات:")[0].strip()
         except Exception:
@@ -222,11 +212,12 @@ def handle_all_callbacks(call):
             print(f"Error updating message text directly: {e}")
 
         try:
-            bot.answer_callback_query(call.id, f"✅ تم تسجيل صوتك بنجاح يا {user_first_name}!", show_alert=True)
+            bot.answer_callback_query(call.id, f"✅ تم تسجيل صوتك بنجاح يا {user_first_name}!")
         except Exception:
             pass
         return
 
+    # الرد السريع لجميع الأزرار الداخلية لمنع علامة التحميل المعلقة
     try:
         bot.answer_callback_query(call.id)
     except Exception:
@@ -443,7 +434,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    # هيكل نص رسالة القناة الذي يقرأ ويحدث نفسه بنفسه داخلياً
     final_text = (
         f"🎉 <b>مسابقة / تصويت شركس التفاعلي!</b> 🐾\n\n"
         f"❓ <b>السؤال / النص:</b>\n{announcement}\n\n"
@@ -451,8 +441,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         f"📋 قائمة المصوتين: <i>لا يوجد أصوات حتى الآن</i>"
     )
 
-    # تمرير خيار المنشن داخل البيانات الوصفية للزر ليعرفها البوت عند التفاعل
-    cb_data_str = f"part_cb_active" if mention_option else f"part_cb_active"
+    cb_data_str = f"part_cb_active"
 
     channel_markup = types.InlineKeyboardMarkup()
     channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=cb_data_str))
@@ -463,7 +452,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         else:
             sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", reply_markup=channel_markup)
         
-        # تثبيت رسالة المسابقة في القناة أو القروب تلقائياً
         try:
             bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
         except Exception as pin_err:
@@ -491,7 +479,6 @@ def handler_private_contest_steps(message):
     target_message_id = last_panel_message.get(chat_id)
 
     if user_id in end_contest_state:
-        state = end_contest_state[user_id]
         resolved_channel_id = text_content
         if "t.me/" in text_content:
             parts = text_content.split("t.me/")[-1].split("?")[0].strip("/")
