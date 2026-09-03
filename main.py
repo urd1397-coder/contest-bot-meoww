@@ -20,7 +20,6 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # المفتاح: (chat_id, message_id)
 active_contests = {}
 
-user_search_mode = {}
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
@@ -84,20 +83,10 @@ def run_server():
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🔍 استخراج الآيدي والبحث الشامل ⚡", callback_data="cmd_id_help"),
         types.InlineKeyboardButton("🎯 إنشاء مسابقة / تصويت تفاعلي", callback_data="cmd_create"),
         types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
         types.InlineKeyboardButton("🧹 تنظيف شات البوت", callback_data="cmd_clean_chat"),
         types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
-    )
-    return markup
-
-def create_id_help_menu_markup():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("📂 لوحة الاختيار السريع للأعضاء والجهات", callback_data="show_keyboard"),
-        types.InlineKeyboardButton("📥 تحليل الرسائل المحولة الذكي", callback_data="method_forward"),
-        types.InlineKeyboardButton("🏠 العودة للقائمة الرئيسية", callback_data="cmd_home")
     )
     return markup
 
@@ -142,7 +131,6 @@ def update_or_send_panel(chat_id, text, reply_markup):
 def handle_start_command(message):
     if message.chat.type != "private":
         return
-    user_search_mode[message.chat.id] = False
      
     text = (
         "مياو أهلاً بك في عالم شركس! 🐱✨\n"
@@ -243,7 +231,7 @@ def handle_all_callbacks(call):
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
                 announcement_to_send = f"{custom_join_msg}"
-            
+             
             # تسجيل المستخدم في قائمة الفاعلين للمسابقة الحالية لتتبع العدد عند الإنهاء
             if "voters" not in c_data:
                 c_data["voters"] = []
@@ -380,37 +368,6 @@ def handle_all_callbacks(call):
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
-        elif data == "cmd_id_help" or data == "cmd_id_help_sub":
-            if data == "cmd_id_help":
-                user_search_mode[chat_id] = False
-                help_text = "⚡ <b>قسم البحث والاستخراج المتقدم</b> 🐾\n\nاختر الطريقة المناسبة لجلب البيانات:"
-                markup = create_id_help_menu_markup()
-            else:
-                help_text = "💡 <b>طريقة جلب المعرف:</b>\n\nقم بتحويل أي رسالة للبوت أو أرسل المعرف مباشرة."
-                markup = get_back_and_home_markup("cmd_id_help")
-            update_or_send_panel(chat_id, help_text, markup)
-
-        elif data == "show_keyboard":
-            user_search_mode[chat_id] = False
-            update_or_send_panel(
-                chat_id,
-                "📂 <b>[ لوحة الاختيار السريع ]</b>\n\n👇 استخدم لوحة المفاتيح السفلية:",
-                get_back_and_home_markup("cmd_id_help")
-            )
-            try:
-                markup_rep = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2, one_time_keyboard=True)
-                markup_rep.add(
-                    types.KeyboardButton("👤 اختر مستخدم", request_users=types.KeyboardButtonRequestUsers(request_id=1, user_is_bot=False)),
-                    types.KeyboardButton("👥 اختر مجموعة أو قناة", request_chat=types.KeyboardButtonRequestChat(request_id=2, chat_is_channel=False))
-                )
-                bot.send_message(chat_id, "👇 لوحة الاختيار السفلية:", reply_markup=markup_rep)
-            except Exception:
-                pass
-
-        elif data == "method_forward":
-            user_search_mode[chat_id] = False
-            update_or_send_panel(chat_id, "📥 <b>[ تحليل الرسائل المحولة ]</b>\n🐾 قم بإعادة توجيه أي رسالة هنا لاستخراج بياناتها!", get_back_and_home_markup("cmd_id_help"))
-
         elif data == "cmd_clean_chat":
             for m_id in range(message_id, max(0, message_id - 50), -1):
                 try:
@@ -423,7 +380,6 @@ def handle_all_callbacks(call):
         elif data == "cmd_home":
             contest_creation_state.pop(user_id, None)
             end_contest_state.pop(user_id, None)
-            user_search_mode[chat_id] = False
             update_or_send_panel(chat_id, "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:", create_main_menu_markup())
 
         elif data == "cmd_cancel":
@@ -493,7 +449,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
          
-        # **الإصلاح هنا:** تخزين بيانات المسابقة في الذاكرة لتفعيل رسائل الانضمام التلقائية والمنشن
         active_contests[(target_chat_id, sent_msg.message_id)] = {
             "join_msg_text": state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥"),
             "msg_mention": state_data.get("msg_mention", True),
@@ -643,7 +598,7 @@ def handler_private_contest_steps(message):
     if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 8:
         state_data["join_msg_text"] = message.text.strip() if message.text else ""
         state_data["step"] = 9
-        
+         
         markup = get_cancel_and_home_markup("cmd_create")
         markup.row(
             types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
@@ -654,10 +609,10 @@ def handler_private_contest_steps(message):
             "━━━━━━━━━━━━━━━━━━━\n"
             "هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
         )
-        
+         
         bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
         return
-        
+         
 # ==========================================
 # **التشغيل الأساسي للبوت والخادم**
 # ==========================================
