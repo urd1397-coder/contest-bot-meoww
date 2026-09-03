@@ -201,22 +201,24 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # إرسال رسالة الرد في القروب مع منشن العضو عند الضغط
-            announcement_to_send = f"{user_identity} انضم إلى المسابقة بنجاح"
+           # إرسال رسالة منفصلة مستقلة في القروب بالنص الذي صممه المستخدم في الخطوة 8 + منشن العضو
+            user_designed_msg = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح") if 'state_data' in locals() and user_id in state_data else "انضم إلى المسابقة بنجاح"
+            
+            # إذا لم تكن موجودة في الذاكرة المؤقتة، يمكنك جعلها تقرأ من زر أو وضع النص الافتراضي الذي صممه المستخدم
+            announcement_to_send = f"{user_identity} {user_designed_msg}"
 
-            try:
+          try:
                 sent_notif = bot.send_message(
                     chat_id, 
                     announcement_to_send, 
-                    parse_mode="HTML", 
-                    reply_to_message_id=message_id
+                    parse_mode="HTML"
                 )
                 try:
                     bot.pin_chat_message(chat_id, sent_notif.message_id)
                 except Exception:
                     pass
             except Exception as e:
-                print(f"Error sending join notification: {e}")
+                print(f"Error sending independent join notification: {e}")
 
             try:
                 bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
@@ -226,7 +228,7 @@ def handle_all_callbacks(call):
         except Exception as e:
             print(f"Error handling contest vote: {e}")
         return
-            
+
     # الرد السريع لجميع الأزرار الداخلية الأخرى
     try:
         bot.answer_callback_query(call.id)
