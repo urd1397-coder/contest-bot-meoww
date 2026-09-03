@@ -211,6 +211,13 @@ def handle_all_callbacks(call):
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
                 announcement_to_send = f"{custom_join_msg}"
+            
+            # تسجيل المستخدم في قائمة الفاعلين للمسابقة الحالية لتتبع العدد عند الإنهاء
+            if "voters" not in c_data:
+                c_data["voters"] = []
+            if user_id not in c_data["voters"]:
+                c_data["voters"].append(user_id)
+
             try:
                 sent_notif = bot.send_message(
                     chat_id, 
@@ -323,7 +330,7 @@ def handle_all_callbacks(call):
                 contest_key = (chat_id, message_id)
                 if contest_key in active_contests:
                     c_data = active_contests.pop(contest_key)
-                    report = f"⛔ <b>تم إنهاء المسابقة بنجاح!</b>\n📊 إجمالي المشاركين: <b>{len(c_data['voters'])}</b>"
+                    report = f"⛔ <b>تم إنهاء المسابقة بنجاح!</b>\n📊 إجمالي المشاركين: <b>{len(c_data.get('voters', []))}</b>"
                     bot.send_message(chat_id, report, parse_mode="HTML", reply_markup=create_main_menu_markup())
                     try:
                         bot.delete_message(chat_id, message_id)
@@ -423,7 +430,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     raw_channel = state_data.get("channel", chat_id)
     announcement = state_data.get("announcement", "مسابقة جديدة!")
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
-    prize_media = state_data.get("prize_media") # هذا هو رابط الهدية الذي أدخله المستخدم
+    prize_media = state_data.get("prize_media") 
      
     target_chat_id = raw_channel
     try:
@@ -432,7 +439,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    # صياغة الإعلان بحيث يكون رابط الهدية مكشوفاً ومفتوحاً في النص مباشرة
     if prize_media:
         final_text = (
             f"🎉 <b>مسابقة جديدة!</b>\n\n"
@@ -453,9 +459,15 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
 
     try:
-        # ننشر الإعلان كنص يحتوي على رابط الهدية داخله مباشرة (بدون صور وهمية)
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
          
+        # **الإصلاح هنا:** تخزين بيانات المسابقة في الذاكرة لتفعيل رسائل الانضمام التلقائية والمنشن
+        active_contests[(target_chat_id, sent_msg.message_id)] = {
+            "join_msg_text": state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥"),
+            "msg_mention": state_data.get("msg_mention", True),
+            "voters": []
+        }
+
         try:
             bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
         except Exception as pin_err:
@@ -595,15 +607,11 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-# الخطوة 8: استقبال النص المفتوح والانتقال فوراً لخيارات المنشن
-    elif step == 8:
-        # 1. حفظ النص الذي كتبته فوراً
+    # الخطوة 8: استقبال النص المفتوح والانتقال فوراً لخيارات المنشن
+    if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 8:
         state_data["join_msg_text"] = message.text.strip() if message.text else ""
-        
-        # 2. تحديث الخطوة إلى 9 لكي نعرف أننا تجاوزنا هذه المرحلة
         state_data["step"] = 9
         
-        # 3. إرسال رسالة جديدة بأسئلة المنشن والأزرار لضمان عدم تجمد البوت
         markup = get_cancel_and_home_markup("cmd_create")
         markup.row(
             types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
