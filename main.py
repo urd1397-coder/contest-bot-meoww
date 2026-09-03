@@ -612,6 +612,16 @@ def handler_private_contest_steps(message):
         )
         bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
         return
+            # خيارات المنشن
+        elif data == "mention_join_yes":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["msg_mention"] = True
+                finalize_and_publish_contest(bot, chat_id, message_id, user_id)
+
+        elif data == "mention_join_no":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["msg_mention"] = False
+                finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
 # ==========================================
 # **التشغيل الأساسي للبوت والخادم**
