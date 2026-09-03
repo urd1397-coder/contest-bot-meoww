@@ -217,7 +217,8 @@ def handle_all_callbacks(call):
                     pass
             except Exception as e:
                 print(f"Error sending join notification: {e}")
-        
+            return
+            
     # الرد السريع لجميع الأزرار الداخلية الأخرى
     try:
         bot.answer_callback_query(call.id)
