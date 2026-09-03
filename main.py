@@ -595,23 +595,23 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-        # الخطوة 8: استقبال نص رسالة الدخول
-        elif step == 8:
-            state_data["join_msg_text"] = text_content
-            state_data["step"] = 9
-            markup = get_cancel_and_home_markup("cmd_create")
-            markup.row(
-                types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
-                types.InlineKeyboardButton("❌ لا (بدون منشن)", callback_data="mention_join_no")
-            )
-            text = (
-                "🐾 <b>[ سؤال: إرفاق منشن ]</b> 🐱✨\n"
-                "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
-            )
-            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
-            return
-
+     # الخطوة 8: استقبال وحفظ النص المفتوح لرسالة الدخول
+    elif step == 8:
+        state_data["join_msg_text"] = message.text.strip() if message.text else ""
+        state_data["step"] = 9
+        
+        markup = get_cancel_and_home_markup("cmd_create")
+        markup.row(
+            types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
+            types.InlineKeyboardButton("❌ لا (بدون منشن)", callback_data="mention_join_no")
+        )
+        text = (
+            "🐾 <b>[ سؤال: إرفاق منشن ]</b> 🐱✨\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
+        )
+        bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+        return
 
 # ==========================================
 # **التشغيل الأساسي للبوت والخادم**
