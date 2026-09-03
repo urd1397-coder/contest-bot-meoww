@@ -595,11 +595,15 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-  # الخطوة 8: استقبال وحفظ النص المفتوح وإنهاء خطوات الإعداد
+# الخطوة 8: استقبال النص المفتوح والانتقال فوراً لخيارات المنشن
     elif step == 8:
+        # 1. حفظ النص الذي كتبته فوراً
         state_data["join_msg_text"] = message.text.strip() if message.text else ""
         
-        # إرسال أزرار المنشن فوراً بعد استلام النص لكي لا يجمد البوت
+        # 2. تحديث الخطوة إلى 9 لكي نعرف أننا تجاوزنا هذه المرحلة
+        state_data["step"] = 9
+        
+        # 3. إرسال رسالة جديدة بأسئلة المنشن والأزرار لضمان عدم تجمد البوت
         markup = get_cancel_and_home_markup("cmd_create")
         markup.row(
             types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
@@ -611,11 +615,6 @@ def handler_private_contest_steps(message):
             "هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
         )
         
-        # مسح حالة الخطوات المؤقتة لكي لا يجمد البوت
-        if user_id in contest_creation_state:
-            # نحتفظ بالبيانات مؤقتاً في الكائن حتى الضغط على زر المنشن النهائي
-            contest_creation_state[user_id]["step"] = 9
-
         bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
         return
         
