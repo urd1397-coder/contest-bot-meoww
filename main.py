@@ -45,7 +45,6 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
-
 # ==========================================
 # **لوحات الأزرار والقوائم الموحدة مع زر العودة**
 # ==========================================
@@ -69,7 +68,6 @@ def create_id_help_menu_markup():
         types.InlineKeyboardButton("🏠 العودة للقائمة الرئيسية", callback_data="cmd_home")
     )
     return markup
-    
 # ==========================================
 # **دالة البحث المباشر وجلب معلومات الحساب في بطاقة شركس**
 # ==========================================
@@ -128,26 +126,6 @@ def handle_username_or_link_search(bot, message):
         )
         update_or_send_panel(chat_id, error_msg, get_back_and_home_markup("cmd_id_help"))
         
-# ==========================================
-# **معالج البحث المباشر المستقل**
-# ==========================================
-@bot.message_handler(content_types=['text'])
-def handle_all_text_messages(message):
-    if message.chat.type != "private":
-        return
-    
-    chat_id = message.chat.id
-    text_content = message.text.strip() if message.text else ""
-
-    # 1. فحص البحث المباشر أولاً (إذا كان مفعلاً)
-    if user_search_mode.get(chat_id, False) and text_content:
-        handle_username_or_link_search(bot, message)
-        user_search_mode[chat_id] = False
-        return
-
-    # 2. إذا لم يكن يبحث، يكمل البوت إلى كود المسابقات الخاص بك بشكل طبيعي تماماً
-    # (هنا يوجد كود المسابقات الخاص بك...)
-
 # ==========================================
 # **أمر البداية (Start)**
 # ==========================================
