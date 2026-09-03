@@ -206,6 +206,7 @@ def handle_all_callbacks(call):
             
             # إذا لم تكن موجودة في الذاكرة المؤقتة، يمكنك جعلها تقرأ من زر أو وضع النص الافتراضي الذي صممه المستخدم
             announcement_to_send = f"{user_identity} {user_designed_msg}"
+               
                 try:
                 sent_notif = bot.send_message(
                     chat_id, 
