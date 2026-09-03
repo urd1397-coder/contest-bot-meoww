@@ -200,25 +200,29 @@ def handle_all_callbacks(call):
                     parse_mode="HTML",
                     reply_markup=call.message.reply_markup
                 )
+                
+    # إرسال رسالة الدخول في القروب بالنص الذي صممه المستخدم في الخطوة 8 + منشن العضو
+            user_designed_msg = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح")
+            announcement_to_send = f"{user_identity} {user_designed_msg}"
 
-            # هنا نستخدم النص الحقيقي الذي كتبه المستخدم بنفسه أثناء تصميم المسابقة
-            # (نبحث عنه في تليجرام أو سنقوم بتمريره بطريقة صحيحة)
-            # بما أننا سنلتقطه من رسالة التليجرام أو سنقوم بحفظه، إليك الطريقة الأضمن:
-            
-            # ملاحظة: لإرسال نفس رسالة المستخدم المخصصة، سنحتاج لجلبها. 
-            # بناءً على طلبك، إليك إرسال رسالة "تعلم من دخل" بالنص الذي صممه المستخدم:
-            
-            # (سنقوم بتجهيز رسالة التنبيه بالاعتماد على المنشن إذا طلبه المستخدم)
-            # إذا كان البوت يحتاج النص الذي كتبه المستخدم، سنقوم بإرساله هكذا:
-            
+            try:
+                sent_notif = bot.send_message(
+                    chat_id, 
+                    announcement_to_send, 
+                    parse_mode="HTML", 
+                    reply_to_message_id=message_id
+                )
+                try:
+                    bot.pin_chat_message(chat_id, sent_notif.message_id)
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"Error sending join notification: {e}")
+
             try:
                 bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
             except Exception:
                 pass
-
-        except Exception as e:
-            print(f"Error handling contest vote: {e}")
-        return
         
     # الرد السريع لجميع الأزرار الداخلية الأخرى
     try:
