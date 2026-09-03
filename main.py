@@ -132,18 +132,21 @@ def handle_username_or_link_search(bot, message):
 # **معالج البحث المباشر المستقل**
 # ==========================================
 @bot.message_handler(content_types=['text'])
-def handle_direct_search_input(message):
+def handle_all_text_messages(message):
     if message.chat.type != "private":
         return
     
     chat_id = message.chat.id
     text_content = message.text.strip() if message.text else ""
 
-    # يفحص فقط إذا كان المستخدم مفعل وضع البحث المباشر
+    # 1. فحص البحث المباشر أولاً (إذا كان مفعلاً)
     if user_search_mode.get(chat_id, False) and text_content:
         handle_username_or_link_search(bot, message)
         user_search_mode[chat_id] = False
         return
+
+    # 2. إذا لم يكن يبحث، يكمل البوت إلى كود المسابقات الخاص بك بشكل طبيعي تماماً
+    # (هنا يوجد كود المسابقات الخاص بك...)
 
 # ==========================================
 # **أمر البداية (Start)**
