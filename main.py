@@ -132,7 +132,7 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
     
-# # **معالجة ضغطة زر المشاركة باستخدام نص المستخدم الحقيقي**
+# **معالجة ضغطة زر المشاركة وإرسال الرد في القروب**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -200,8 +200,8 @@ def handle_all_callbacks(call):
                     parse_mode="HTML",
                     reply_markup=call.message.reply_markup
                 )
-                
-  # إرسال رسالة الدخول في القروب مع منشن العضو فوراً عند الضغط
+
+            # إرسال رسالة الرد في القروب مع منشن العضو عند الضغط
             announcement_to_send = f"{user_identity} انضم إلى المسابقة بنجاح"
 
             try:
@@ -217,7 +217,15 @@ def handle_all_callbacks(call):
                     pass
             except Exception as e:
                 print(f"Error sending join notification: {e}")
-            return
+
+            try:
+                bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
+            except Exception:
+                pass
+
+        except Exception as e:
+            print(f"Error handling contest vote: {e}")
+        return
             
     # الرد السريع لجميع الأزرار الداخلية الأخرى
     try:
