@@ -152,7 +152,7 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-# **معالجة ضغطة زر المشاركة وإرسال الرد في القروب**
+    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -221,7 +221,6 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-# جلب النص المفتوح الذي كتبته أثناء إنشاء المسابقة
             contest_key = (chat_id, message_id)
             c_data = active_contests.get(contest_key, {})
             custom_join_msg = c_data.get("join_msg_text", "")
@@ -232,7 +231,6 @@ def handle_all_callbacks(call):
             else:
                 announcement_to_send = f"{custom_join_msg}"
              
-            # تسجيل المستخدم في قائمة الفاعلين للمسابقة الحالية لتتبع العدد عند الإنهاء
             if "voters" not in c_data:
                 c_data["voters"] = []
             if user_id not in c_data["voters"]:
@@ -260,7 +258,6 @@ def handle_all_callbacks(call):
             print(f"Error handling contest vote: {e}")
         return
 
-    # الرد السريع لجميع الأزرار الداخلية الأخرى
     try:
         bot.answer_callback_query(call.id)
     except Exception:
@@ -298,7 +295,6 @@ def handle_all_callbacks(call):
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
-        # خيارات صورة الهدية
         elif data == "prize_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 4
@@ -311,7 +307,6 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["prize_media"] = None
                 ask_button_naming_step(user_id, chat_id, message_id)
 
-        # خيارات زر الانضمام / التسجيل
         elif data == "btn_join_yes" or data == "btn_join_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 6
@@ -319,7 +314,6 @@ def handle_all_callbacks(call):
                 text = "🔤 أرسل لي الآن **تسمية زر التسجيل/الانضمام** المرادة (مثال: اشترك الآن 🎁):"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
-        # خيارات رسالة "تعلم من دخل"
         elif data == "join_msg_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["send_join_msg"] = True
@@ -334,7 +328,6 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["use_mention"] = False
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
-        # خيارات المنشن
         elif data == "mention_join_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["msg_mention"] = True
@@ -512,7 +505,6 @@ def handler_private_contest_steps(message):
         state_data = contest_creation_state[user_id]
         step = state_data.get("step", 1)
 
-        # الخطوة 1: طلب معرف القناة أو القروب والتحقق من الصلاحيات
         if step == 1:
             resolved_channel_id = text_content
             if "t.me/" in text_content:
@@ -551,7 +543,6 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-        # الخطوة 2: استقبال نص المسابقة
         elif step == 2:
             state_data["announcement"] = text_content
             state_data["step"] = 3
@@ -568,7 +559,6 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-        # الخطوة 4: استقبال صورة الهدية
         elif step == 4:
             if message.photo:
                 state_data["prize_media"] = message.photo[-1].file_id
@@ -577,7 +567,6 @@ def handler_private_contest_steps(message):
             ask_button_naming_step(user_id, chat_id, target_message_id)
             return
 
-        # الخطوة 6: تسمية زر التسجيل/الانضمام
         elif step == 6:
             state_data["button_text"] = text_content
             state_data["step"] = 7
@@ -594,7 +583,6 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-    # الخطوة 8: استقبال النص المفتوح والانتقال فوراً لخيارات المنشن
     if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 8:
         state_data["join_msg_text"] = message.text.strip() if message.text else ""
         state_data["step"] = 9
