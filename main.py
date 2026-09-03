@@ -45,6 +45,7 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
+
 # ==========================================
 # **لوحات الأزرار والقوائم الموحدة مع زر العودة**
 # ==========================================
@@ -58,74 +59,50 @@ def create_main_menu_markup():
         types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
     )
     return markup
-    
+
 def create_id_help_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("📂 لوحة الاختيار السريع للأعضاء والجهات", callback_data="show_keyboard"),
         types.InlineKeyboardButton("📥 تحليل الرسائل المحولة الذكي", callback_data="method_forward"),
-        types.InlineKeyboardButton("🔤 3. البحث المباشر عبر اليوزرنام أو الآيدي", callback_data="method_username"),
         types.InlineKeyboardButton("🏠 العودة للقائمة الرئيسية", callback_data="cmd_home")
     )
     return markup
-# ==========================================
-# **دالة البحث المباشر وجلب معلومات الحساب في بطاقة شركس**
-# ==========================================
-def handle_username_or_link_search(bot, message):
-    chat_id = message.chat.id
-    text_content = message.text.strip() if message.text else ""
-    
-    # تنظيف المدخلات لاستخراج اليوزرنام أو المعرف بدقة متناهية
-    query = text_content.replace("https://t.me/", "").replace("@", "").strip()
-    
-    if not query:
-        update_or_send_panel(
-            chat_id,
-            "❌ <b>عذراً، المدخل فارغ!</b>\nالرجاء إرسال معرف صحيح أو رابط مباشر.",
-            get_back_and_home_markup("cmd_id_help")
-        )
-        return
 
-    try:
-        # محاولة تحديد ما إذا كان المدخل رقم آيدي أو يوزرنام نصي
-        target_identifier = int(query) if query.lstrip('-').isdigit() else f"@{query}"
-        
-        # محاولة جلب معلومات الهدف بكل الطرق المتاحة عبر تيليجرام
-        target_obj = bot.get_chat(target_identifier)
-        
-        # استخراج الاسم بذكاء لمختلف الأنواع (مستخدم، قناة، مجموعة)
-        if target_obj.title:
-            account_name = target_obj.title
-        else:
-            first = target_obj.first_name or ""
-            last = target_obj.last_name or ""
-            account_name = f"{first} {last}".strip() or "مستخدم بدون اسم"
+def get_back_and_home_markup(back_callback="cmd_home"):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("🔙 رجوع", callback_data=back_callback),
+        types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home")
+    )
+    return markup
 
-        # استخراج اليوزرنام إن وجد
-        username_str = f"@{target_obj.username}" if target_obj.username else "لا يوجد يوزرنام عام"
-        
-        # صياغة بطاقة شركس الاحترافية المتكاملة
-        res_text = (
-            f"🐾 <b>[ بطاقة شركس الاحترافية - نتيجة البحث ]</b> 🐱✨\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"• <b>اسم الحساب:</b> {account_name}\n"
-            f"• <b>النوع:</b> {target_obj.type}\n"
-            f"• <b>اليوزرنام:</b> {username_str}\n"
-            f"• <b>Account ID:</b> <code>{target_obj.id}</code>"
-        )
-        
-        # تحديث اللوحة الحالية وعدم إرسال رسالة جديدة
-        update_or_send_panel(chat_id, res_text, get_back_and_home_markup("cmd_id_help"))
-        
-    except Exception as e:
-        # معالجة الأخطاء واحتوائها بطريقة احترافية مع أزرار التنقل
-        error_msg = (
-            f"❌ <b>عذراً، تعذر جلب المعلومات لـ:</b> <code>{text_content}</code>\n\n"
-            f"• <b>السبب المحتمل:</b> التأكد من صحة المعرف، أو أن البوت لم يسبق له التفاعل مع الحساب أو ليس عضواً معه.\n"
-            f"• <b>التفاصيل التقنية:</b> <i>{e}</i>"
-        )
-        update_or_send_panel(chat_id, error_msg, get_back_and_home_markup("cmd_id_help"))
-        
+def get_cancel_and_home_markup(back_callback="cmd_home"):
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("🔙 رجوع", callback_data=back_callback),
+        types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home")
+    )
+    return markup
+
+def update_or_send_panel(chat_id, text, reply_markup):
+    if chat_id in last_panel_message:
+        try:
+            bot.edit_message_text(
+                text,
+                chat_id=chat_id,
+                message_id=last_panel_message[chat_id],
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+            return
+        except Exception:
+            pass
+     
+    sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=reply_markup)
+    last_panel_message[chat_id] = sent.message_id
+
+
 # ==========================================
 # **أمر البداية (Start)**
 # ==========================================
