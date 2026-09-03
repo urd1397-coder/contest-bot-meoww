@@ -26,6 +26,39 @@ contest_creation_state = {}
 end_contest_state = {}
 
 # ==========================================
+# **دالة توليد تقرير معلومات الحساب والجهات الشامل**
+# ==========================================
+
+def generate_entity_report(chat_obj):
+    try:
+        acc_id = chat_obj.id
+        acc_type = chat_obj.type
+        acc_title = getattr(chat_obj, 'title', None) or (getattr(chat_obj, 'first_name', '') + (" " + getattr(chat_obj, 'last_name', '') if getattr(chat_obj, 'last_name', None) else ""))
+        acc_username = f"@{chat_obj.username}" if getattr(chat_obj, 'username', None) else "لا يوجد"
+        acc_bio = getattr(chat_obj, 'description', None) or getattr(chat_obj, 'bio', None) or "غير متوفر"
+        
+        status_note = "🟢 متاح / نشط"
+        if acc_type in ["group", "supergroup", "channel"]:
+            try:
+                bot.get_chat_member(acc_id, bot.get_me().id)
+            except Exception:
+                status_note = "🔴 مغلق / خاص / أو البوت ليس عضواً فيه"
+        
+        report = (
+            "🔍 <b>[ تقرير معلومات الحساب لكشف المخربين ]</b> 🐾\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            f"🆔 <b>Account ID:</b> <code>{acc_id}</code>\n"
+            f"👤 <b>Account Name:</b> {acc_title}\n"
+            f"📌 <b>Account Type:</b> {acc_type}\n"
+            f"🔗 <b>Username:</b> {acc_username}\n"
+            f"📝 <b>Description / Bio:</b> {acc_bio}\n"
+            f"🔒 <b>Status:</b> {status_note}"
+        )
+        return report
+    except Exception as e:
+        return f"⚠️ حدث خطأ أثناء استخراج بيانات الحساب: {e}"
+        
+# ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
 # ==========================================
 class SimpleHandler(BaseHTTPRequestHandler):
@@ -486,51 +519,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
-# ==========================================
-# **معالجة خطوات الأسئلة في المحادثة الخاصة (مع دمج id_help بذكاء)**
-# ==========================================
-@bot.message_handler(chat_types=["private"], content_types=["text", "photo", "forwarded"])
+@bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
     text_content = message.text.strip() if message.text else ""
 
-    # ----------------------------------------------------
-    # [إضافة فقط]: بوابة استخراج الآيدي والبحث الشامل
-    # ----------------------------------------------------
-    if message.forward_date is not None or user_search_mode.get(chat_id, False):
-        try:
-            bot.delete_message(chat_id, message.message_id)
-        except Exception:
-            pass
-            
-        forward_info = ""
-        if message.forward_date:
-            f_from = message.forward_from
-            f_chat = message.forward_from_chat
-            if f_from:
-                forward_info = f"👤 <b>معلومات المستخدم:</b>\n- الاسم: {f_from.first_name}\n- الآيدي: <code>{f_from.id}</code>\n- المعرف: @{f_from.username if f_from.username else 'لا يوجد'}"
-            elif f_chat:
-                forward_info = f"📢 <b>معلومات الجهة (قناة/مجموعة):</b>\n- الاسم: {f_chat.title}\n- الآيدي: <code>{f_chat.id}</code>\n- المعرف: @{f_chat.username if f_chat.username else 'لا يوجد'}"
-        elif text_content:
-            try:
-                target = text_content
-                if "t.me/" in target:
-                    target = "@" + target.split("t.me/")[-1].split("?")[0].strip("/")
-                chat_obj = bot.get_chat(target)
-                forward_info = f"🔍 <b>نتائج البحث عن الجهة:</b>\n- الاسم: {chat_obj.title}\n- النوع: {chat_obj.type}\n- الآيدي: <code>{chat_obj.id}</code>\n- المعرف: @{chat_obj.username if chat_obj.username else 'لا يوجد'}"
-            except Exception as e:
-                forward_info = f"⚠️ تعذر العثور على معلومات للبحث المدخل: {e}"
-
-        if not forward_info:
-            forward_info = f"📥 <b>تم استلام الرسالة بنجاح!</b>\n- الآيدي الخاص بك: <code>{user_id}</code>"
-
-        update_or_send_panel(chat_id, forward_info, get_back_and_home_markup("cmd_id_help"))
-        return
-
-    # ----------------------------------------------------
-    # كودك الأصلي كاملاً بدون أي تعديل أو نقصان
-    # ----------------------------------------------------
     try:
         bot.delete_message(chat_id, message.message_id)
     except Exception:
