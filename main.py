@@ -201,9 +201,8 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
                 
-    # إرسال رسالة الدخول في القروب بالنص الذي صممه المستخدم في الخطوة 8 + منشن العضو
-            user_designed_msg = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح")
-            announcement_to_send = f"{user_identity} {user_designed_msg}"
+  # إرسال رسالة الدخول في القروب مع منشن العضو فوراً عند الضغط
+            announcement_to_send = f"{user_identity} انضم إلى المسابقة بنجاح"
 
             try:
                 sent_notif = bot.send_message(
@@ -218,11 +217,6 @@ def handle_all_callbacks(call):
                     pass
             except Exception as e:
                 print(f"Error sending join notification: {e}")
-
-            try:
-                bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
-            except Exception:
-                pass
         
     # الرد السريع لجميع الأزرار الداخلية الأخرى
     try:
