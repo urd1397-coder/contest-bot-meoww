@@ -132,7 +132,7 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
     
-# **معالجة ضغطة زر المشاركة/التسجيل مع رسالة "تعلم من دخل" المباشرة**
+# **معالجة ضغطة زر المشاركة/التسجيل مع رسالة "تعلم من دخل" ورابط الهدية**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -200,10 +200,22 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # إرسال رسالة "تعلم من دخل" في القروب كرسالة مستقلة
-            announcement_to_send = f"🎯 انضم إلى المسابقة بنجاح: {user_identity}"
+            # إرسال رسالة "تعلم من دخل" في القروب مع رابط الهدية في المنتصف/النهاية
+            gift_link = "https://t.me/your_channel" # رابط الهدية أو القناة
+            announcement_to_send = (
+                f"🎯 انضم إلى المسابقة بنجاح: {user_identity}\n"
+                f"🎁 لاستلام هدية انضمامك: <a href='{gift_link}'>اضغط هنا للتوجه للهدية</a>\n"
+                f"✨ بالتوفيق لك ولجميع المشاركين!"
+            )
+
             try:
-                sent_notif = bot.send_message(chat_id, announcement_to_send, parse_mode="HTML", reply_to_message_id=message_id)
+                sent_notif = bot.send_message(
+                    chat_id, 
+                    announcement_to_send, 
+                    parse_mode="HTML", 
+                    disable_web_page_preview=True,
+                    reply_to_message_id=message_id
+                )
                 try:
                     bot.pin_chat_message(chat_id, sent_notif.message_id)
                 except Exception:
