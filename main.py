@@ -16,8 +16,7 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# **خزان معلومات المسابقات النشطة في الذاكرة (بدون ملفات خارجية)**
-# المفتاح: (chat_id, message_id)
+# **خزان معلومات المسابقات النشطة في الذاكرة (للإحصائيات السريعة فقط عند الإنهاء)**
 active_contests = {}
 
 last_panel_message = {}
@@ -27,7 +26,6 @@ end_contest_state = {}
 # ==========================================
 # **دالة توليد تقرير معلومات الحساب والجهات الشامل**
 # ==========================================
-
 def generate_entity_report(chat_obj):
     try:
         acc_id = chat_obj.id
@@ -152,7 +150,7 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب**
+    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية من الرسالة نفسها)**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -165,13 +163,31 @@ def handle_all_callbacks(call):
             else:
                 user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
 
-            # التحقق مما إذا كان مسجلاً مسبقاً
+            # التحقق مما إذا كان مسجلاً مسبقاً (من خلال قائمة المشاركين الموجودة في نص الرسالة)
             if str(user_id) in message_text or (user_username and f"@{user_username}" in message_text):
                 try:
                     bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
                 except Exception:
                     pass
                 return
+
+            # استخراج النص المخفي وبيانات الرد المنشودة مباشرة من جوف رسالة الإعلان
+            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
+            use_mention = True
+            
+            if "JOIN_MSG:" in message_text:
+                try:
+                    parts_extracted = message_text.split("JOIN_MSG:")[1].split("||")[0]
+                    custom_join_msg = parts_extracted
+                except Exception:
+                    pass
+            
+            if "MENTION:" in message_text:
+                try:
+                    mention_flag = message_text.split("MENTION:")[1].split("||")[0]
+                    use_mention = (mention_flag == "1")
+                except Exception:
+                    pass
 
             lines = message_text.split("\n")
             new_lines = []
@@ -221,21 +237,11 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            contest_key = (chat_id, message_id)
-            c_data = active_contests.get(contest_key, {})
-            custom_join_msg = c_data.get("join_msg_text", "")
-            use_mention = c_data.get("msg_mention", True)
-
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
                 announcement_to_send = f"{custom_join_msg}"
              
-            if "voters" not in c_data:
-                c_data["voters"] = []
-            if user_id not in c_data["voters"]:
-                c_data["voters"].append(user_id)
-
             try:
                 sent_notif = bot.send_message(
                     chat_id, 
@@ -341,16 +347,21 @@ def handle_all_callbacks(call):
         elif data == "cmd_end":
             if call.message.chat.type != "private":
                 contest_key = (chat_id, message_id)
-                if contest_key in active_contests:
-                    c_data = active_contests.pop(contest_key)
-                    report = f"⛔ <b>تم إنهاء المسابقة بنجاح!</b>\n📊 إجمالي المشاركين: <b>{len(c_data.get('voters', []))}</b>"
-                    bot.send_message(chat_id, report, parse_mode="HTML", reply_markup=create_main_menu_markup())
-                    try:
-                        bot.delete_message(chat_id, message_id)
-                    except Exception:
-                        pass
-                else:
-                    bot.send_message(chat_id, "⛔ تم إنهاء المسابقة.", parse_mode="HTML", reply_markup=create_main_menu_markup())
+                # استخراج عدد المشاركين من نص الرسالة مباشرة إن وجد
+                msg_txt = call.message.text or call.message.caption or ""
+                count_val = "0"
+                if "عدد المسجلين:" in msg_txt:
+                    import re
+                    nums = re.findall(r'\d+', msg_txt.split("عدد المسجلين:")[1].split("\n")[0])
+                    if nums:
+                        count_val = nums[0]
+                
+                report = f"⛔ <b>تم إنهاء المسابقة بنجاح!</b>\n📊 إجمالي المشاركين: <b>{count_val}</b>"
+                bot.send_message(chat_id, report, parse_mode="HTML", reply_markup=create_main_menu_markup())
+                try:
+                    bot.delete_message(chat_id, message_id)
+                except Exception:
+                    pass
             else:
                 end_contest_state[user_id] = {"step": 1}
                 markup = get_cancel_and_home_markup("cmd_home")
@@ -401,7 +412,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة وتثبيتها في الوجهة المستهدفة**
+# **دالة نشر المسابقة وتثبيتها (مع تضمين البيانات المخفية حصرياً داخل الرسالة)**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -412,6 +423,11 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     announcement = state_data.get("announcement", "مسابقة جديدة!")
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
+     
+    # تضمين بيانات الرد والمنشن بشكل مخفي تماماً داخل رسالة الإعلان لضمان استمراريتها بعد إعادة التشغيل
+    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
+    msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
+    hidden_payload = f"\n<span class='tg-spoiler'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
     try:
@@ -427,6 +443,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+            f"{hidden_payload}"
         )
     else:
         final_text = (
@@ -434,6 +451,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+            f"{hidden_payload}"
         )
 
     channel_markup = types.InlineKeyboardMarkup()
@@ -441,12 +459,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
-         
-        active_contests[(target_chat_id, sent_msg.message_id)] = {
-            "join_msg_text": state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥"),
-            "msg_mention": state_data.get("msg_mention", True),
-            "voters": []
-        }
 
         try:
             bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
