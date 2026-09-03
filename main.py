@@ -201,13 +201,14 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-           # إرسال رسالة منفصلة مستقلة في القروب بالنص الذي صممه المستخدم في الخطوة 8 + منشن العضو
-            user_designed_msg = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح") if 'state_data' in locals() and user_id in state_data else "انضم إلى المسابقة بنجاح"
+        # إرسال رسالة منفصلة مستقلة في القروب بالصيغة الصحيحة
+            user_designed_msg = "انضم إلى المسابقة بنجاح"
+            if 'state_data' in locals():
+                pass
             
-            # إذا لم تكن موجودة في الذاكرة المؤقتة، يمكنك جعلها تقرأ من زر أو وضع النص الافتراضي الذي صممه المستخدم
             announcement_to_send = f"{user_identity} {user_designed_msg}"
-               
-                try:
+
+            try:
                 sent_notif = bot.send_message(
                     chat_id, 
                     announcement_to_send, 
@@ -234,7 +235,7 @@ def handle_all_callbacks(call):
         bot.answer_callback_query(call.id)
     except Exception:
         pass
-
+        
     try:
         if data == "cmd_create":
             if call.message.chat.type == "private":
