@@ -98,7 +98,7 @@ def update_or_send_panel(chat_id, text, reply_markup):
             return
         except Exception:
             pass
-    
+     
     sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=reply_markup)
     last_panel_message[chat_id] = sent.message_id
 
@@ -111,7 +111,7 @@ def handle_start_command(message):
     if message.chat.type != "private":
         return
     user_search_mode[message.chat.id] = False
-    
+     
     text = (
         "مياو أهلاً بك في عالم شركس! 🐱✨\n"
         "البوت الأنيق والسريع لإدارة مسابقاتك وتصويتك بكل احترافية.\n"
@@ -131,7 +131,7 @@ def handle_all_callbacks(call):
     data = call.data
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
-    
+     
 # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب**
     if data.startswith("contest_vote_"):
         try:
@@ -139,7 +139,7 @@ def handle_all_callbacks(call):
             user_id = call.from_user.id
             user_first_name = call.from_user.first_name or "المشارك"
             user_username = call.from_user.username
-            
+             
             if user_username:
                 user_identity = f"@{user_username}"
             else:
@@ -157,7 +157,7 @@ def handle_all_callbacks(call):
             new_lines = []
             current_count = 0
             participants_line_idx = -1
-            
+             
             for i, line in enumerate(lines):
                 if "عدد المسجلين:" in line:
                     import re
@@ -178,7 +178,7 @@ def handle_all_callbacks(call):
                     updated_participants = user_identity
                 else:
                     updated_participants = f"{old_participants_text}, {user_identity}"
-                
+                 
                 new_lines[participants_line_idx] = f"📋 قائمة المشاركين: {updated_participants}"
 
             updated_full_text = "\n".join(new_lines)
@@ -205,7 +205,7 @@ def handle_all_callbacks(call):
             user_designed_msg = "انضم إلى المسابقة بنجاح"
             if 'state_data' in locals():
                 pass
-            
+             
             announcement_to_send = f"{user_identity} {user_designed_msg}"
 
             try:
@@ -235,7 +235,7 @@ def handle_all_callbacks(call):
         bot.answer_callback_query(call.id)
     except Exception:
         pass
-        
+         
     try:
         if data == "cmd_create":
             if call.message.chat.type == "private":
@@ -416,15 +416,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
     if not state_data:
         return
-        
+         
     raw_channel = state_data.get("channel", chat_id)
     announcement = state_data.get("announcement", "مسابقة جديدة!")
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") # هذا هو رابط الهدية الذي أدخله المستخدم
-    send_join_msg = state_data.get("send_join_msg", False)
-    join_msg_text = state_data.get("join_msg_text", "")
-    msg_mention = state_data.get("msg_mention", False)
-    
+     
     target_chat_id = raw_channel
     try:
         chat_obj = bot_instance.get_chat(raw_channel)
@@ -432,18 +429,22 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    # دمج رابط الهدية كـ رابط مفتوح في إعلان المسابقة إذا كان موجوداً
-    gift_section = ""
+    # صياغة الإعلان بحيث يكون رابط الهدية مكشوفاً ومفتوحاً في النص مباشرة
     if prize_media:
-        gift_section = f"\n\n🎁 <b>رابط الهدية:</b> <a href='{prize_media}'>اضغط هنا لفتح الهدية</a>"
-
-    final_text = (
-        f"🎉 <b>مسابقة / تصويت شركس التفاعلي!</b> 🐾\n\n"
-        f"❓ <b>السؤال / النص:</b>\n{announcement}"
-        f"{gift_section}\n\n"
-        f"👥 عدد المسجلين: <b>0</b>\n"
-        f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
-    )
+        final_text = (
+            f"🎉 <b>مسابقة جديدة!</b>\n\n"
+            f"❓ <b>السؤال:</b>\n{announcement}\n\n"
+            f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
+            f"👥 عدد المسجلين: <b>0</b>\n"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+        )
+    else:
+        final_text = (
+            f"🎉 <b>مسابقة جديدة!</b>\n\n"
+            f"❓ <b>السؤال:</b>\n{announcement}\n\n"
+            f"👥 عدد المسجلين: <b>0</b>\n"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+        )
 
     channel_markup = types.InlineKeyboardMarkup()
     channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
@@ -451,7 +452,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     try:
         # ننشر الإعلان كنص يحتوي على رابط الهدية داخله مباشرة (بدون صور وهمية)
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
-        
+         
         try:
             bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
         except Exception as pin_err:
@@ -617,9 +618,9 @@ if __name__ == "__main__":
     server_thread.daemon = True
     server_thread.start()
     print(f"HTTP Server started on port %s" % PORT)
-    
+     
     time.sleep(2)
-    
+     
     try:
         bot.remove_webhook()
         bot.set_webhook(url="")
