@@ -201,10 +201,16 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-        # إرسال رسالة منفصلة مستقلة في القروب بالصيغة الصحيحة
-          # جلب النص المفتوح الذي كتبته أنت أثناء إنشاء المسابقة من الذاكرة
-    custom_join_msg = active_contests.get((chat_id, message_id), {}).get("join_msg_text", "انضم إلى المسابقة بنجاح")
-    announcement_to_send = f"{user_identity} {custom_join_msg}"
+# جلب النص المفتوح الذي كتبته أثناء إنشاء المسابقة
+            contest_key = (chat_id, message_id)
+            c_data = active_contests.get(contest_key, {})
+            custom_join_msg = c_data.get("join_msg_text", "")
+            use_mention = c_data.get("msg_mention", True)
+
+            if use_mention:
+                announcement_to_send = f"{user_identity} {custom_join_msg}"
+            else:
+                announcement_to_send = f"{custom_join_msg}"
             try:
                 sent_notif = bot.send_message(
                     chat_id, 
