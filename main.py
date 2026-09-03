@@ -25,7 +25,39 @@ last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
+# ==========================================
+# **دالة توليد تقرير معلومات الحساب والجهات الشامل**
+# ==========================================
 
+def generate_entity_report(chat_obj):
+    try:
+        acc_id = chat_obj.id
+        acc_type = chat_obj.type
+        acc_title = getattr(chat_obj, 'title', None) or (getattr(chat_obj, 'first_name', '') + (" " + getattr(chat_obj, 'last_name', '') if getattr(chat_obj, 'last_name', None) else ""))
+        acc_username = f"@{chat_obj.username}" if getattr(chat_obj, 'username', None) else "لا يوجد"
+        acc_bio = getattr(chat_obj, 'description', None) or getattr(chat_obj, 'bio', None) or "غير متوفر"
+        
+        status_note = "🟢 متاح / نشط"
+        if acc_type in ["group", "supergroup", "channel"]:
+            try:
+                bot.get_chat_member(acc_id, bot.get_me().id)
+            except Exception:
+                status_note = "🔴 مغلق / خاص / أو البوت ليس عضواً فيه"
+        
+        report = (
+            "🔍 <b>[ تقرير معلومات الحساب لكشف المخربين ]</b> 🐾\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            f"🆔 <b>Account ID:</b> <code>{acc_id}</code>\n"
+            f"👤 <b>Account Name:</b> {acc_title}\n"
+            f"📌 <b>Account Type:</b> {acc_type}\n"
+            f"🔗 <b>Username:</b> {acc_username}\n"
+            f"📝 <b>Description / Bio:</b> {acc_bio}\n"
+            f"🔒 <b>Status:</b> {status_note}"
+        )
+        return report
+    except Exception as e:
+        return f"⚠️ حدث خطأ أثناء استخراج بيانات الحساب: {e}"
+        
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
 # ==========================================
