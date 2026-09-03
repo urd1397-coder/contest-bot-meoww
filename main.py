@@ -132,7 +132,7 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
     
-# **معالجة ضغطة زر المشاركة/التسجيل المعتمدة على رسالة تليجرام مباشرة بدون ملفات**
+# **معالجة ضغطة زر المشاركة/التسجيل مع رسالة "تعلم من دخل" المباشرة**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -199,6 +199,17 @@ def handle_all_callbacks(call):
                     parse_mode="HTML",
                     reply_markup=call.message.reply_markup
                 )
+
+            # إرسال رسالة "تعلم من دخل" في القروب كرسالة مستقلة
+            announcement_to_send = f"🎯 انضم إلى المسابقة بنجاح: {user_identity}"
+            try:
+                sent_notif = bot.send_message(chat_id, announcement_to_send, parse_mode="HTML", reply_to_message_id=message_id)
+                try:
+                    bot.pin_chat_message(chat_id, sent_notif.message_id)
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"Error sending join notification: {e}")
 
             try:
                 bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
