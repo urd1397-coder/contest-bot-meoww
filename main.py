@@ -4,6 +4,7 @@
 import os
 import time
 import threading
+import base64
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -16,45 +17,30 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# **خزان معلومات المسابقات النشطة في الذاكرة (للإحصائيات السريعة فقط عند الإنهاء)**
-active_contests = {}
-
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
 # ==========================================
-# **دالة توليد تقرير معلومات الحساب والجهات الشامل**
+# **دوال تشفير وفك تشفير النص الطويل داخل الهاش**
 # ==========================================
-def generate_entity_report(chat_obj):
+def encode_text_to_hash(text):
+    """تحويل النص الطويل إلى هاش آمن وقصير باستخدام Base64"""
+    if not text:
+        return ""
+    text_bytes = text.encode('utf-8')
+    base64_bytes = base64.urlsafe_b64encode(text_bytes)
+    return base64_bytes.decode('utf-8')
+
+def decode_hash_to_text(hash_str):
+    """ترجمة وفك الهاش العكسي لاسترجاع النص الطويل الأصلي تماماً"""
     try:
-        acc_id = chat_obj.id
-        acc_type = chat_obj.type
-        acc_title = getattr(chat_obj, 'title', None) or (getattr(chat_obj, 'first_name', '') + (" " + getattr(chat_obj, 'last_name', '') if getattr(chat_obj, 'last_name', None) else ""))
-        acc_username = f"@{chat_obj.username}" if getattr(chat_obj, 'username', None) else "لا يوجد"
-        acc_bio = getattr(chat_obj, 'description', None) or getattr(chat_obj, 'bio', None) or "غير متوفر"
-        
-        status_note = "🟢 متاح / نشط"
-        if acc_type in ["group", "supergroup", "channel"]:
-            try:
-                bot.get_chat_member(acc_id, bot.get_me().id)
-            except Exception:
-                status_note = "🔴 مغلق / خاص / أو البوت ليس عضواً فيه"
-        
-        report = (
-            "🔍 <b>[ تقرير معلومات الحساب لكشف المخربين ]</b> 🐾\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            f"🆔 <b>Account ID:</b> <code>{acc_id}</code>\n"
-            f"👤 <b>Account Name:</b> {acc_title}\n"
-            f"📌 <b>Account Type:</b> {acc_type}\n"
-            f"🔗 <b>Username:</b> {acc_username}\n"
-            f"📝 <b>Description / Bio:</b> {acc_bio}\n"
-            f"🔒 <b>Status:</b> {status_note}"
-        )
-        return report
-    except Exception as e:
-        return f"⚠️ حدث خطأ أثناء استخراج بيانات الحساب: {e}"
-        
+        base64_bytes = hash_str.encode('utf-8')
+        text_bytes = base64.urlsafe_b64decode(base64_bytes)
+        return text_bytes.decode('utf-8')
+    except Exception:
+        return "انضم إلى المسابقة بنجاح! 🔥"
+
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
 # ==========================================
@@ -76,7 +62,7 @@ def run_server():
 
 
 # ==========================================
-# **لوحات الأزرار والقوائم الموحدة مع زر العودة**
+# **لوحات الأزرار والقوائم**
 # ==========================================
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -85,14 +71,6 @@ def create_main_menu_markup():
         types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
         types.InlineKeyboardButton("🧹 تنظيف شات البوت", callback_data="cmd_clean_chat"),
         types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
-    )
-    return markup
-
-def get_back_and_home_markup(back_callback="cmd_home"):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("🔙 رجوع", callback_data=back_callback),
-        types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home")
     )
     return markup
 
@@ -122,9 +100,6 @@ def update_or_send_panel(chat_id, text, reply_markup):
     last_panel_message[chat_id] = sent.message_id
 
 
-# ==========================================
-# **أمر البداية (Start)**
-# ==========================================
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
     if message.chat.type != "private":
@@ -150,11 +125,10 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية تماماً)**
+    # **معالجة ضغطة زر المشاركة وفك الهاش لحظياً**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
-            user_id = call.from_user.id
             user_first_name = call.from_user.first_name or "المشارك"
             user_username = call.from_user.username
              
@@ -163,7 +137,7 @@ def handle_all_callbacks(call):
             else:
                 user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
 
-            # التحقق مما إذا كان مسجلاً مسبقاً من النص الخفي
+            # التحقق مما إذا كان مسجلاً مسبقاً
             if str(user_id) in message_text or (user_username and f"@{user_username}" in message_text):
                 try:
                     bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
@@ -171,23 +145,25 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج بيانات الإعدادات المخفية بدقة
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
-            use_mention = True
+            # استخراج وفك الهاش مباشرة من النص المخفي في رسالة المسابقة (بدون أي تخزين بالسيرفر)
+            encoded_msg_hash = ""
+            msg_mention_flag = "1"
             
-            if "JOIN_MSG:" in message_text:
+            if "HASH_MSG:" in message_text:
                 try:
-                    parts_extracted = message_text.split("JOIN_MSG:")[1].split("||")[0]
-                    custom_join_msg = parts_extracted
+                    encoded_msg_hash = message_text.split("HASH_MSG:")[1].split("||")[0].strip()
                 except Exception:
                     pass
             
             if "MENTION:" in message_text:
                 try:
-                    mention_flag = message_text.split("MENTION:")[1].split("||")[0]
-                    use_mention = (mention_flag == "1")
+                    msg_mention_flag = message_text.split("MENTION:")[1].split("||")[0].strip()
                 except Exception:
                     pass
+
+            # ترجمة الهاش إلى النص الطويل الأصلي الذي صممه المستخدم فوراً
+            custom_join_msg = decode_hash_to_text(encoded_msg_hash)
+            use_mention = (msg_mention_flag == "1")
 
             lines = message_text.split("\n")
             new_lines = []
@@ -219,7 +195,7 @@ def handle_all_callbacks(call):
 
             updated_full_text = "\n".join(new_lines)
 
-            # تحديث الرسالة في القناة/القروب
+            # تحديث الرسالة في القروب
             if call.message.photo:
                 bot.edit_message_caption(
                     caption=updated_full_text,
@@ -237,8 +213,9 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
+            # إرسال النص بعد ترجمة الهاش وفكه بنجاح
             if use_mention:
-                announcement_to_send = f"{user_identity} {custom_join_msg}"
+                announcement_to_send = f"{user_identity}\n{custom_join_msg}"
             else:
                 announcement_to_send = f"{custom_join_msg}"
              
@@ -290,21 +267,10 @@ def handle_all_callbacks(call):
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
-        elif data == "step_back_q1":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["step"] = 2
-                markup = get_cancel_and_home_markup("cmd_home")
-                text = (
-                    "🐾 <b>[ سؤال: نص اعلان المسابقة ]</b> 🐱✨\n"
-                    "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن <b>نص المسابقة أو سؤال التصويت</b>:"
-                )
-                bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
-
         elif data == "prize_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 4
-                markup = get_cancel_and_home_markup("step_back_q2" if "step_back_q2" in globals() else "cmd_create")
+                markup = get_cancel_and_home_markup("cmd_create")
                 text = "🎁 أرسل لي الآن **صورة الهدية** أو رابطها:"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
@@ -313,25 +279,19 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["prize_media"] = None
                 ask_button_naming_step(user_id, chat_id, message_id)
 
-        elif data == "btn_join_yes" or data == "btn_join_no":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["step"] = 6
-                markup = get_cancel_and_home_markup("cmd_create")
-                text = "🔤 أرسل لي الآن **تسمية زر التسجيل/الانضمام** المرادة (مثال: اشترك الآن 🎁):"
-                bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
-
         elif data == "join_msg_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["send_join_msg"] = True
                 contest_creation_state[user_id]["step"] = 8
                 markup = get_cancel_and_home_markup("cmd_create")
-                text = "💬 أرسل لي الآن **النص المراد إرساله** عند دخول الشخص (مثال: انضم إلى المسابقة بنجاح! 🔥):"
+                text = "💬 أرسل لي الآن **النص المراد إرساله** عند دخول الشخص (النص الطويل الذي صممته):"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "join_msg_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["send_join_msg"] = False
-                contest_creation_state[user_id]["use_mention"] = False
+                contest_creation_state[user_id]["msg_mention"] = False
+                contest_creation_state[user_id]["join_msg_text"] = "انضم إلى المسابقة بنجاح! 🔥"
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
         elif data == "mention_join_yes":
@@ -346,7 +306,6 @@ def handle_all_callbacks(call):
 
         elif data == "cmd_end":
             if call.message.chat.type != "private":
-                contest_key = (chat_id, message_id)
                 msg_txt = call.message.text or call.message.caption or ""
                 count_val = "0"
                 if "عدد المسجلين:" in msg_txt:
@@ -411,7 +370,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع إخفاء البيانات البرمجية كلياً عن العيون**
+# **دالة نشر المسابقة (تشفير النص مباشرة داخل الهاش المخفي)**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -423,11 +382,15 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # هنا يتم تخزين البيانات بشكل مخفي تماماً داخل وسوم HTML لا يراها المستخدم نهائياً
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
-    msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
+    msg_mention = state_data.get("msg_mention", True)
     
-    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
+    # تحويل النص الطويل بالكامل إلى هاش مشفر (Base64 Hash) لتخزينه داخل نفس الرسالة بدون RAM
+    encoded_hash = encode_text_to_hash(join_msg_text)
+    msg_mention_flag = "1" if msg_mention else "0"
+    
+    # وضع الهاش المخفي بشكل لا يظهر للمستخدم نهائياً
+    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>HASH_MSG:{encoded_hash}||MENTION:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
     try:
@@ -590,7 +553,7 @@ def handler_private_contest_steps(message):
             text = (
                 "🐾 <b>[ سؤال: رسالة تعلم من دخل ]</b> 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود أن أرسل **رسالة في القروب** باسم الشخص الذي ضغط على الزر (تعلم من دخل)؟"
+                "هل تود أن أرسل **رسالة في القروب** باسم الشخص الذي ضغط على الزر؟"
             )
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
