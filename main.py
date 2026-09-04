@@ -1,9 +1,8 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الداخلي الذكي (مشفر بالزر)**
+# **بوتي شركس - نظام المسابقات والتصويت الداخلي الذكي**
 # ==========================================
 import os
 import time
-import base64
 import threading
 import telebot
 from telebot import types
@@ -17,32 +16,45 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# **الذاكرة مقتصرة فقط على حالات إنشاء المسارات المؤقتة ولوحات التحكم الخاصة بالمشرف**
+# **خزان معلومات المسابقات النشطة في الذاكرة (للإحصائيات السريعة فقط عند الإنهاء)**
+active_contests = {}
+
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
 # ==========================================
-# **دوال التشفير وفك التشفير لتضمين البيانات داخل الزر**
+# **دالة توليد تقرير معلومات الحساب والجهات الشامل**
 # ==========================================
-def encode_payload(join_msg, mention_flag):
-    """دمج وتشفير خيارات الانضمام لتوضع في زر التيليجرام مباشرة"""
-    raw_str = f"{1 if mention_flag else 0}|{join_msg}"
-    encoded = base64.urlsafe_b64encode(raw_str.encode("utf-8")).decode("utf-8").rstrip("=")
-    return encoded
-
-def decode_payload(encoded_str):
-    """فك شفرة الزر فور الضغط عليه واستخراج بيانات الانضمام"""
+def generate_entity_report(chat_obj):
     try:
-        padded = encoded_str + "=" * (-len(encoded_str) % 4)
-        decoded_bytes = base64.urlsafe_b64decode(padded.encode("utf-8"))
-        parts = decoded_bytes.decode("utf-8").split("|", 1)
-        mention_flag = bool(int(parts[0]))
-        join_msg = parts[1]
-        return join_msg, mention_flag
-    except Exception:
-        return "انضم إلى المسابقة بنجاح! 🔥", True
-
+        acc_id = chat_obj.id
+        acc_type = chat_obj.type
+        acc_title = getattr(chat_obj, 'title', None) or (getattr(chat_obj, 'first_name', '') + (" " + getattr(chat_obj, 'last_name', '') if getattr(chat_obj, 'last_name', None) else ""))
+        acc_username = f"@{chat_obj.username}" if getattr(chat_obj, 'username', None) else "لا يوجد"
+        acc_bio = getattr(chat_obj, 'description', None) or getattr(chat_obj, 'bio', None) or "غير متوفر"
+        
+        status_note = "🟢 متاح / نشط"
+        if acc_type in ["group", "supergroup", "channel"]:
+            try:
+                bot.get_chat_member(acc_id, bot.get_me().id)
+            except Exception:
+                status_note = "🔴 مغلق / خاص / أو البوت ليس عضواً فيه"
+        
+        report = (
+            "🔍 <b>[ تقرير معلومات الحساب لكشف المخربين ]</b> 🐾\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            f"🆔 <b>Account ID:</b> <code>{acc_id}</code>\n"
+            f"👤 <b>Account Name:</b> {acc_title}\n"
+            f"📌 <b>Account Type:</b> {acc_type}\n"
+            f"🔗 <b>Username:</b> {acc_username}\n"
+            f"📝 <b>Description / Bio:</b> {acc_bio}\n"
+            f"🔒 <b>Status:</b> {status_note}"
+        )
+        return report
+    except Exception as e:
+        return f"⚠️ حدث خطأ أثناء استخراج بيانات الحساب: {e}"
+        
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
 # ==========================================
@@ -64,7 +76,7 @@ def run_server():
 
 
 # ==========================================
-# **لوحات الأزرار والقوائم الموحدة**
+# **لوحات الأزرار والقوائم الموحدة مع زر العودة**
 # ==========================================
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -128,7 +140,7 @@ def handle_start_command(message):
 
 
 # ==========================================
-# **معالجة التفاعل مع الأزرار المشفرة وقوائم المشرفين**
+# **معالجة الأزرار التفاعلية (Callbacks)**
 # ==========================================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
@@ -138,8 +150,8 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # **معالجة زر المشاركة عبر فك الشفرة المخفية في زر التيليجرام مباشرة**
-    if data.startswith("cb_"):
+    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية تماماً)**
+    if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
             user_id = call.from_user.id
@@ -151,7 +163,7 @@ def handle_all_callbacks(call):
             else:
                 user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
 
-            # التحقق من عدم التكرار مسبقاً في قائمة المشاركين بالنص
+            # التحقق مما إذا كان مسجلاً مسبقاً من النص الخفي
             if str(user_id) in message_text or (user_username and f"@{user_username}" in message_text):
                 try:
                     bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
@@ -159,9 +171,23 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج البيانات وفك تشفيرها من الكود الموجود بالزر حصرياً
-            encoded_payload = data.replace("cb_", "", 1)
-            custom_join_msg, use_mention = decode_payload(encoded_payload)
+            # استخراج بيانات الإعدادات المخفية بدقة
+            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
+            use_mention = True
+            
+            if "JOIN_MSG:" in message_text:
+                try:
+                    parts_extracted = message_text.split("JOIN_MSG:")[1].split("||")[0]
+                    custom_join_msg = parts_extracted
+                except Exception:
+                    pass
+            
+            if "MENTION:" in message_text:
+                try:
+                    mention_flag = message_text.split("MENTION:")[1].split("||")[0]
+                    use_mention = (mention_flag == "1")
+                except Exception:
+                    pass
 
             lines = message_text.split("\n")
             new_lines = []
@@ -193,7 +219,7 @@ def handle_all_callbacks(call):
 
             updated_full_text = "\n".join(new_lines)
 
-            # تحديث نص الإعلان في القناة أو القروب نظيفاً تماماً
+            # تحديث الرسالة في القناة/القروب
             if call.message.photo:
                 bot.edit_message_caption(
                     caption=updated_full_text,
@@ -211,7 +237,6 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # إرسال رسالة الانضمام بالقروب بناءً على الخيار المفكوك من الشفرة
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
@@ -236,7 +261,7 @@ def handle_all_callbacks(call):
                 pass
 
         except Exception as e:
-            print(f"Error handling encoded button callback: {e}")
+            print(f"Error handling contest vote: {e}")
         return
 
     try:
@@ -265,10 +290,21 @@ def handle_all_callbacks(call):
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
+        elif data == "step_back_q1":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["step"] = 2
+                markup = get_cancel_and_home_markup("cmd_home")
+                text = (
+                    "🐾 <b>[ سؤال: نص اعلان المسابقة ]</b> 🐱✨\n"
+                    "━━━━━━━━━━━━━━━━━━━\n"
+                    "أرسل لي الآن <b>نص المسابقة أو سؤال التصويت</b>:"
+                )
+                bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
+
         elif data == "prize_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 4
-                markup = get_cancel_and_home_markup("cmd_create")
+                markup = get_cancel_and_home_markup("step_back_q2" if "step_back_q2" in globals() else "cmd_create")
                 text = "🎁 أرسل لي الآن **صورة الهدية** أو رابطها:"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
@@ -276,6 +312,13 @@ def handle_all_callbacks(call):
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["prize_media"] = None
                 ask_button_naming_step(user_id, chat_id, message_id)
+
+        elif data == "btn_join_yes" or data == "btn_join_no":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["step"] = 6
+                markup = get_cancel_and_home_markup("cmd_create")
+                text = "🔤 أرسل لي الآن **تسمية زر التسجيل/الانضمام** المرادة (مثال: اشترك الآن 🎁):"
+                bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "join_msg_yes":
             if user_id in contest_creation_state:
@@ -288,8 +331,7 @@ def handle_all_callbacks(call):
         elif data == "join_msg_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["send_join_msg"] = False
-                contest_creation_state[user_id]["msg_mention"] = True
-                contest_creation_state[user_id]["join_msg_text"] = "انضم إلى المسابقة بنجاح! 🔥"
+                contest_creation_state[user_id]["use_mention"] = False
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
         elif data == "mention_join_yes":
@@ -304,6 +346,7 @@ def handle_all_callbacks(call):
 
         elif data == "cmd_end":
             if call.message.chat.type != "private":
+                contest_key = (chat_id, message_id)
                 msg_txt = call.message.text or call.message.caption or ""
                 count_val = "0"
                 if "عدد المسجلين:" in msg_txt:
@@ -345,6 +388,10 @@ def handle_all_callbacks(call):
         elif data == "cmd_cancel":
             contest_creation_state.pop(user_id, None)
             end_contest_state.pop(user_id, None)
+            try:
+                bot.send_message(chat_id, "❌ تم إغلاق القائمة.", reply_markup=types.ReplyKeyboardRemove())
+            except Exception:
+                pass
             update_or_send_panel(chat_id, "❌ تم إغلاق القائمة بنجاح. أرسل /start لإظهارها مجدداً.", create_main_menu_markup())
 
     except Exception as e:
@@ -364,7 +411,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع تضمين البيانات مشفرة بالزر حصرياً**
+# **دالة نشر المسابقة مع إخفاء البيانات البرمجية كلياً عن العيون**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -376,19 +423,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
+    # هنا يتم تخزين البيانات بشكل مخفي تماماً داخل وسوم HTML لا يراها المستخدم نهائياً
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
-    msg_mention_flag = state_data.get("msg_mention", True)
+    msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
     
-    # **تشفير البيانات ووضعها داخل زر التيليجرام مباشرة (عبر Base64 المضغوط)**
-    payload_code = encode_payload(join_msg_text, msg_mention_flag)
-    callback_data_string = f"cb_{payload_code}"
-
-    # التأكد من عدم تجاوز الحد الأقصى لبايتس التيليجرام للأزرار (64 بايت)
-    if len(callback_data_string.encode("utf-8")) > 64:
-        # إذا كان النص طويلاً للغاية يتم تقليصه تلقائياً للتحقق من أمان النشر
-        fallback_code = encode_payload("انضم بنجاح!", msg_mention_flag)
-        callback_data_string = f"cb_{fallback_code}"
-
+    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
+     
     target_chat_id = raw_channel
     try:
         chat_obj = bot_instance.get_chat(raw_channel)
@@ -396,26 +436,26 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    # **نص الإعلان نظيف 100% وخالٍ من أي وسوم أو بيانات مرئية**
     if prize_media:
         final_text = (
             f"🎉 <b>مسابقة جديدة!</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
+            f"{hidden_payload}"
         )
     else:
         final_text = (
             f"🎉 <b>مسابقة جديدة!</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
+            f"{hidden_payload}"
         )
 
-    # **ربط الزر بالكود المشفر فقط**
     channel_markup = types.InlineKeyboardMarkup()
-    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=callback_data_string))
+    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
 
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
@@ -426,7 +466,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر وتثبيت المسابقة بنجاح مع تشفير البيانات داخل الزر!</b> 🐾",
+            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام!</b> 🐾",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -453,6 +493,18 @@ def handler_private_contest_steps(message):
     target_message_id = last_panel_message.get(chat_id)
 
     if user_id in end_contest_state:
+        resolved_channel_id = text_content
+        if "t.me/" in text_content:
+            parts = text_content.split("t.me/")[-1].split("?")[0].strip("/")
+            if parts and not (parts.startswith("+") or parts.startswith("joinchat/")):
+                resolved_channel_id = f"@{parts}"
+
+        try:
+            chat_obj = bot.get_chat(resolved_channel_id)
+            resolved_channel_id = chat_obj.id
+        except Exception as e:
+            print(f"Could not resolve channel for ending: {e}")
+
         end_contest_state.pop(user_id, None)
         update_or_send_panel(
             chat_id,
@@ -476,7 +528,7 @@ def handler_private_contest_steps(message):
                 chat_member = bot.get_chat_member(resolved_channel_id, bot.get_me().id)
                 if chat_member.status not in ["administrator", "creator"]:
                     raise Exception("Bot is not admin")
-            except Exception:
+            except Exception as e:
                 markup = get_back_and_home_markup("cmd_create")
                 bot.edit_message_text(
                     "⚠️ **خطأ في الصلاحيات أو المعرف!**\nتأكد أن البوت مشرف في القناة/القروب وأنك أرسلت المعرف الصحيح.",
@@ -536,9 +588,9 @@ def handler_private_contest_steps(message):
                 types.InlineKeyboardButton("❌ لا", callback_data="join_msg_no")
             )
             text = (
-                "🐾 <b>[ سؤال: رسالة عند دخول الشخص ]</b> 🐱✨\n"
+                "🐾 <b>[ سؤال: رسالة تعلم من دخل ]</b> 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود أن أرسل **رسالة في القروب** باسم الشخص الذي ضغط على الزر؟"
+                "هل تود أن أرسل **رسالة في القروب** باسم الشخص الذي ضغط على الزر (تعلم من دخل)؟"
             )
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
@@ -562,7 +614,7 @@ def handler_private_contest_steps(message):
         return
          
 # ==========================================
-# **التشغيل الأساسي للبوت وخادم الويب**
+# **التشغيل الأساسي للبوت والخادم**
 # ==========================================
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
