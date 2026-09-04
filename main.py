@@ -426,7 +426,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # 🔍 التقاط النص المخصص الذي صممه المستخدم من مختلف مفاتيح الحفظ المحتملة
+    # التقاط النص الحرفي الذي صممه المستخدم تماماً وحفظه بالتوكن
     custom_join_msg = (
         state_data.get("custom_text") or 
         state_data.get("join_msg_text") or 
@@ -434,13 +434,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         "انضم إلى المسابقة بنجاح! 🔥"
     )
     
-    # التقاط خيار المنشن (تفعيل أو إلغاء)
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
     
     import random
     token_id = f"SHX{random.randint(1000, 9999)}"
     
-    # تخزين النص المصمم والمنشن في خزان التوكن
+    # حفظ النص والمشن في الذاكرة الخاصة بالتوكن
     contest_tokens[token_id] = {
         "join_msg": custom_join_msg,
         "mention": msg_mention_flag,
@@ -493,140 +492,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
-
-
-# ==========================================
-# **2. دالة معالجة الأزرار (إخفاء الأسماء علناً + استخدام النص المصمم)**
-# ==========================================
-def handle_contest_vote_callback(bot, call):
-    data = call.data
-    if data.startswith("contest_vote_"):
-        try:
-            chat_id = call.message.chat.id
-            message_id = call.message.message_id
-            message_text = call.message.text or call.message.caption or ""
-            user_id = call.from_user.id
-            user_first_name = call.from_user.first_name or "المشارك"
-            user_username = call.from_user.username
-             
-            if user_username:
-                user_identity = f"@{user_username}"
-            else:
-                user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
-
-            import re
-            token_match = re.search(r'\[(SHX\d+)\]', message_text)
-            if not token_match:
-                try:
-                    bot.answer_callback_query(call.id, "⚠️ عذراً، لم يتم العثور على رمز المسابقة التعريفي!", show_alert=True)
-                except Exception:
-                    pass
-                return
-            
-            token_id = token_match.group(1)
-            
-            if token_id not in contest_tokens:
-                contest_tokens[token_id] = {
-                    "join_msg": "انضم إلى المسابقة بنجاح!",
-                    "mention": "1",
-                    "count": 0,
-                    "participants": []
-                }
-            
-            contest_data = contest_tokens[token_id]
-
-            if user_id in contest_data["participants"]:
-                try:
-                    bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
-                except Exception:
-                    pass
-                return
-
-            contest_data["participants"].append(user_id)
-            contest_data["count"] += 1
-            current_count = contest_data["count"]
-
-            # 🛑 تحديث القناة بالعداد فقط، ومنع كتابة أسماء أو أيديوهات المستخدمين نهائياً للعام
-            lines = message_text.split("\n")
-            new_lines = []
-             
-            for line in lines:
-                if "عدد المسجلين:" in line:
-                    new_lines.append(f"👥 عدد المسجلين: <b>{current_count}</b>")
-                elif "قائمة المشاركين:" in line:
-                    new_lines.append(f"📋 قائمة المشاركين: <i>تم تسجيل المشاركات سرا لدى الإدارة 🔒</i>")
-                elif f"[{token_id}]" in line:
-                    new_lines.append(line)
-                else:
-                    new_lines.append(line)
-
-            updated_full_text = "\n".join(new_lines)
-
-            if call.message.photo:
-                bot.edit_message_caption(
-                    caption=updated_full_text,
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    parse_mode="HTML",
-                    reply_markup=call.message.reply_markup
-                )
-            else:
-                bot.edit_message_text(
-                    text=updated_full_text,
-                    chat_id=chat_id,
-                    message_id=message_id,
-                    parse_mode="HTML",
-                    reply_markup=call.message.reply_markup
-                )
-
-            # 📩 إرسال تقارير التسجيل الخاصة بك أنت وحدك (مع التاريخ والوقت)
-            from datetime import datetime
-            current_time = datetime.now().strftime("%Y-%m-%d | %I:%M %p")
-            
-            private_log_text = (
-                f"🚨 <b>تسجيل جديد في المسابقة!</b>\n\n"
-                f"👤 <b>المشارك:</b> {user_identity}\n"
-                f"🆔 <b>الايدي (ID):</b> <code>{user_id}</code>\n"
-                f"🏷️ <b>رمز المسابقة:</b> <code>{token_id}</code>\n"
-                f"⏰ <b>الوقت والتاريخ:</b> {current_time}"
-            )
-            
-            try:
-                admin_private_id = user_id # (استبدلها بالآيدي الخاص بك إن أردت وصولها لك حصراً)
-                bot.send_message(admin_private_id, private_log_text, parse_mode="HTML")
-            except Exception as log_err:
-                print(f"Error sending private log to admin: {log_err}")
-
-            # 🎯 استخدام النص الحرفي الذي صممه المستخدم تماماً مع مراعاة خيار المنشن
-            custom_join_msg = contest_data.get("join_msg", "انضم إلى المسابقة بنجاح!")
-            use_mention = (str(contest_data.get("mention", "1")) == "1")
-
-            if use_mention:
-                announcement_to_send = f"{user_identity}\n{custom_join_msg}"
-            else:
-                announcement_to_send = f"{custom_join_msg}"
-             
-            try:
-                sent_notif = bot.send_message(
-                    chat_id, 
-                    announcement_to_send, 
-                    parse_mode="HTML"
-                )
-                try:
-                    bot.pin_chat_message(chat_id, sent_notif.message_id)
-                except Exception:
-                    pass
-            except Exception as e:
-                print(f"Error sending independent join notification: {e}")
-
-            try:
-                bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
-            except Exception:
-                pass
-
-        except Exception as e:
-            print(f"Error handling contest vote: {e}")
-        return
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
