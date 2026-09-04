@@ -22,23 +22,20 @@ last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
-# 📌 دالة تشفير النص الطويل إلى هاش قصير ونظيف (يعتمد على الرياضيات البحتة)
+# 📌 دالة تشفير النص الطويل إلى هاش قصير ونظيف
 def encode_text_to_hash(text):
     if not text:
         return "ok"
     try:
-        # ضغط النص لتقليص حجمه
         compressed = zlib.compress(text.encode('utf-8'))
-        # تحويله إلى صيغة نصية آمنة ومختصرة للروابط/الهاشات
         encoded = base64.urlsafe_b64encode(compressed).decode('utf-8').rstrip('=')
         return encoded
     except Exception:
         return "ok"
 
-# 📌 دالة عكس الهاش وترجمته للنص الحقيقي فور ضغط الزر (بدون حفظ في الذاكرة)
+# 📌 دالة عكس الهاش وترجمته للنص الحقيقي فور ضغط الزر
 def decode_hash_to_text(hash_str):
     try:
-        # إعادة تصحيح الحشو لفك التشفير بنجاح
         padding = 4 - (len(hash_str) % 4)
         if padding < 4:
             hash_str += '=' * padding
@@ -46,7 +43,6 @@ def decode_hash_to_text(hash_str):
         original_text = zlib.decompress(decoded_bytes).decode('utf-8')
         return original_text
     except Exception:
-        # نص احترافي افتراضي في حال حدوث أي خطأ بالهاش
         return "انضم إلى المسابقة بنجاح! 🔥"
 
 # ==========================================
@@ -166,7 +162,6 @@ def handle_all_callbacks(call):
                 except Exception:
                     pass
 
-            # استعادة النص الأصلي فورياً من الهاش بدون ذاكرة
             custom_join_msg = decode_hash_to_text(encoded_msg_hash)
             use_mention = (msg_mention_flag == "1")
 
@@ -373,7 +368,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع الهاش الذاتي**
+# **دالة نشر المسابقة**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -388,11 +383,9 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention = state_data.get("msg_mention", True)
     
-    # تحويل النص الطويل إلى هاش قصير ونظيف يتم تضمينه بالرسالة
     short_hash = encode_text_to_hash(join_msg_text)
     msg_mention_flag = "1" if msg_mention else "0"
     
-    # هاش مخفي في رسالة الإعلان يقرأه البوت بدقة متناهية لاحقاً
     hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>H:{short_hash}||M:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
@@ -550,7 +543,7 @@ def handler_private_contest_steps(message):
             state_data["step"] = 7
             markup = get_cancel_and_home_markup("cmd_create")
             markup.row(
-                types.InlineKeyboardButton("✅ نعم", callback_data="join_msg_text_yes" if False else "join_msg_yes"),
+                types.InlineKeyboardButton("✅ نعم", callback_data="join_msg_yes"),
                 types.InlineKeyboardButton("❌ لا", callback_data="join_msg_no")
             )
             text = (
@@ -565,7 +558,7 @@ def handler_private_contest_steps(message):
         state_data["join_msg_text"] = message.text.strip() if message.text else ""
         state_data["step"] = 9
          
-        markup = get_scan_markup = get_cancel_and_home_markup("cmd_create")
+        markup = get_cancel_and_home_markup("cmd_create")
         markup.row(
             types.InlineKeyboardButton("✅ نعم (مع منشن المشارك)", callback_data="mention_join_yes"),
             types.InlineKeyboardButton("❌ لا (بدون منشن)", callback_data="mention_join_no")
@@ -599,7 +592,8 @@ if __name__ == "__main__":
     while True:
         try:
             print("Starting bot polling safely...")
-            bot.infinity_polling(skip_pending=True, timeout5=15 if False else 15, long_polling_timeout=15)
+            # تم تصحيح الخطأ هنا بإزالة timeout5 الزائدة
+            bot.infinity_polling(skip_pending=True, timeout=15, long_polling_timeout=15)
         except Exception as e:
             print(f"Polling error: {e}. Retrying in 5 seconds...")
             time.sleep(5)
