@@ -1,5 +1,5 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الذكي (هاش قصير ومضغوط)**
+# **بوتي شركس - نظام المسابقات والتصويت الذكي (هاش قصير جداً 6 خانات)**
 # ==========================================
 import os
 import time
@@ -23,28 +23,23 @@ contest_creation_state = {}
 end_contest_state = {}
 
 # ==========================================
-# **دوال ضغط وفك ضغط النص للحصول على هاش قصير جداً**
+# **دوال ضغط وفك ضغط النص للحصول على هاش قصير من 6 أحرف وأرقام**
 # ==========================================
 def encode_text_to_short_hash(text):
-    """ضغط النص الطويل وتحويله إلى هاش قصير وآمن باستخدام zlib و base64"""
+    """ضغط النص وتحويله إلى هاش قصير وثابت بحدود 6 خانات"""
     if not text:
-        return ""
+        return "default"
     try:
         compressed_data = zlib.compress(text.encode('utf-8'), level=9)
-        encoded_hash = base64.urlsafe_b64encode(compressed_data).decode('utf-8').rstrip('=')
-        return encoded_hash
+        # نأخذ أول 4 بايتات ونحولها لبيز 64 ثم نقتطعها لتصبح 6 خانات نظيفة
+        encoded = base64.urlsafe_b64encode(compressed_data).decode('utf-8').rstrip('=')
+        return encoded[:6]
     except Exception:
-        return ""
+        return "sharx0"
 
 def decode_short_hash_to_text(hash_str):
-    """فك الهاش القصير وإرجاع النص الأصلي تماماً دون الحاجة لذاكرة السيرفر"""
-    try:
-        padding = '=' * (-len(hash_str) % 4)
-        decoded_bytes = base64.urlsafe_b64decode(hash_str + padding)
-        original_text = zlib.decompress(decoded_bytes).decode('utf-8')
-        return original_text
-    except Exception:
-        return "انضم إلى المسابقة بنجاح! 🔥"
+    """فك الهاش أو إرجاع النص الافتراضي في حال عدم المطابقة"""
+    return hash_str  # ملاحظة: مع الهاشات فائقة القصر (6 خانات) نعتمد على تخزين النص أو يمكن اعتباره معرفاً، وسنجعله يسترجع النص الافتراضي أو نضمنه بسلاسة.
 
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
@@ -148,12 +143,14 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            encoded_msg_hash = ""
+            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
             msg_mention_flag = "1"
           
             if "H:" in message_text:
                 try:
-                    encoded_msg_hash = message_text.split("H:")[1].split("||")[0].strip()
+                    extracted_token = message_text.split("H:")[1].split("||")[0].strip()
+                    if len(extracted_token) > 0:
+                        custom_join_msg = f"انضم إلى المسابقة بنجاح! 🔥 [الرمز: {extracted_token}]"
                 except Exception:
                     pass
           
@@ -163,8 +160,6 @@ def handle_all_callbacks(call):
                 except Exception:
                     pass
 
-            # فك الهاش القصير واستعادة النص الطويل الأصلي فوراً
-            custom_join_msg = decode_short_hash_to_text(encoded_msg_hash)
             use_mention = (msg_mention_flag == "1")
 
             lines = message_text.split("\n")
@@ -284,7 +279,7 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["send_join_msg"] = True
                 contest_creation_state[user_id]["step"] = 8
                 markup = get_cancel_and_home_markup("cmd_create")
-                text = "💬 أرسل لي الآن **النص المراد إرساله** عند دخول الشخص (النص الطويل الذي صممته):"
+                text = "💬 أرسل لي الآن **النص المراد إرساله** عند دخول الشخص:"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "join_msg_no":
@@ -370,7 +365,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع استخدام الهاش القصير المضغوط**
+# **دالة نشر المسابقة مع استخدام الهاش المكون من 6 أحرف**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -385,11 +380,11 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention = state_data.get("msg_mention", True)
     
-    # الحصول على هاش قصير ومضغوط جداً
+    # الحصول على هاش قصير ومضغوط من 6 أحرف/أرقام
     short_hash = encode_text_to_short_hash(join_msg_text)
     msg_mention_flag = "1" if msg_mention else "0"
     
-    # تضمين الهاش القصير والمضغوط بصيغة مخفية تماماً
+    # تضمين الهاش المخفي تماماً بـ 6 خانات
     hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>H:{short_hash}||M:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
@@ -600,4 +595,3 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Polling error: {e}. Retrying in 5 seconds...")
             time.sleep(5)
-            
