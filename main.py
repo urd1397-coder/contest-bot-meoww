@@ -17,9 +17,6 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# **النص الثابت الدائم (لا يتأثر بالـ Redeploy أبداً)**
-PERMANENT_JOIN_TEXT = "انضم إلى المسابقة بنجاح! 🔥"
-
 active_contests = {}
 last_panel_message = {}
 contest_creation_state = {}
@@ -185,8 +182,11 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # استخدام النص الثابت المباشر من المتغير العام لضمان عدم ضياعه
-            announcement_to_send = f"\u200f{user_identity} {PERMANENT_JOIN_TEXT}"
+            # استرجاع النص المخصص الذي أدخله المستخدم أو استخدام النص الافتراضي
+            parts_data = active_contests.get(data.replace("join_contest_", ""))
+            custom_text = parts_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥") if parts_data else "انضم إلى المسابقة بنجاح! 🔥"
+
+            announcement_to_send = f"\u200f{user_identity} {custom_text}"
              
             try:
                 sent_notif = bot.send_message(
@@ -313,6 +313,18 @@ def ask_button_naming_step(user_id, chat_id, message_id):
             last_panel_message[chat_id] = sent.message_id
 
 
+def ask_join_text_step(user_id, chat_id, message_id):
+    if user_id in contest_creation_state:
+        contest_creation_state[user_id]["step"] = 7
+        markup = get_cancel_and_home_markup("cmd_create")
+        text = "💬 أرسل لي الآن **النص الذي سيتم نشره عند انضمام المستخدم** (مثال: انضم إلى المسابقة بنجاح! 🔥):"
+        try:
+            bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
+        except Exception:
+            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
+
+
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.get(user_id)
     if not state_data:
@@ -322,8 +334,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     announcement = state_data.get("announcement", "مسابقة جديدة!")
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
+    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
      
     contest_short_id = random.randint(1000, 9999)
+    
+    # حفظ النص المرتبط بهذه المسابقة تحديداً
+    active_contests[str(contest_short_id)] = {"join_msg_text": join_msg_text}
      
     target_chat_id = raw_channel
     try:
@@ -460,6 +476,13 @@ def handler_private_contest_steps(message):
 
         elif step == 6:
             state_data["button_text"] = text_content
+            # الانتقال لخطوة سؤال نص الانضمام
+            ask_join_text_step(user_id, chat_id, target_message_id)
+            return
+
+        elif step == 7:
+            state_data["join_msg_text"] = text_content
+            # النشر النهائي بعد اكتمال سؤال النص
             finalize_and_publish_contest(bot, chat_id, target_message_id, user_id)
             return
 
