@@ -105,7 +105,7 @@ def handle_start_command(message):
      
     text = (
         "مياو أهلاً بك يا صاحبي في مقر قطط شركس الفخمة! 😼🕶️✨\n"
-        "البوت جاهز لرفع صور الهيدر وإخفاء الهاش باحترافية داخل الوصف!\n\n"
+        "البوت جاهز لعمل الغطاء المخفي للهاش تحت الصورة بدقة تامة!\n\n"
         "اختر خياراً للبدء:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=create_main_menu_markup())
@@ -338,7 +338,7 @@ def show_cat_selection_menu(chat_id, message_id, user_id):
         text = (
             "😼 <b>[ الخطوة 2: إرسال صورة الـ Header ]</b> 🕶️\n"
             "━━━━━━━━━━━━━━━━━━━\n"
-            "أرسل لي الآن **الصورة** التي تريد أن تكون في مقدمة المسابقة:"
+            "أرسل لي الآن **الصورة** التي تريد أن تكون غطاءً ومقدمة للمسابقة:"
         )
         try:
             bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
@@ -360,7 +360,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة نهائياً**
+# **دالة نشر المسابقة نهائياً مع الهاش المخفي تحت الصورة**
 # ==========================================
 def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -378,6 +378,8 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
      
     encoded_hash = encode_text_to_hash(join_msg_text)
     msg_mention_flag = "1" if msg_mention else "0"
+    
+    # الهاش مخفي تماماً داخل كود سبويلر شفاف تحت الصورة لتلعب دور الغطاء للبيانات
     hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>HASH_MSG:{encoded_hash}||MENTION:{msg_mention_flag}||</span>"
 
     target_chat_id = raw_channel
@@ -423,7 +425,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
             pass
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة بالصورة المرفوعة كغطاء للهاش وبنجاح تام! هيهيهي 😼</b>",
+            "✅ <b>تم نشر المسابقة بالصورة كغطاء للهاش وبنجاح تام! هيهيهي 😼</b>",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -481,10 +483,10 @@ def handler_private_contest_steps(message):
                 state_data["step"] = 3
                 
                 markup = get_cancel_and_home_markup("cmd_create")
-                text = "❓ ممتاز! تم استلام صورة الـ Header بنجاح 😼. أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
+                text = "❓ ممتاز! تم استلام صورة الغطاء بنجاح 😼. أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
                 bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             else:
-                bot.send_message(chat_id, "⚠️ يجب عليك إرسال صورة صالحة لمقدمة المسابقة!", reply_markup=get_cancel_and_home_markup("cmd_create"))
+                bot.send_message(chat_id, "⚠️ يجب عليك إرسال صورة صالحة لتكون غطاء المسابقة!", reply_markup=get_cancel_and_home_markup("cmd_create"))
             return
 
         elif step == 3:
