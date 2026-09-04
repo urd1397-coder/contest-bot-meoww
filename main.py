@@ -421,14 +421,9 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
-    msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
-    
-    # ضغط وتشفير البيانات برمجياً لتقليص حجمها وجعلها هاش غير مريب مخفي تماماً
-    raw_payload = f"{join_msg_text}|{msg_mention_flag}"
-    compressed_payload = base64.b64encode(zlib.compress(raw_payload.encode('utf-8'))).decode('utf-8')
-    
-    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>||PAYLOAD:{compressed_payload}||</span>"
+    # توليد رقم تعريف قصير ونظيف جداً لا يشبه الهاش ولا يخيف المستخدم
+    import random
+    contest_short_id = random.randint(1000, 9999)
      
     target_chat_id = raw_channel
     try:
@@ -439,24 +434,23 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
     if prize_media:
         final_text = (
-            f"🎉 <b>مسابقة جديدة!</b>\n\n"
+            f"🎉 <b>مسابقة جديدة! (رقم #{contest_short_id})</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"{hidden_payload}"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
         )
     else:
         final_text = (
-            f"🎉 <b>مسابقة جديدة!</b>\n\n"
+            f"🎉 <b>مسابقة جديدة! (رقم #{contest_short_id})</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"{hidden_payload}"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
         )
 
+    # وضعنا الـ ID القصير داخل زر الانضمام نفسه ليكون مخفياً ومرتباً
     channel_markup = types.InlineKeyboardMarkup()
-    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
+    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=f"join_contest_{contest_short_id}"))
 
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
@@ -475,8 +469,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
-
-
+        
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
