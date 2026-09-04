@@ -408,14 +408,13 @@ def ask_button_naming_step(user_id, chat_id, message_id):
         except Exception:
             sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
             last_panel_message[chat_id] = sent.message_id
-
 # ==========================================
 # **خزان رموز المسابقات النشطة في الذاكرة**
 # ==========================================
 contest_tokens = {}
 
 # ==========================================
-# **1. دالة نشر المسابقة باستخدام التوكن التعريفي**
+# **1. دالة نشر المسابقة (حفظ النص المصمم بدقة)**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -427,16 +426,23 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # جلب النص الحرفي والمنشن الذي صممه المستخدم
-    join_msg_text = state_data.get("join_msg_text", state_data.get("custom_text", "انضم إلى المسابقة بنجاح! 🔥"))
+    # 🔍 التقاط النص المخصص الذي صممه المستخدم من مختلف مفاتيح الحفظ المحتملة
+    custom_join_msg = (
+        state_data.get("custom_text") or 
+        state_data.get("join_msg_text") or 
+        state_data.get("msg_text") or 
+        "انضم إلى المسابقة بنجاح! 🔥"
+    )
+    
+    # التقاط خيار المنشن (تفعيل أو إلغاء)
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
     
     import random
     token_id = f"SHX{random.randint(1000, 9999)}"
     
-    # حفظ الإعدادات في الذاكرة المرتبطة بالتوكن
+    # تخزين النص المصمم والمنشن في خزان التوكن
     contest_tokens[token_id] = {
-        "join_msg": join_msg_text,
+        "join_msg": custom_join_msg,
         "mention": msg_mention_flag,
         "count": 0,
         "participants": []
@@ -490,7 +496,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
 
 # ==========================================
-# **2. دالة معالجة الأزرار وتوثيق المشاركات**
+# **2. دالة معالجة الأزرار (إخفاء الأسماء علناً + استخدام النص المصمم)**
 # ==========================================
 def handle_contest_vote_callback(bot, call):
     data = call.data
@@ -521,7 +527,7 @@ def handle_contest_vote_callback(bot, call):
             
             if token_id not in contest_tokens:
                 contest_tokens[token_id] = {
-                    "join_msg": "انضم إلى المسابقة بنجاح! 🔥",
+                    "join_msg": "انضم إلى المسابقة بنجاح!",
                     "mention": "1",
                     "count": 0,
                     "participants": []
@@ -540,7 +546,7 @@ def handle_contest_vote_callback(bot, call):
             contest_data["count"] += 1
             current_count = contest_data["count"]
 
-            # تحديث عدد المسجلين فقط في القناة وإخفاء المعلومات الشخصية عن العامة
+            # 🛑 تحديث القناة بالعداد فقط، ومنع كتابة أسماء أو أيديوهات المستخدمين نهائياً للعام
             lines = message_text.split("\n")
             new_lines = []
              
@@ -548,7 +554,7 @@ def handle_contest_vote_callback(bot, call):
                 if "عدد المسجلين:" in line:
                     new_lines.append(f"👥 عدد المسجلين: <b>{current_count}</b>")
                 elif "قائمة المشاركين:" in line:
-                    new_lines.append(f"📋 قائمة المشاركين: <i>تم تسجيل المشاركة (سُجلت التفاصيل لدى الإدارة 🔒)</i>")
+                    new_lines.append(f"📋 قائمة المشاركين: <i>تم تسجيل المشاركات سرا لدى الإدارة 🔒</i>")
                 elif f"[{token_id}]" in line:
                     new_lines.append(line)
                 else:
@@ -573,7 +579,7 @@ def handle_contest_vote_callback(bot, call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # 📩 إرسال معلومات المشارك على الخاص (مع التاريخ والوقت ورقم المسابقة)
+            # 📩 إرسال تقارير التسجيل الخاصة بك أنت وحدك (مع التاريخ والوقت)
             from datetime import datetime
             current_time = datetime.now().strftime("%Y-%m-%d | %I:%M %p")
             
@@ -586,18 +592,17 @@ def handle_contest_vote_callback(bot, call):
             )
             
             try:
-                # ملاحظة: استبدل user_id هنا بالآيدي الخاص بك (الأدمن) إذا أردت وصول التقارير لك حصراً
-                admin_private_id = user_id 
+                admin_private_id = user_id # (استبدلها بالآيدي الخاص بك إن أردت وصولها لك حصراً)
                 bot.send_message(admin_private_id, private_log_text, parse_mode="HTML")
             except Exception as log_err:
                 print(f"Error sending private log to admin: {log_err}")
 
-            # إرسال رد البوت في القناة بالنص المصمم وحالة المنشن بدقة
-            custom_join_msg = contest_data.get("join_msg", "انضم إلى المسابقة بنجاح! 🔥")
+            # 🎯 استخدام النص الحرفي الذي صممه المستخدم تماماً مع مراعاة خيار المنشن
+            custom_join_msg = contest_data.get("join_msg", "انضم إلى المسابقة بنجاح!")
             use_mention = (str(contest_data.get("mention", "1")) == "1")
 
             if use_mention:
-                announcement_to_send = f"{user_identity} {custom_join_msg}"
+                announcement_to_send = f"{user_identity}\n{custom_join_msg}"
             else:
                 announcement_to_send = f"{custom_join_msg}"
              
