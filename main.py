@@ -16,8 +16,9 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# **خزان معلومات المسابقات النشطة في الذاكرة (للإحصائيات السريعة فقط عند الإنهاء)**
+# **خزان معلومات المسابقات النشطة في الذاكرة (للإحصائيات والتوكنات)**
 active_contests = {}
+contest_tokens = {}
 
 last_panel_message = {}
 contest_creation_state = {}
@@ -152,8 +153,14 @@ def handle_all_callbacks(call):
      
     if data.startswith("contest_vote_"):
         try:
+            token_id = data.replace("contest_vote_", "")
+            
+            # **جلب رسالة الانضمام والمنشن من الذاكرة بدقة تامة وبشكل خفي**
+            token_data = contest_tokens.get(token_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": "1"})
+            custom_join_msg = token_data["join_msg"]
+            use_mention = (token_data["mention"] == "1")
+
             message_text = call.message.text or call.message.caption or ""
-            user_id = call.from_user.id
             user_first_name = call.from_user.first_name or "المشارك"
             user_username = call.from_user.username
              
@@ -168,23 +175,6 @@ def handle_all_callbacks(call):
                 except Exception:
                     pass
                 return
-
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
-            use_mention = True
-             
-            if "JOIN_MSG:" in message_text:
-                try:
-                    parts_extracted = message_text.split("JOIN_MSG:")[1].split("||")[0]
-                    custom_join_msg = parts_extracted
-                except Exception:
-                    pass
-             
-            if "MENTION:" in message_text:
-                try:
-                    mention_flag = message_text.split("MENTION:")[1].split("||")[0]
-                    use_mention = (mention_flag == "1")
-                except Exception:
-                    pass
 
             lines = message_text.split("\n")
             new_lines = []
@@ -201,6 +191,9 @@ def handle_all_callbacks(call):
                     new_lines.append(f"👥 عدد المسجلين: <b>{current_count}</b>")
                 elif "قائمة المشاركين:" in line:
                     participants_line_idx = i
+                    new_lines.append(line)
+                elif "<a href='http://t.me/" in line:
+                    # الحفاظ على رابط التوكن الخفي دون تغييره في النص
                     new_lines.append(line)
                 else:
                     new_lines.append(line)
@@ -300,7 +293,7 @@ def handle_all_callbacks(call):
         elif data == "prize_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 4
-                markup = get_cancel_and_home_markup("step_back_q2" if "step_back_q2" in globals() else "cmd_create")
+                markup = get_cancel_and_home_markup("cmd_create")
                 text = "🎁 أرسل لي الآن **صورة الهدية** أو رابطها:"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
@@ -342,7 +335,6 @@ def handle_all_callbacks(call):
 
         elif data == "cmd_end":
             if call.message.chat.type != "private":
-                contest_key = (chat_id, message_id)
                 msg_txt = call.message.text or call.message.caption or ""
                 count_val = "0"
                 if "عدد المسجلين:" in msg_txt:
@@ -405,13 +397,9 @@ def ask_button_naming_step(user_id, chat_id, message_id):
             sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
             last_panel_message[chat_id] = sent.message_id
 
-# ==========================================
-# **خزان رموز المسابقات النشطة في الذاكرة**
-# ==========================================
-contest_tokens = {}
 
 # ==========================================
-# **1. دالة نشر المسابقة**
+# **1. دالة نشر المسابقة (مخفية التوكن تماماً)**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -436,6 +424,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     import random
     token_id = f"SHX{random.randint(1000, 9999)}"
     
+    # **حفظ البيانات الكاملة في الذاكرة لكي يقرأها البوت عند الضغط**
     contest_tokens[token_id] = {
         "join_msg": custom_join_msg, 
         "mention": msg_mention_flag,
@@ -450,6 +439,9 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
+    # **وضع التوكن داخل رابط خفي (Zero-width space) لا يظهر نهائياً في النص الظاهر للمستخدم**
+    hidden_token_tag = f"<a href='http://t.me/share/url?url={token_id}'>&#8203;</a>"
+
     if prize_media:
         final_text = (
             f"🎉 <b>مسابقة جديدة!</b>\n\n"
@@ -457,8 +449,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"<code>[{token_id}]</code>\n"
-            f"<code>||JOIN_MSG:{custom_join_msg}||MENTION:{msg_mention_flag}||</code>"
+            f"{hidden_token_tag}"
         )
     else:
         final_text = (
@@ -466,8 +457,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"<code>[{token_id}]</code>\n"
-            f"<code>||JOIN_MSG:{custom_join_msg}||MENTION:{msg_mention_flag}||</code>"
+            f"{hidden_token_tag}"
         )
 
     channel_markup = types.InlineKeyboardMarkup()
@@ -482,7 +472,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام!</b> 🐾",
+            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام وبشكل نظيف ومخفي!</b> 🐾",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
