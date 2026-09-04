@@ -150,7 +150,7 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية من الرسالة نفسها)**
+    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية تماماً)**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -163,7 +163,7 @@ def handle_all_callbacks(call):
             else:
                 user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
 
-            # التحقق مما إذا كان مسجلاً مسبقاً (من خلال قائمة المشاركين الموجودة في نص الرسالة)
+            # التحقق مما إذا كان مسجلاً مسبقاً من النص الخفي
             if str(user_id) in message_text or (user_username and f"@{user_username}" in message_text):
                 try:
                     bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
@@ -171,7 +171,7 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج النص المخفي وبيانات الرد المنشودة مباشرة من جوف رسالة الإعلان
+            # استخراج بيانات الإعدادات المخفية بدقة
             custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
             use_mention = True
             
@@ -211,9 +211,9 @@ def handle_all_callbacks(call):
             if participants_line_idx != -1:
                 old_participants_text = lines[participants_line_idx].replace("📋 قائمة المشاركين:", "").strip()
                 if "لا يوجد مشاركين" in old_participants_text or not old_participants_text:
-                    updated_participants = user_identity
+                    updated_participants = f"{user_identity} (ID:{user_id})"
                 else:
-                    updated_participants = f"{old_participants_text}, {user_identity}"
+                    updated_participants = f"{old_participants_text}, {user_identity} (ID:{user_id})"
                  
                 new_lines[participants_line_idx] = f"📋 قائمة المشاركين: {updated_participants}"
 
@@ -347,7 +347,6 @@ def handle_all_callbacks(call):
         elif data == "cmd_end":
             if call.message.chat.type != "private":
                 contest_key = (chat_id, message_id)
-                # استخراج عدد المشاركين من نص الرسالة مباشرة إن وجد
                 msg_txt = call.message.text or call.message.caption or ""
                 count_val = "0"
                 if "عدد المسجلين:" in msg_txt:
@@ -355,7 +354,7 @@ def handle_all_callbacks(call):
                     nums = re.findall(r'\d+', msg_txt.split("عدد المسجلين:")[1].split("\n")[0])
                     if nums:
                         count_val = nums[0]
-                
+                 
                 report = f"⛔ <b>تم إنهاء المسابقة بنجاح!</b>\n📊 إجمالي المشاركين: <b>{count_val}</b>"
                 bot.send_message(chat_id, report, parse_mode="HTML", reply_markup=create_main_menu_markup())
                 try:
@@ -412,7 +411,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة وتثبيتها (مع تضمين البيانات المخفية حصرياً داخل الرسالة)**
+# **دالة نشر المسابقة مع إخفاء البيانات البرمجية كلياً عن العيون**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -424,10 +423,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # تضمين بيانات الرد والمنشن بشكل مخفي تماماً داخل رسالة الإعلان لضمان استمراريتها بعد إعادة التشغيل
+    # هنا يتم تخزين البيانات بشكل مخفي تماماً باستخدام وسوم HTML لا تظهر للمستخدم نهائياً
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
-    hidden_payload = f"\n<span class='tg-spoiler'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
+    
+    # استخدام تنسيق الـ span المخفي أو تعليق برمجياً ليقرأه البوت ولا يراه البشر
+    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
     try:
@@ -442,7 +443,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
             f"{hidden_payload}"
         )
     else:
@@ -450,7 +451,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"🎉 <b>مسابقة جديدة!</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
             f"{hidden_payload}"
         )
 
