@@ -21,26 +21,6 @@ last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
-# 🐾 مكتبة قطط شركس الفخمة المخزنة كـ File IDs
-CAT_HEADERS = {
-    "cat_1": {
-        "name": "👵 قطة المنديل الأنيقة", 
-        "file_id": "AgACAgQAAxkBAAIC_2..." 
-    },
-    "cat_2": {
-        "name": "🧥 قطة السترة الجلدية الكشخة", 
-        "file_id": "AgACAgQAAxkBAAIDB2..."
-    },
-    "cat_3": {
-        "name": "🌌 قطة عيون الفضاء", 
-        "file_id": "AgACAgQAAxkBAAIDC2..."
-    },
-    "cat_4": {
-        "name": "😎 قطة الهودج السوداء", 
-        "file_id": "AgACAgQAAxkBAAIDD2..."
-    }
-}
-
 # ==========================================
 # **دوال تشفير وفك تشفير النص الطويل داخل الهاش**
 # ==========================================
@@ -125,7 +105,7 @@ def handle_start_command(message):
      
     text = (
         "مياو أهلاً بك يا صاحبي في مقر قطط شركس الفخمة! 😼🕶️✨\n"
-        "البوت يقول صراحة: <i>\"أحب صوري تنحط في مقدمة المسابقات حتى أرضى أشتغل! هيهيهي\"</i>\n\n"
+        "البوت يقول صراحة: <i>\"ارفع صوري بنفسك في المسابقات حتى أشتغل بكامل قوتي! هيهيهي\"</i>\n\n"
         "اختر خياراً للبدء:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=create_main_menu_markup())
@@ -269,16 +249,6 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id] = {"step": 2, "is_private": False, "channel": chat_id}
                 show_cat_selection_menu(chat_id, message_id, user_id)
 
-        elif data.startswith("select_cat_"):
-            cat_key = data.replace("select_cat_", "")
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["selected_cat"] = cat_key
-                contest_creation_state[user_id]["step"] = 3
-                
-                markup = get_cancel_and_home_markup("cmd_create")
-                text = "❓ ممتاز! البوت راضي عن اختيارك 😼. أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
-                bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
-
         elif data == "prize_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 4
@@ -364,14 +334,11 @@ def handle_all_callbacks(call):
 def show_cat_selection_menu(chat_id, message_id, user_id):
     if user_id in contest_creation_state:
         contest_creation_state[user_id]["step"] = 2
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        for key, cat in CAT_HEADERS.items():
-            markup.add(types.InlineKeyboardButton(cat["name"], callback_data=f"select_cat_{key}"))
-        
+        markup = get_cancel_and_home_markup("cmd_create")
         text = (
-            "😼 <b>[ اختيار صورة الـ Header الإجبارية ]</b> 🕶️\n"
+            "😼 <b>[ الخطوة 2: إرسال صورة الـ Header ]</b> 🕶️\n"
             "━━━━━━━━━━━━━━━━━━━\n"
-            "يقول البوت: <i>\"اختر إحدى صوري الفخمة حتى أرضى عنك ونكمل المسابقة هيهيهي!\"</i>:"
+            "أرسل لي الآن **الصورة** التي تريد أن تكون في مقدمة المسابقة:"
         )
         try:
             bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
@@ -404,10 +371,9 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
     announcement = state_data.get("announcement", "مسابقة القطط الكشخة!")
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media")
-    selected_cat_key = state_data.get("selected_cat", "cat_1")
-    cat_info = CAT_HEADERS.get(selected_cat_key, CAT_HEADERS["cat_1"])
+    cat_photo_id = state_data.get("selected_cat_photo")
      
-    join_msg_text = state_data.get("join_msg_text", "انضم إلى مسابقة القطط بنجاح! 🐾")
+    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🐾")
     msg_mention = state_data.get("msg_mention", True)
      
     encoded_hash = encode_text_to_hash(join_msg_text)
@@ -423,7 +389,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
 
     if prize_media:
         final_text = (
-            f"🎉 <b>مسابقة جديدة برعاية قطط شركس الفخمة</b> {cat_info['name']}\n\n"
+            f"🎉 <b>مسابقة جديدة برعاية قطط شركس الفخمة</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
@@ -432,7 +398,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
         )
     else:
         final_text = (
-            f"🎉 <b>مسابقة جديدة برعاية قطط شركس الفخمة</b> {cat_info['name']}\n\n"
+            f"🎉 <b>مسابقة جديدة برعاية قطط شركس الفخمة</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
@@ -445,7 +411,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
     try:
         sent_msg = bot_instance.send_photo(
             target_chat_id, 
-            photo=cat_info["file_id"], 
+            photo=cat_photo_id, 
             caption=final_text, 
             parse_mode="HTML", 
             reply_markup=channel_markup
@@ -457,7 +423,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
             pass
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة بصورة قطة شركس الإجبارية وبنجاح تام! هيهيهي 😼</b>",
+            "✅ <b>تم نشر المسابقة بالصورة المرفوعة وبنجاح تام! هيهيهي 😼</b>",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -507,6 +473,18 @@ def handler_private_contest_steps(message):
                 state_data["channel"] = resolved_channel_id
 
             show_cat_selection_menu(chat_id, target_message_id, user_id)
+            return
+
+        elif step == 2:
+            if message.photo:
+                state_data["selected_cat_photo"] = message.photo[-1].file_id
+                state_data["step"] = 3
+                
+                markup = get_cancel_and_home_markup("cmd_create")
+                text = "❓ ممتاز! تم استلام الصورة بنجاح 😼. أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
+                bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+            else:
+                bot.send_message(chat_id, "⚠️ يجب عليك إرسال صورة صالحة لمقدمة المسابقة!", reply_markup=get_cancel_and_home_markup("cmd_create"))
             return
 
         elif step == 3:
