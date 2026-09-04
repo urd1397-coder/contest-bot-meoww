@@ -407,7 +407,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
     selected_cat_key = state_data.get("selected_cat", "cat_1")
     cat_info = CAT_HEADERS.get(selected_cat_key, CAT_HEADERS["cat_1"])
      
-    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🐾")
+    join_msg_text = state_data.get("join_msg_text", "انضم إلى مسابقة القطط بنجاح! 🐾")
     msg_mention = state_data.get("msg_mention", True)
      
     encoded_hash = encode_text_to_hash(join_msg_text)
@@ -461,8 +461,9 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
+        print(f"PUBLISH ERROR DETAILS: {e}")
         bot_instance.edit_message_text(
-            f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة: {e}",
+            f"⚠️ تعذر النشر، السبب: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
 
