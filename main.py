@@ -411,9 +411,8 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **خريطة تخزين تفاصيل الرموز السرية للمسابقات النشطة**
-contest_tokens = {}
-
+# **دالة نشر المسابقة مع حفظ الرمز السري والنص المخصص بدقة**
+# ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
     if not state_data:
@@ -424,13 +423,14 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
+    # جلب النص والمنشن الذي أدخله المستخدم فعلياً أثناء خطوات الإنشاء
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
     
-    # **توليد رمز سري قصير فريد لهذه المسابقة يجمع كل الإعدادات وIDs المشاركين**
     import random
     token_id = f"SHX{random.randint(1000, 9999)}"
     
+    # حفظ الإعدادات الحقيقية في الذاكرة ليقرأها البوت بدقة عند الضغط
     contest_tokens[token_id] = {
         "join_msg": join_msg_text,
         "mention": msg_mention_flag,
@@ -445,7 +445,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    # **النص الظاهري نظيف تماماً وخالٍ من أي تعقيد، ويحتوي فقط على الرمز المختصر للبوت**
     if prize_media:
         final_text = (
             f"🎉 <b>مسابقة جديدة!</b>\n\n"
@@ -476,7 +475,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام! الرمز السري:</b> " + token_id,
+            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام!</b> 🐾",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
