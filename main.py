@@ -424,10 +424,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # تضمين بيانات الرد والمنشن بشكل مخفي تماماً داخل رسالة الإعلان لضمان استمراريتها بعد إعادة التشغيل
+    # إخفاء البيانات في سطر فارغ باستخدام الرموز غير المرئية (Zero-Width Spaces)
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
-    hidden_payload = f"\n<span class='tg-spoiler'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
+    
+    # دمج البيانات بطريقة لا تظهر أبداً للمستخدم العادي (سطر فارغ وهمي)
+    hidden_payload = f"\n\n\u200b<code>[JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}]</code>"
      
     target_chat_id = raw_channel
     try:
@@ -466,7 +468,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام!</b> 🐾",
+            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام وبشكل مخفي!</b> 🐾",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -474,8 +476,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
-
-
+        
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
