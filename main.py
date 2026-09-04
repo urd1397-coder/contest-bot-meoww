@@ -468,6 +468,9 @@ try:
 # ==========================================
 # **معالجة خطوات المحادثة الخاصة**
 # ==========================================
+# ==========================================
+# **معالجة خطوات المحادثة الخاصة**
+# ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
     chat_id = message.chat.id
@@ -541,6 +544,7 @@ def handler_private_contest_steps(message):
             return
 
     if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 8:
+        state_data = contest_creation_state[user_id]
         state_data["join_msg_text"] = message.text.strip() if message.text else ""
         state_data["step"] = 9
          
@@ -552,7 +556,6 @@ def handler_private_contest_steps(message):
         text = "👤 هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
         bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
         return
-         
 # ==========================================
 # **التشغيل الأساسي للبوت والخادم**
 # ==========================================
