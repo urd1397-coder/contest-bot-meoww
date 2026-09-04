@@ -426,12 +426,16 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # التقاط النص الحرفي الذي صممه المستخدم تماماً وحفظه بالتوكن
+    # =========================================================================
+    # 🎯 [هنا التحديد المطلوب بالضبط]: سحب النص الذي صممه وأرسله المستخدم
+    # بالاعتماد على المفتاح الذي خزنه في خطوة (join_msg_yes / الخطوة رقم 8)
+    # =========================================================================
     custom_join_msg = (
-        state_data.get("custom_text") or 
         state_data.get("join_msg_text") or 
+        state_data.get("custom_text") or 
         state_data.get("msg_text") or 
-        "انضم إلى المسابقة بنجاح! 🔥"
+        state_data.get("text") or 
+        "انضم إلى المسابقة بنجاح!"
     )
     
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
@@ -439,9 +443,11 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     import random
     token_id = f"SHX{random.randint(1000, 9999)}"
     
-    # حفظ النص والمشن في الذاكرة الخاصة بالتوكن
+    # =========================================================================
+    # 🎯 [وهنا حفظ النص المصمم داخل التوكن]: ليستخدمه البوت حصرياً عند الضغط
+    # =========================================================================
     contest_tokens[token_id] = {
-        "join_msg": custom_join_msg,
+        "join_msg": custom_join_msg,  # <--- هذا هو النص المصمم الذي سيتم إرساله بحذافيره
         "mention": msg_mention_flag,
         "count": 0,
         "participants": []
