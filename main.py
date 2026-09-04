@@ -105,7 +105,7 @@ def handle_start_command(message):
      
     text = (
         "مياو أهلاً بك يا صاحبي في مقر قطط شركس الفخمة! 😼🕶️✨\n"
-        "البوت يقول صراحة: <i>\"ارفع صوري بنفسك في المسابقات حتى أشتغل بكامل قوتي! هيهيهي\"</i>\n\n"
+        "البوت جاهز لرفع صور الهيدر وإخفاء الهاش باحترافية داخل الوصف!\n\n"
         "اختر خياراً للبدء:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=create_main_menu_markup())
@@ -423,7 +423,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
             pass
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة بالصورة المرفوعة وبنجاح تام! هيهيهي 😼</b>",
+            "✅ <b>تم نشر المسابقة بالصورة المرفوعة كغطاء للهاش وبنجاح تام! هيهيهي 😼</b>",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -481,7 +481,7 @@ def handler_private_contest_steps(message):
                 state_data["step"] = 3
                 
                 markup = get_cancel_and_home_markup("cmd_create")
-                text = "❓ ممتاز! تم استلام الصورة بنجاح 😼. أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
+                text = "❓ ممتاز! تم استلام صورة الـ Header بنجاح 😼. أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
                 bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             else:
                 bot.send_message(chat_id, "⚠️ يجب عليك إرسال صورة صالحة لمقدمة المسابقة!", reply_markup=get_cancel_and_home_markup("cmd_create"))
