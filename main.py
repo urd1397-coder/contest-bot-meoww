@@ -1,5 +1,5 @@
 # ==========================================
-# **بوتي شركس - نظام مسابقات قطط شركس الفخمة**
+# **بوتي شركس - نظام مسابقات القطط الفخمة المعدل**
 # ==========================================
 import os
 import time
@@ -20,26 +20,6 @@ last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 contest_text_cache = {}
-
-# 🐾 مكتبة صور قطط شركس الترويسية الجاهزة (يمكنك استبدال الكلمات بروابط صور ثابتة أو File IDs مباشرة)
-CAT_HEADERS = {
-    "cat_1": {
-        "name": "😎 قطة الهودج الكشخة", 
-        "url": "https://i.ibb.co/3s2X2z5/cat1.jpg" # رابط أو ضع File ID مباشر هنا
-    },
-    "cat_2": {
-        "name": "🌌 قطة عيون الفضاء", 
-        "url": "https://i.ibb.co/6y4W8v1/cat2.jpg"
-    },
-    "cat_3": {
-        "name": "🧥 قطة السترة الجلدية", 
-        "url": "https://i.ibb.co/5X9z7w2/cat3.jpg"
-    },
-    "cat_4": {
-        "name": "👵 قطة المنديل الأنيقة", 
-        "url": "https://i.ibb.co/8n1K5v3/cat4.jpg"
-    }
-}
 
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
@@ -107,7 +87,7 @@ def handle_start_command(message):
      
     text = (
         "مياو أهلاً بك في مقر قطط شركس الفخمة! 🐱🕶️✨\n"
-        "اختر إحدى قطط شركس لتكون الـ Header الرسمي لمسابقتك القادمة:"
+        "البوت جاهز لإدارة مسابقاتك مع أروع صور القطط الترويسية:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=create_main_menu_markup())
     last_panel_message[message.chat.id] = sent.message_id
@@ -229,28 +209,20 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id] = {"step": 1, "is_private": True}
                 markup = get_cancel_and_home_markup("cmd_home")
                 text = (
-                    "🐾 <b>[ الخطوة 1: اختيار قطة الـ Header ]</b> 🐱🕶️\n"
+                    "🐾 <b>[ الخطوة 1: معرف القناة/القروب ]</b> 🐱🕶️\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن <b>معرف القناة أو القروب أو رابطهما</b> الذي ستنشر فيه المسابقة:"
+                    "أرسل لي الآن <b>معرف القناة أو القروب أو رابطهما</b>:"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
             else:
                 contest_creation_state[user_id] = {"step": 2, "is_private": False, "channel": chat_id}
-                show_cat_selection_menu(chat_id, message_id, user_id)
-
-        elif data.startswith("select_cat_"):
-            cat_key = data.replace("select_cat_", "")
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["selected_cat"] = cat_key
-                contest_creation_state[user_id]["step"] = 4
-                
-                markup = get_cancel_and_home_markup("cmd_create")
-                text = "❓ ممتاز! أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
+                markup = get_cancel_and_home_markup("cmd_home")
+                text = "📸 أرسل لي الآن **صورة الـ Header (القطة الكشخة)** التي تريد وضعها في رأس المسابقة:"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "join_msg_yes":
             if user_id in contest_creation_state:
-                contest_creation_state[user_id]["step"] = 7
+                contest_creation_state[user_id]["step"] = 6
                 markup = get_cancel_and_home_markup("cmd_create")
                 text = "💬 أرسل لي الآن **النص المخصص** ليرسله البوت عند دخول الشخص:"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
@@ -317,27 +289,8 @@ def handle_all_callbacks(call):
         print(f"Callback Error ({data}): {e}")
 
 
-def show_cat_selection_menu(chat_id, message_id, user_id):
-    if user_id in contest_creation_state:
-        contest_creation_state[user_id]["step"] = 3
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        for key, cat in CAT_HEADERS.items():
-            markup.add(types.InlineKeyboardButton(cat["name"], callback_data=f"select_cat_{key}"))
-        
-        text = (
-            "🕶️ <b>[ اختر صورة الـ Header للمسابقة ]</b> 🐱\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "اضغط على القطة المناسبة لجو مسابقتك الفخم:"
-        )
-        try:
-            bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
-        except Exception:
-            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
-            last_panel_message[chat_id] = sent.message_id
-
-
 # ==========================================
-# **دالة نشر المسابقة بقطة الترويسة المختار**
+# **دالة نشر المسابقة بصورة القطـة الحقيقية**
 # ==========================================
 def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -346,8 +299,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
          
     raw_channel = state_data.get("channel", chat_id)
     announcement = state_data.get("announcement", "مسابقة القطط الكشخة!")
-    selected_cat_key = state_data.get("selected_cat", "cat_1")
-    cat_info = CAT_HEADERS.get(selected_cat_key, CAT_HEADERS["cat_1"])
+    header_photo = state_data.get("header_photo")
      
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🐾")
     msg_mention = state_data.get("msg_mention", True)
@@ -360,7 +312,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
         print(f"Error resolving target chat ID: {e}")
 
     final_text = (
-        f"🎉 <b>مسابقة جديدة برعاية قطط شركس الفخمة</b> {cat_info['name']}\n\n"
+        f"🎉 <b>مسابقة جديدة برعاية قطط شركس الفخمة</b> 😎\n\n"
         f"❓ <b>السؤال:</b>\n{announcement}\n\n"
         f"👥 عدد المسجلين: <b>0</b>\n"
         f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
@@ -370,14 +322,22 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
     channel_markup.add(types.InlineKeyboardButton("اشترك الآن 😎 🏆", callback_data="contest_vote_action"))
 
     try:
-        # إرسال الصورة المختارة كترويسة مع النص
-        sent_msg = bot_instance.send_photo(
-            target_chat_id, 
-            photo=cat_info["url"], 
-            caption=final_text, 
-            parse_mode="HTML", 
-            reply_markup=channel_markup
-        )
+        if header_photo:
+            sent_msg = bot_instance.send_photo(
+                target_chat_id, 
+                photo=header_photo, 
+                caption=final_text, 
+                parse_mode="HTML", 
+                reply_markup=channel_markup
+            )
+        else:
+            sent_msg = bot_instance.send_message(
+                target_chat_id, 
+                text=final_text, 
+                parse_mode="HTML", 
+                reply_markup=channel_markup,
+                disable_web_page_preview=True
+            )
         
         cache_key = f"{target_chat_id}_{sent_msg.message_id}"
         contest_text_cache[cache_key] = {
@@ -391,12 +351,12 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
             pass
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة بقطة الـ Header ونفذت بنجاح تام!</b> 🐾",
+            "✅ <b>تم نشر المسابقة بصورة القطة الترويسية بنجاح تام!</b> 🐾",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
         bot_instance.edit_message_text(
-            f"⚠️ تعذر النشر، تأكد من صلاحيات البوت ورابط صورة القطة: {e}",
+            f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
 
@@ -404,7 +364,7 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
 # ==========================================
 # **معالجة خطوات المحادثة الخاصة**
 # ==========================================
-@bot.message_handler(chat_types=["private"], content_types=["text"])
+@bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
@@ -443,12 +403,27 @@ def handler_private_contest_steps(message):
             except Exception:
                 state_data["channel"] = resolved_channel_id
 
-            show_cat_selection_menu(chat_id, target_message_id, user_id)
+            state_data["step"] = 2
+            markup = get_cancel_and_home_markup("cmd_create")
+            text = "📸 أرسل لي الآن **صورة الـ Header (القطة الكشخة)** التي تريد وضعها برأس المسابقة:"
+            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-        elif step == 4:
+        elif step == 2:
+            if message.photo:
+                state_data["header_photo"] = message.photo[-1].file_id
+            else:
+                state_data["header_photo"] = None
+            
+            state_data["step"] = 3
+            markup = get_cancel_and_home_markup("cmd_create")
+            text = "❓ ممتاز! أرسل لي الآن **نص سؤال أو إعلان المسابقة**:"
+            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
+            return
+
+        elif step == 3:
             state_data["announcement"] = text_content
-            state_data["step"] = 5
+            state_data["step"] = 4
             
             markup = get_cancel_and_home_markup("cmd_create")
             markup.row(
@@ -459,14 +434,14 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-    if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 7:
+    if user_id in contest_creation_state and contest_creation_state[user_id].get("step"] == 6:
         try:
             bot.delete_message(chat_id, message.message_id)
         except Exception:
             pass
             
         state_data["join_msg_text"] = text_content
-        state_data["step"] = 8
+        state_data["step"] = 7
          
         markup = get_cancel_and_home_markup("cmd_create")
         markup.row(
