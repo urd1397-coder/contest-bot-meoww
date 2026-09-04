@@ -4,8 +4,7 @@
 import os
 import time
 import threading
-import zlib
-import base64
+import random
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -152,8 +151,8 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع فك ضغط وقراءة البيانات المخفية عبر Base64 و Zlib)**
-    if data.startswith("contest_vote_"):
+    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (بشكل نظيف تماماً)**
+    if data.startswith("join_contest_") or data == "contest_vote_action":
         try:
             message_text = call.message.text or call.message.caption or ""
             user_id = call.from_user.id
@@ -172,20 +171,6 @@ def handle_all_callbacks(call):
                 except Exception:
                     pass
                 return
-
-            # استخراج وفك شفرة البيانات المضغوطة برمجياً من الـ Payload
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
-            use_mention = True
-            
-            if "PAYLOAD:" in message_text:
-                try:
-                    encoded_payload = message_text.split("PAYLOAD:")[1].split("||")[0]
-                    decoded_bytes = zlib.decompress(base64.b64decode(encoded_payload.encode('utf-8')))
-                    parts = decoded_bytes.decode('utf-8').split("|")
-                    custom_join_msg = parts[0]
-                    use_mention = (parts[1] == "1")
-                except Exception as ex:
-                    print(f"Payload decode error: {ex}")
 
             lines = message_text.split("\n")
             new_lines = []
@@ -235,10 +220,7 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            if use_mention:
-                announcement_to_send = f"{user_identity} {custom_join_msg}"
-            else:
-                announcement_to_send = f"{custom_join_msg}"
+            announcement_to_send = f"{user_identity} انضم إلى المسابقة بنجاح! 🔥"
              
             try:
                 sent_notif = bot.send_message(
@@ -314,7 +296,7 @@ def handle_all_callbacks(call):
         elif data == "btn_join_yes" or data == "btn_join_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 6
-                markup = get_cancel_and_home_markup("cmd_create")
+                markup = get_cancel_and_home_markup("cmd_home")
                 text = "🔤 أرسل لي الآن **تسمية زر التسجيل/الانضمام** المرادة (مثال: اشترك الآن 🎁):"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
@@ -322,7 +304,7 @@ def handle_all_callbacks(call):
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["send_join_msg"] = True
                 contest_creation_state[user_id]["step"] = 8
-                markup = get_cancel_and_home_markup("cmd_create")
+                markup = get_cancel_and_home_markup("cmd_home")
                 text = "💬 أرسل لي الآن **النص المراد إرساله** عند دخول الشخص (مثال: انضم إلى المسابقة بنجاح! 🔥):"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
@@ -409,7 +391,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع ضغط البيانات المخفية عبر Base64 و Zlib**
+# **دالة نشر المسابقة بدون أي نصوص مريبة أو هاشات**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -421,8 +403,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # توليد رقم تعريف قصير ونظيف جداً لا يشبه الهاش ولا يخيف المستخدم
-    import random
     contest_short_id = random.randint(1000, 9999)
      
     target_chat_id = raw_channel
@@ -448,7 +428,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
         )
 
-    # وضعنا الـ ID القصير داخل زر الانضمام نفسه ليكون مخفياً ومرتباً
     channel_markup = types.InlineKeyboardMarkup()
     channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=f"join_contest_{contest_short_id}"))
 
@@ -469,7 +448,8 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
-        
+
+
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
