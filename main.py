@@ -20,7 +20,9 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # إعداد مكتبة Hashids لهاش قصير وفريد
 hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
 
-active_contests = {}
+# خزان داخلي لتخزين إعدادات المسابقات المرتبطة بالـ Hashid
+contest_storage = {}
+
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
@@ -122,6 +124,10 @@ def handle_all_callbacks(call):
      
     if data.startswith("contest_vote_"):
         try:
+            # استخراج الهاش القصير من زر الـ callback مباشرة وبكل أمان
+            h_id = data.replace("contest_vote_", "")
+            contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})
+            
             message_text = call.message.text or call.message.caption or ""
             user_first_name = call.from_user.first_name or "المشارك"
             user_username = call.from_user.username
@@ -138,22 +144,8 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
-            use_mention = True
-            
-            if "JOIN_MSG:" in message_text:
-                try:
-                    parts_extracted = message_text.split("JOIN_MSG:")[1].split("||")[0]
-                    custom_join_msg = parts_extracted
-                except Exception:
-                    pass
-            
-            if "MENTION:" in message_text:
-                try:
-                    mention_flag = message_text.split("MENTION:")[1].split("||")[0]
-                    use_mention = (mention_flag == "1")
-                except Exception:
-                    pass
+            custom_join_msg = contest_info.get("join_msg", "انضم إلى المسابقة بنجاح! 🔥")
+            use_mention = contest_info.get("mention", True)
 
             lines = message_text.split("\n")
             new_lines = []
@@ -171,8 +163,6 @@ def handle_all_callbacks(call):
                 elif "قائمة المشاركين:" in line:
                     participants_line_idx = i
                     new_lines.append(line)
-                elif "JOIN_MSG:" in line or "MENTION:" in line:
-                    continue
                 else:
                     new_lines.append(line)
 
@@ -377,7 +367,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع استخدام Hashid قصير ونظيف**
+# **دالة نشر المسابقة عبر Hashid نظيف وآمن تماماً**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -390,13 +380,16 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     prize_media = state_data.get("prize_media") 
      
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
-    msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
+    msg_mention_bool = state_data.get("msg_mention", True)
     
-    # توليد Hashid قصير وفريد يعتمد على التوقيت الحالي لمنع التكرار بصمت
+    # توليد هاش قصير ونظيف باستخدام مكتبة Hashids
     unique_hash = hashids.encode(int(time.time()))
     
-    # تخزين البيانات مشفرة داخل Hashid مخفي تماماً بالسبويلر لتظهر بشكل نظيف جداً
-    hidden_payload = f"||JOIN_MSG:{join_msg_text}|| ||MENTION:{msg_mention_flag}|| ||HID:{unique_hash}||"
+    # حفظ خيارات المسابقة مرتبطة بالهاش في الذاكرة لتجنب أي مشاكل بالرسالة
+    contest_storage[unique_hash] = {
+        "join_msg": join_msg_text,
+        "mention": msg_mention_bool
+    }
      
     target_chat_id = raw_channel
     try:
@@ -407,24 +400,23 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
     if prize_media:
         final_text = (
-            f"🎉 *مسابقة جديدة* (رقم #{unique_hash})\n\n"
+            f"🎉 *مسابقة جديدة* (كود: `{unique_hash}`)\n\n"
             f"❓ *السؤال:*\n{announcement}\n\n"
             f"🎁 *الهدية:* {prize_media}\n\n"
             f"👥 عدد المسجلين: *0*\n"
-            f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_\n"
-            f"{hidden_payload}"
+            f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
         )
     else:
         final_text = (
-            f"🎉 *مسابقة جديدة* (رقم #{unique_hash})\n\n"
+            f"🎉 *مسابقة جديدة* (كود: `{unique_hash}`)\n\n"
             f"❓ *السؤال:*\n{announcement}\n\n"
             f"👥 عدد المسجلين: *0*\n"
-            f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_\n"
-            f"{hidden_payload}"
+            f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
         )
 
     channel_markup = types.InlineKeyboardMarkup()
-    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
+    # دمج الهاش في الـ callback_data للزر بدقة تامة
+    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=f"contest_vote_{unique_hash}"))
 
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="Markdown", disable_web_page_preview=True, reply_markup=channel_markup)
