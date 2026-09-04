@@ -149,9 +149,19 @@ def handle_all_callbacks(call):
     data = call.data
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
+  # ==========================================
+# **معالجة الأزرار التفاعلية (Callbacks)**
+# ==========================================
+@bot.callback_query_handler(func=lambda call: True)
+def handle_all_callbacks(call):
+    chat_id = call.message.chat.id 
+    user_id = call.from_user.id
+    data = call.data
+    message_id = call.message.message_id
+    last_panel_message[chat_id] = message_id
      
-    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية من الرسالة نفسها)**
-    if data.startswith("contest_vote_"):
+    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية خلف الـ Spoiler)**
+    if data == "contest_vote_action" or data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
             user_id = call.from_user.id
@@ -171,20 +181,20 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج النص المخفي وبيانات الرد المنشودة مباشرة من جوف رسالة الإعلان
+            # استخراج النص المخفي بدقة من خلف الـ Spoiler الموجود في الرسالة
             custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
             use_mention = True
             
-            if "JOIN_MSG:" in message_text:
+            if "JM:" in message_text:
                 try:
-                    parts_extracted = message_text.split("JOIN_MSG:")[1].split("||")[0]
+                    parts_extracted = message_text.split("JM:")[1].split("|")[0]
                     custom_join_msg = parts_extracted
                 except Exception:
                     pass
             
-            if "MENTION:" in message_text:
+            if "MN:" in message_text:
                 try:
-                    mention_flag = message_text.split("MENTION:")[1].split("||")[0]
+                    mention_flag = message_text.split("MN:")[1].split("<")[0].strip()
                     use_mention = (mention_flag == "1")
                 except Exception:
                     pass
@@ -347,7 +357,6 @@ def handle_all_callbacks(call):
         elif data == "cmd_end":
             if call.message.chat.type != "private":
                 contest_key = (chat_id, message_id)
-                # استخراج عدد المشاركين من نص الرسالة مباشرة إن وجد
                 msg_txt = call.message.text or call.message.caption or ""
                 count_val = "0"
                 if "عدد المسجلين:" in msg_txt:
@@ -397,20 +406,7 @@ def handle_all_callbacks(call):
 
     except Exception as e:
         print(f"Callback Error ({data}): {e}")
-
-
-def ask_button_naming_step(user_id, chat_id, message_id):
-    if user_id in contest_creation_state:
-        contest_creation_state[user_id]["step"] = 6
-        markup = get_cancel_and_home_markup("cmd_create")
-        text = "🔤 أرسل لي الآن **تسمية زر التسجيل/الانضمام** المرادة في رسالة المسابقة (مثال: اشترك الآن 🎁):"
-        try:
-            bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
-        except Exception:
-            sent = bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
-            last_panel_message[chat_id] = sent.message_id
-
-
+        
 # ==========================================
 # **دالة نشر المسابقة وتثبيتها (مع تضمين البيانات المخفية حصرياً داخل الرسالة)**
 # ==========================================
@@ -424,12 +420,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # إخفاء البيانات في سطر فارغ باستخدام الرموز غير المرئية (Zero-Width Spaces)
+    # إخفاء البيانات بطريقة السپويلر النظيف (تظهر كمربع أسود أو مخفية تماماً عن النص الأساسي)
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
     
-    # دمج البيانات بطريقة لا تظهر أبداً للمستخدم العادي (سطر فارغ وهمي)
-    hidden_payload = f"\n\n\u200b<code>[JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}]</code>"
+    # نضعها داخل وسم السپويلر بداخل كود HTML لكي يفسره تيليجرام كحزمة مخفية
+    hidden_payload = f"\n\n<span class='tg-spoiler'>JM:{join_msg_text}|MN:{msg_mention_flag}</span>"
      
     target_chat_id = raw_channel
     try:
@@ -468,7 +464,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام وبشكل مخفي!</b> 🐾",
+            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام!</b> 🐾",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -476,7 +472,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
-        
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
