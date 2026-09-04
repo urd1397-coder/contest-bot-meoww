@@ -1,10 +1,11 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الذكي (بأكواد قصيرة جداً)**
+# **بوتي شركس - نظام المسابقات والتصويت الذكي (هاش قصير ومضغوط)**
 # ==========================================
 import os
 import time
 import threading
-import uuid
+import base64
+import zlib
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -20,6 +21,30 @@ bot = telebot.TeleBot(BOT_TOKEN)
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
+
+# ==========================================
+# **دوال ضغط وفك ضغط النص للحصول على هاش قصير جداً**
+# ==========================================
+def encode_text_to_short_hash(text):
+    """ضغط النص الطويل وتحويله إلى هاش قصير وآمن باستخدام zlib و base64"""
+    if not text:
+        return ""
+    try:
+        compressed_data = zlib.compress(text.encode('utf-8'), level=9)
+        encoded_hash = base64.urlsafe_b64encode(compressed_data).decode('utf-8').rstrip('=')
+        return encoded_hash
+    except Exception:
+        return ""
+
+def decode_short_hash_to_text(hash_str):
+    """فك الهاش القصير وإرجاع النص الأصلي تماماً دون الحاجة لذاكرة السيرفر"""
+    try:
+        padding = '=' * (-len(hash_str) % 4)
+        decoded_bytes = base64.urlsafe_b64decode(hash_str + padding)
+        original_text = zlib.decompress(decoded_bytes).decode('utf-8')
+        return original_text
+    except Exception:
+        return "انضم إلى المسابقة بنجاح! 🔥"
 
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
@@ -123,33 +148,24 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج الكود القصير (مثل d8rj8cf5) من سطر الكود المخفي في رسالة المسابقة
-            short_token = ""
+            encoded_msg_hash = ""
             msg_mention_flag = "1"
-            
-            if "ID:" in message_text:
+          
+            if "H:" in message_text:
                 try:
-                    short_token = message_text.split("ID:")[1].split("||")[0].strip()
+                    encoded_msg_hash = message_text.split("H:")[1].split("||")[0].strip()
                 except Exception:
                     pass
-            
+          
             if "M:" in message_text:
                 try:
                     msg_mention_flag = message_text.split("M:")[1].split("||")[0].strip()
                 except Exception:
                     pass
 
-            # استخراج النص الأصلي المخبأ برمجياً أو استخدام النص الافتراضي
-            # (بما أننا نعتمد على كود قصير نظيف، يتم جلب النص المرتبط بهذا الكود أو استخدامه مباشرة)
+            # فك الهاش القصير واستعادة النص الطويل الأصلي فوراً
+            custom_join_msg = decode_short_hash_to_text(encoded_msg_hash)
             use_mention = (msg_mention_flag == "1")
-            
-            # استخراج النص الطويل المخفي بدقة من سطر الـ Spoiler الصغير
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
-            if "TXT:" in message_text:
-                try:
-                    custom_join_msg = message_text.split("TXT:")[1].split("||")[0].strip()
-                except Exception:
-                    pass
 
             lines = message_text.split("\n")
             new_lines = []
@@ -166,9 +182,6 @@ def handle_all_callbacks(call):
                     new_lines.append(f"👥 عدد المسجلين: <b>{current_count}</b>")
                 elif "قائمة المشاركين:" in line:
                     participants_line_idx = i
-                    new_lines.append(line)
-                elif "ID:" in line or "TXT:" in line:
-                    # الاحتفاظ بسطر الكود المخفي كما هو دون تعديل لتحديث العدد وقائمة المشاركين فقط
                     new_lines.append(line)
                 else:
                     new_lines.append(line)
@@ -357,7 +370,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة بكود قصير جداً ومظهر نظيف تماماً**
+# **دالة نشر المسابقة مع استخدام الهاش القصير المضغوط**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -372,12 +385,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention = state_data.get("msg_mention", True)
     
-    # توليد رمز قصير مثل d8rj8cf5 تلقائياً
-    short_token = uuid.uuid4().hex[:8]
+    # الحصول على هاش قصير ومضغوط جداً
+    short_hash = encode_text_to_short_hash(join_msg_text)
     msg_mention_flag = "1" if msg_mention else "0"
     
-    # سطر مخفي قصير جداً ومظهر مرتب لا يشوه الرسالة
-    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>ID:{short_token}||TXT:{join_msg_text}||M:{msg_mention_flag}||</span>"
+    # تضمين الهاش القصير والمضغوط بصيغة مخفية تماماً
+    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>H:{short_hash}||M:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
     try:
@@ -551,7 +564,7 @@ def handler_private_contest_steps(message):
          
         markup = get_cancel_and_home_markup("cmd_create")
         markup.row(
-            types.InlineKeyboardButton("✅ نسط (مع منشن)", callback_data="mention_join_yes"),
+            types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
             types.InlineKeyboardButton("❌ لا (بدون منشن)", callback_data="mention_join_no")
         )
         text = (
@@ -568,7 +581,7 @@ def handler_private_contest_steps(message):
 # ==========================================
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
-    server_thread.daemon = True
+    server_thread.daemon.set(True) if hasattr(threading.Thread, "daemon") else setattr(server_thread, "daemon", True)
     server_thread.start()
     print(f"HTTP Server started on port %s" % PORT)
      
@@ -587,3 +600,4 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Polling error: {e}. Retrying in 5 seconds...")
             time.sleep(5)
+            
