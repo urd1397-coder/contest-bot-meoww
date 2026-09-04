@@ -3,6 +3,8 @@
 # ==========================================
 import os
 import time
+import random
+import string
 import threading
 import telebot
 from telebot import types
@@ -16,8 +18,9 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# **خزان معلومات المسابقات النشطة في الذاكرة (للإحصائيات السريعة فقط عند الإنهاء)**
+# **خزان معلومات المسابقات النشطة في الذاكرة (للإحصائيات والبيانات المخفية عبر التوكن)**
 active_contests = {}
+active_contests_payloads = {}
 
 last_panel_message = {}
 contest_creation_state = {}
@@ -56,6 +59,13 @@ def generate_entity_report(chat_obj):
         return f"⚠️ حدث خطأ أثناء استخراج بيانات الحساب: {e}"
         
 # ==========================================
+# **دالة توليد رمز قصير عشوائي للبيانات المخفية**
+# ==========================================
+def generate_random_token(length=6):
+    letters_and_digits = string.ascii_lowercase + string.digits
+    return ''.join(random.choice(letters_and_digits) for _ in range(length))
+
+# ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
 # ==========================================
 class SimpleHandler(BaseHTTPRequestHandler):
@@ -76,7 +86,7 @@ def run_server():
 
 
 # ==========================================
-# **لوحات الأزرار والقوائم الموحدة مع زر العودة**
+# **دالة إنشاء لوحة الأزرار الرئيسية للبوت**
 # ==========================================
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -88,6 +98,9 @@ def create_main_menu_markup():
     )
     return markup
 
+# ==========================================
+# **دالة إنشاء لوحة العودة والرجوع**
+# ==========================================
 def get_back_and_home_markup(back_callback="cmd_home"):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -96,6 +109,9 @@ def get_back_and_home_markup(back_callback="cmd_home"):
     )
     return markup
 
+# ==========================================
+# **دالة إنشاء لوحة الإلغاء والعودة للرئيسية**
+# ==========================================
 def get_cancel_and_home_markup(back_callback="cmd_home"):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -104,6 +120,9 @@ def get_cancel_and_home_markup(back_callback="cmd_home"):
     )
     return markup
 
+# ==========================================
+# **دالة تحديث أو إرسال لوحة التحكم التفاعلية**
+# ==========================================
 def update_or_send_panel(chat_id, text, reply_markup):
     if chat_id in last_panel_message:
         try:
@@ -123,7 +142,7 @@ def update_or_send_panel(chat_id, text, reply_markup):
 
 
 # ==========================================
-# **أمر البداية (Start)**
+# **دالة معالجة أمر البداية (Start)**
 # ==========================================
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
@@ -140,7 +159,7 @@ def handle_start_command(message):
 
 
 # ==========================================
-# **معالجة الأزرار التفاعلية (Callbacks)**
+# **دالة معالجة جميع الأزرار التفاعلية (Callbacks)**
 # ==========================================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
@@ -150,7 +169,7 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # **معالجة ضغطة زر المشاركة وإرسال الرد في القروب (مع قراءة البيانات المخفية تماماً)**
+    # **معالجة ضغطة زر المشاركة مع جلب البيانات المخفية عبر التوكن**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -163,7 +182,7 @@ def handle_all_callbacks(call):
             else:
                 user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
 
-            # التحقق مما إذا كان مسجلاً مسبقاً من النص الخفي
+            # التحقق مما إذا كان مسجلاً مسبقاً من النص الخاص بقائمة المشاركين
             if str(user_id) in message_text or (user_username and f"@{user_username}" in message_text):
                 try:
                     bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
@@ -171,23 +190,15 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج بيانات الإعدادات المخفية بدقة
+            # استخراج التوكن المخفي من بيانات الزر (callback_data) بذكاء وبدون إظهار شي للنظام
             custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
             use_mention = True
             
-            if "JOIN_MSG:" in message_text:
-                try:
-                    parts_extracted = message_text.split("JOIN_MSG:")[1].split("||")[0]
-                    custom_join_msg = parts_extracted
-                except Exception:
-                    pass
-            
-            if "MENTION:" in message_text:
-                try:
-                    mention_flag = message_text.split("MENTION:")[1].split("||")[0]
-                    use_mention = (mention_flag == "1")
-                except Exception:
-                    pass
+            token_key = data.replace("contest_vote_", "")
+            if token_key in active_contests_payloads:
+                payload_data = active_contests_payloads[token_key]
+                custom_join_msg = payload_data.get("join_msg", custom_join_msg)
+                use_mention = payload_data.get("mention", True)
 
             lines = message_text.split("\n")
             new_lines = []
@@ -219,7 +230,7 @@ def handle_all_callbacks(call):
 
             updated_full_text = "\n".join(new_lines)
 
-            # تحديث الرسالة في القناة/القروب
+            # تحديث الرسالة في القناة/القروب نظيفة تماماً بدون اي اثر برمجي
             if call.message.photo:
                 bot.edit_message_caption(
                     caption=updated_full_text,
@@ -398,6 +409,9 @@ def handle_all_callbacks(call):
         print(f"Callback Error ({data}): {e}")
 
 
+# ==========================================
+# **دالة الانتقال إلى خطوة تسمية الزر**
+# ==========================================
 def ask_button_naming_step(user_id, chat_id, message_id):
     if user_id in contest_creation_state:
         contest_creation_state[user_id]["step"] = 6
@@ -411,7 +425,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع إخفاء البيانات البرمجية كلياً عن العيون**
+# **دالة نشر المسابقة مع إخفاء البيانات كلياً عبر التوكن داخل الزر**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -423,12 +437,15 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # هنا يتم تخزين البيانات بشكل مخفي تماماً باستخدام وسوم HTML لا تظهر للمستخدم نهائياً
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
-    msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
+    msg_mention_flag = state_data.get("msg_mention", True)
     
-    # استخدام تنسيق الـ span المخفي أو تعليق برمجياً ليقرأه البوت ولا يراه البشر
-    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
+    # توليد توكن فريد وقصير لتخزين البيانات داخله من الخلفية دون كتابة شيء مزعج بالنص المرئي
+    payload_token = generate_random_token(5)
+    active_contests_payloads[payload_token] = {
+        "join_msg": join_msg_text,
+        "mention": msg_mention_flag
+    }
      
     target_chat_id = raw_channel
     try:
@@ -443,20 +460,19 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"{hidden_payload}"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
         )
     else:
         final_text = (
             f"🎉 <b>مسابقة جديدة!</b>\n\n"
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
-            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"{hidden_payload}"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>"
         )
 
     channel_markup = types.InlineKeyboardMarkup()
-    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
+    # دمج التوكن داخل الـ callback_data الخاصة بالزر لتخزين البيانات بشكل مخفي واحترافي
+    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=f"contest_vote_{payload_token}"))
 
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
@@ -478,7 +494,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
 
 # ==========================================
-# **معالجة خطوات الأسئلة في المحادثة الخاصة**
+# **دالة معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
