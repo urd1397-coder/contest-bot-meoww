@@ -219,9 +219,15 @@ def handle_all_callbacks(call):
                     parse_mode="HTML",
                     reply_markup=call.message.reply_markup
                 )
+                
+            # جلب النص وتجهيز رسالة الانضمام بناءً على خيارات المستخدم
+            custom_join_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
+            
+            if state_data.get("msg_mention", True):
+                announcement_to_send = f"\u200f{user_identity} {custom_join_text}"
+            else:
+                announcement_to_send = f"\u200f{custom_join_text}"
 
-            announcement_to_send = f"{user_identity} انضم إلى المسابقة بنجاح! 🔥"
-             
             try:
                 sent_notif = bot.send_message(
                     chat_id, 
@@ -568,9 +574,9 @@ def handler_private_contest_steps(message):
             )
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
-
-    if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 8:
-        state_data["join_msg_text"] = message.text.strip() if message.text else ""
+            
+if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 8:
+        state_data["join_msg_text"] = text_content
         state_data["step"] = 9
          
         markup = get_cancel_and_home_markup("cmd_create")
@@ -581,10 +587,10 @@ def handler_private_contest_steps(message):
         text = (
             "🐾 <b>[ سؤال: إرفاق منشن ]</b> 🐱✨\n"
             "━━━━━━━━━━━━━━━━━━━\n"
-            "هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
+            "هل تود إرفاق **منشن** أو اسم المستخدم في تلك الرسالة؟"
         )
          
-        bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
+        bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
         return
          
 # ==========================================
