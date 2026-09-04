@@ -171,7 +171,6 @@ def handle_all_callbacks(call):
             participants_line_idx = -1
              
             for i, line in enumerate(lines):
-                # تنظيف تلقائي لأي سطر قديم قد تم لصقه سابقاً بالغلط
                 if "💬 آخر انضمام:" in line:
                     continue
                 if "عدد المسجلين:" in line:
@@ -196,7 +195,6 @@ def handle_all_callbacks(call):
                  
                 new_lines[participants_line_idx] = f"📋 قائمة المشاركين: {updated_participants}"
 
-            # إعادة بناء نص الإعلان بهيكلته الأساسية النظيفة تماماً
             updated_full_text = "\n".join(new_lines)
 
             if call.message.photo:
@@ -360,7 +358,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "")
     msg_mention_flag = state_data.get("msg_mention", True)
     
-    # تخزين البيانات في التوكن الخلفي بشكل مخفي تماماً عن هيكلة الإعلان
     payload_token = generate_random_token(6)
     active_contests_payloads[payload_token] = {
         "join_msg": join_msg_text,
@@ -413,13 +410,19 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
 
 # ==========================================
-# **دالة معالجة خطوات الأسئلة في المحادثة الخاصة**
+# **دالة معالجة خطوات الأسئلة في الخاص والقروبات**
 # ==========================================
-@bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
-def handler_private_contest_steps(message):
+@bot.message_handler(content_types=["text", "photo"])
+def handler_contest_steps(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
     text_content = message.text.strip() if message.text else ""
+
+    if message.chat.type != "private":
+        if user_id not in contest_creation_state or contest_creation_state[user_id].get("is_private", True):
+            return
+        if contest_creation_state[user_id].get("channel") != chat_id:
+            return
 
     try:
         bot.delete_message(chat_id, message.message_id)
