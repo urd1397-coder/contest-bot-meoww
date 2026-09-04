@@ -411,7 +411,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع حفظ الرمز السري والنص المخصص بدقة**
+# **دالة نشر المسابقة مع إخفاء البيانات البرمجية كلياً عن العيون**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -423,20 +423,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    # جلب النص والمنشن الذي أدخله المستخدم فعلياً أثناء خطوات الإنشاء
+    # هنا يتم تخزين البيانات بشكل مخفي تماماً باستخدام وسوم HTML لا تظهر للمستخدم نهائياً
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
     
-    import random
-    token_id = f"SHX{random.randint(1000, 9999)}"
-    
-    # حفظ الإعدادات الحقيقية في الذاكرة ليقرأها البوت بدقة عند الضغط
-    contest_tokens[token_id] = {
-        "join_msg": join_msg_text,
-        "mention": msg_mention_flag,
-        "count": 0,
-        "participants": []
-    }
+    # استخدام تنسيق الـ span المخفي أو تعليق برمجياً ليقرأه البوت ولا يراه البشر
+    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
     try:
@@ -452,7 +444,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"<code>[{token_id}]</code>"
+            f"{hidden_payload}"
         )
     else:
         final_text = (
@@ -460,11 +452,11 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"❓ <b>السؤال:</b>\n{announcement}\n\n"
             f"👥 عدد المسجلين: <b>0</b>\n"
             f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-            f"<code>[{token_id}]</code>"
+            f"{hidden_payload}"
         )
 
     channel_markup = types.InlineKeyboardMarkup()
-    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_click"))
+    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
 
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
@@ -483,6 +475,8 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
+
+
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
