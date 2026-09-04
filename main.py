@@ -220,7 +220,7 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # استرجاع النص المخصص الذي أدخله المستخدم أثناء الإنشاء
+            # استخدام النص الثائم الذي تفضله كقيمة أساسية مطلقة لا تتاثر بالـ Redeploy
             state_data = contest_creation_state.get(user_id, {})
             custom_join_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
             
