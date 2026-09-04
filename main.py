@@ -21,7 +21,7 @@ last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
-# 🐾 مكتبة قطط شركس الفخمة المخزنة كـ File IDs (يمكنك استبدالها بروابط أو File IDs حقيقية)
+# 🐾 مكتبة قطط شركس الفخمة المخزنة كـ File IDs
 CAT_HEADERS = {
     "cat_1": {
         "name": "👵 قطة المنديل الأنيقة", 
@@ -441,7 +441,8 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
 
     channel_markup = types.InlineKeyboardMarkup()
     channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
-try:
+
+    try:
         sent_msg = bot_instance.send_photo(
             target_chat_id, 
             photo=cat_info["file_id"], 
@@ -449,7 +450,7 @@ try:
             parse_mode="HTML", 
             reply_markup=channel_markup
         )
-    
+
         try:
             bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
         except Exception:
@@ -465,9 +466,7 @@ try:
             chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
         )
 
-# ==========================================
-# **معالجة خطوات المحادثة الخاصة**
-# ==========================================
+
 # ==========================================
 # **معالجة خطوات المحادثة الخاصة**
 # ==========================================
@@ -556,6 +555,7 @@ def handler_private_contest_steps(message):
         text = "👤 هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
         bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
         return
+         
 # ==========================================
 # **التشغيل الأساسي للبوت والخادم**
 # ==========================================
