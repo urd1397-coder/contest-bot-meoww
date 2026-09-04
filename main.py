@@ -1,5 +1,5 @@
 # ==========================================
-# **بوتي شركس - نظام مسابقات القطط الفخمة المعدل**
+# **بوتي شركس - نظام مسابقات القطط الفخمة**
 # ==========================================
 import os
 import time
@@ -434,7 +434,7 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
 
-    if user_id in contest_creation_state and contest_creation_state[user_id].get("step"] == 6:
+    if user_id in contest_creation_state and contest_creation_state[user_id].get("step") == 6:
         try:
             bot.delete_message(chat_id, message.message_id)
         except Exception:
