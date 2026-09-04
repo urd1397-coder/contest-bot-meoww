@@ -411,91 +411,79 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع إخفاء البيانات البرمجية كلياً عن العيون**
-def finalize_and_publish_contest(
-    bot_instance, chat_id, message_id, user_id
-):
-  state_data = contest_creation_state.pop(user_id, None)
-  if not state_data:
-    return
+# **خريطة تخزين تفاصيل الرموز السرية للمسابقات النشطة**
+contest_tokens = {}
 
-  raw_channel = state_data.get("channel", chat_id)
-  announcement = state_data.get("announcement", "مسابقة جديدة!")
-  button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
-  prize_media = state_data.get("prize_media")
+def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
+    state_data = contest_creation_state.pop(user_id, None)
+    if not state_data:
+        return
+         
+    raw_channel = state_data.get("channel", chat_id)
+    announcement = state_data.get("announcement", "مسابقة جديدة!")
+    button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
+    prize_media = state_data.get("prize_media") 
+     
+    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
+    msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
+    
+    # **توليد رمز سري قصير فريد لهذه المسابقة يجمع كل الإعدادات وIDs المشاركين**
+    import random
+    token_id = f"SHX{random.randint(1000, 9999)}"
+    
+    contest_tokens[token_id] = {
+        "join_msg": join_msg_text,
+        "mention": msg_mention_flag,
+        "count": 0,
+        "participants": []
+    }
+     
+    target_chat_id = raw_channel
+    try:
+        chat_obj = bot_instance.get_chat(raw_channel)
+        target_chat_id = chat_obj.id
+    except Exception as e:
+        print(f"Error resolving target chat ID in publish: {e}")
 
-  join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
-  msg_mention_flag = "1" if state_data.get("msg_mention", True) else "0"
+    # **النص الظاهري نظيف تماماً وخالٍ من أي تعقيد، ويحتوي فقط على الرمز المختصر للبوت**
+    if prize_media:
+        final_text = (
+            f"🎉 <b>مسابقة جديدة!</b>\n\n"
+            f"❓ <b>السؤال:</b>\n{announcement}\n\n"
+            f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
+            f"👥 عدد المسجلين: <b>0</b>\n"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
+            f"<code>[{token_id}]</code>"
+        )
+    else:
+        final_text = (
+            f"🎉 <b>مسابقة جديدة!</b>\n\n"
+            f"❓ <b>السؤال:</b>\n{announcement}\n\n"
+            f"👥 عدد المسجلين: <b>0</b>\n"
+            f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
+            f"<code>[{token_id}]</code>"
+        )
 
-  # هنا السر: نستخدم أحرف مسافة غير مرئية (Zero-Width Space) مع البيانات المخفية تماماً
-  # بحيث تقرأها رسالة البوت برمجياً ولا تظهر أي خطوط أو مساحات للمستخدم
-  hidden_payload = (
-      "\u200b"
-      f"||JOIN_MSG:{join_msg_text}|MENTION:{msg_mention_flag}||"
-      "\u200b"
-  )
-
-  target_chat_id = raw_channel
-  try:
-    chat_obj = bot_instance.get_chat(raw_channel)
-    target_chat_id = chat_obj.id
-  except Exception as e:
-    print(f"Error resolving target chat ID in publish: {e}")
-
-  if prize_media:
-    final_text = (
-        f"🎉 <b>مسابقة جديدة!</b>\n\n"
-        f"❓ <b>السؤال:</b>\n{announcement}\n\n"
-        f"🎁 <b>الهدية:</b> <a href='{prize_media}'>{prize_media}</a>\n\n"
-        f"👥 عدد المسجلين: <b>0</b>\n"
-        f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-        f"{hidden_payload}"
-    )
-  else:
-    final_text = (
-        f"🎉 <b>مسابقة جديدة!</b>\n\n"
-        f"❓ <b>السؤال:</b>\n{announcement}\n\n"
-        f"👥 عدد المسجلين: <b>0</b>\n"
-        f"📋 قائمة المشاركين: <i>لا يوجد مشاركين حتى الآن</i>\n"
-        f"{hidden_payload}"
-    )
-
-  channel_markup = types.InlineKeyboardMarkup()
-  channel_markup.add(
-      types.InlineKeyboardButton(
-          button_text, callback_data="contest_vote_action"
-      )
-  )
-
-  try:
-    sent_msg = bot_instance.send_message(
-        target_chat_id,
-        final_text,
-        parse_mode="HTML",
-        disable_web_page_preview=True,
-        reply_markup=channel_markup,
-    )
+    channel_markup = types.InlineKeyboardMarkup()
+    channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
 
     try:
-      bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
-    except Exception as pin_err:
-      print(f"Pin message error: {pin_err}")
+        sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="HTML", disable_web_page_preview=True, reply_markup=channel_markup)
 
-    bot_instance.edit_message_text(
-        "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام!</b> 🐾",
-        chat_id,
-        message_id,
-        parse_mode="HTML",
-        reply_markup=create_main_menu_markup(),
-    )
-  except Exception as e:
-    bot_instance.edit_message_text(
-        f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
-        chat_id,
-        message_id,
-        parse_mode="HTML",
-        reply_markup=create_main_menu_markup(),
-    )
+        try:
+            bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
+        except Exception as pin_err:
+            print(f"Pin message error: {pin_err}")
+
+        bot_instance.edit_message_text(
+            "✅ <b>تم نشر المسابقة وتثبيتها بنجاح تام! الرمز السري:</b> " + token_id,
+            chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
+        )
+    except Exception as e:
+        bot_instance.edit_message_text(
+            f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
+            chat_id, message_id, parse_mode="HTML", reply_markup=create_main_menu_markup()
+        )
 # ==========================================
 # **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
