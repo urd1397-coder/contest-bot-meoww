@@ -17,7 +17,7 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# **النص الثابت الدائم (لا يتأثر بالـ Redeploy أبداً ولا يحتاج لإدخال مؤقت)**
+# **النص الثابت الدائم (لا يتأثر بالـ Redeploy أبداً)**
 PERMANENT_JOIN_TEXT = "انضم إلى المسابقة بنجاح! 🔥"
 
 active_contests = {}
@@ -185,7 +185,7 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # استخدام النص الثابت المباشر من الكود بدون ذاكرة مؤقتة
+            # استخدام النص الثابت المباشر من المتغير العام لضمان عدم ضياعه
             announcement_to_send = f"\u200f{user_identity} {PERMANENT_JOIN_TEXT}"
              
             try:
@@ -460,7 +460,6 @@ def handler_private_contest_steps(message):
 
         elif step == 6:
             state_data["button_text"] = text_content
-            # نشر مباشر بدون سؤال عن نص الانضمام المؤقت
             finalize_and_publish_contest(bot, chat_id, target_message_id, user_id)
             return
 
