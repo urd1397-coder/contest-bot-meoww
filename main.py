@@ -1,10 +1,11 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الداخلي الذكي**
+# **بوتي شركس - نظام المسابقات والتصويت الذكي (هاش قصير ومضغوط)**
 # ==========================================
 import os
 import time
 import threading
 import base64
+import zlib
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -22,22 +23,26 @@ contest_creation_state = {}
 end_contest_state = {}
 
 # ==========================================
-# **دوال تشفير وفك تشفير النص الطويل داخل الهاش**
+# **دوال ضغط وفك ضغط النص للحصول على هاش قصير جداً**
 # ==========================================
-def encode_text_to_hash(text):
-    """تحويل النص الطويل إلى هاش آمن وقصير باستخدام Base64"""
+def encode_text_to_short_hash(text):
+    """ضغط النص الطويل وتحويله إلى هاش قصير وآمن باستخدام zlib و base64"""
     if not text:
         return ""
-    text_bytes = text.encode('utf-8')
-    base64_bytes = base64.urlsafe_b64encode(text_bytes)
-    return base64_bytes.decode('utf-8')
-
-def decode_hash_to_text(hash_str):
-    """ترجمة وفك الهاش العكسي لاسترجاع النص الطويل الأصلي تماماً"""
     try:
-        base64_bytes = hash_str.encode('utf-8')
-        text_bytes = base64.urlsafe_b64decode(base64_bytes)
-        return text_bytes.decode('utf-8')
+        compressed_data = zlib.compress(text.encode('utf-8'), level=9)
+        encoded_hash = base64.urlsafe_b64encode(compressed_data).decode('utf-8').rstrip('=')
+        return encoded_hash
+    except Exception:
+        return ""
+
+def decode_short_hash_to_text(hash_str):
+    """فك الهاش القصير وإرجاع النص الأصلي تماماً دون الحاجة لذاكرة السيرفر"""
+    try:
+        padding = '=' * (-len(hash_str) % 4)
+        decoded_bytes = base64.urlsafe_b64decode(hash_str + padding)
+        original_text = zlib.decompress(decoded_bytes).decode('utf-8')
+        return original_text
     except Exception:
         return "انضم إلى المسابقة بنجاح! 🔥"
 
@@ -125,7 +130,6 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # **معالجة ضغطة زر المشاركة وفك الهاش لحظياً**
     if data.startswith("contest_vote_"):
         try:
             message_text = call.message.text or call.message.caption or ""
@@ -137,7 +141,6 @@ def handle_all_callbacks(call):
             else:
                 user_identity = f"<a href='tg://user?id={user_id}'>{user_first_name}</a>"
 
-            # التحقق مما إذا كان مسجلاً مسبقاً
             if str(user_id) in message_text or (user_username and f"@{user_username}" in message_text):
                 try:
                     bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name}\nلقد قمت بالتسجيل مسبقاً ولا يمكنك التكرار! 🚫", show_alert=True)
@@ -145,24 +148,23 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج وفك الهاش مباشرة من النص المخفي في رسالة المسابقة (بدون أي تخزين بالسيرفر)
             encoded_msg_hash = ""
             msg_mention_flag = "1"
             
-            if "HASH_MSG:" in message_text:
+            if "H:" in message_text:
                 try:
-                    encoded_msg_hash = message_text.split("HASH_MSG:")[1].split("||")[0].strip()
+                    encoded_msg_hash = message_text.split("H:")[1].split("||")[0].strip()
                 except Exception:
                     pass
             
-            if "MENTION:" in message_text:
+            if "M:" in message_text:
                 try:
-                    msg_mention_flag = message_text.split("MENTION:")[1].split("||")[0].strip()
+                    msg_mention_flag = message_text.split("M:")[1].split("||")[0].strip()
                 except Exception:
                     pass
 
-            # ترجمة الهاش إلى النص الطويل الأصلي الذي صممه المستخدم فوراً
-            custom_join_msg = decode_hash_to_text(encoded_msg_hash)
+            # فك الهاش القصير واستعادة النص الطويل الأصلي فوراً
+            custom_join_msg = decode_short_hash_to_text(encoded_msg_hash)
             use_mention = (msg_mention_flag == "1")
 
             lines = message_text.split("\n")
@@ -195,7 +197,6 @@ def handle_all_callbacks(call):
 
             updated_full_text = "\n".join(new_lines)
 
-            # تحديث الرسالة في القروب
             if call.message.photo:
                 bot.edit_message_caption(
                     caption=updated_full_text,
@@ -213,7 +214,6 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # إرسال النص بعد ترجمة الهاش وفكه بنجاح
             if use_mention:
                 announcement_to_send = f"{user_identity}\n{custom_join_msg}"
             else:
@@ -370,7 +370,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة (تشفير النص مباشرة داخل الهاش المخفي)**
+# **دالة نشر المسابقة مع استخدام الهاش القصير المضغوط**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -385,12 +385,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention = state_data.get("msg_mention", True)
     
-    # تحويل النص الطويل بالكامل إلى هاش مشفر (Base64 Hash) لتخزينه داخل نفس الرسالة بدون RAM
-    encoded_hash = encode_text_to_hash(join_msg_text)
+    # الحصول على هاش قصير ومضغوط جداً
+    short_hash = encode_text_to_short_hash(join_msg_text)
     msg_mention_flag = "1" if msg_mention else "0"
     
-    # وضع الهاش المخفي بشكل لا يظهر للمستخدم نهائياً
-    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>HASH_MSG:{encoded_hash}||MENTION:{msg_mention_flag}||</span>"
+    # تضمين الهاش القصير والمضغوط بصيغة مخفية تماماً
+    hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>H:{short_hash}||M:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
     try:
@@ -492,7 +492,7 @@ def handler_private_contest_steps(message):
                 if chat_member.status not in ["administrator", "creator"]:
                     raise Exception("Bot is not admin")
             except Exception as e:
-                markup = get_back_and_home_markup("cmd_create")
+                markup = get_cancel_and_home_markup("cmd_create")
                 bot.edit_message_text(
                     "⚠️ **خطأ في الصلاحيات أو المعرف!**\nتأكد أن البوت مشرف في القناة/القروب وأنك أرسلت المعرف الصحيح.",
                     chat_id, target_message_id, parse_mode="HTML", reply_markup=markup
