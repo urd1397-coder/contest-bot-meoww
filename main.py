@@ -441,17 +441,15 @@ def finalize_and_publish_cat_contest(bot_instance, chat_id, message_id, user_id)
 
     channel_markup = types.InlineKeyboardMarkup()
     channel_markup.add(types.InlineKeyboardButton(button_text, callback_data="contest_vote_action"))
-
-    try:
+try:
         sent_msg = bot_instance.send_photo(
             target_chat_id, 
             photo=cat_info["file_id"], 
             caption=final_text, 
             parse_mode="HTML", 
-            disable_web_page_preview=True,
             reply_markup=channel_markup
         )
-
+    
         try:
             bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
         except Exception:
