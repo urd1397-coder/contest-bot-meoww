@@ -142,7 +142,7 @@ def handle_all_callbacks(call):
         try:
             message_text = call.message.text or call.message.caption or ""
             user_id = call.from_user.id
-            user_first_name = call.from_user.first_name || "المشارك"
+            user_first_name = call.from_user.first_name or "المشارك"
             user_username = call.from_user.username
              
             if user_username:
@@ -158,7 +158,7 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            # استخراج التوكن المخفي من بيانات الزر بدقة ودون إرسال رسائل عشوائية منفصلة
+            # استخراج التوكن المخفي من بيانات الزر بدقة
             custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
             use_mention = True
             
@@ -198,7 +198,7 @@ def handle_all_callbacks(call):
 
             updated_full_text = "\n".join(new_lines)
 
-            # تحديث الرسالة الأصلية فقط لتتضمن الرد المخصص دون تكرار أو رسائل مزعجة
+            # تحديث الرسالة الأصلية مباشرة بالرد المخصص والمخزن بالتوكن دون رسائل مزعجة
             if use_mention:
                 announcement_to_append = f"\n\n💬 <b>آخر انضمام:</b> {user_identity} {custom_join_msg}"
             else:
@@ -275,7 +275,7 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["send_join_msg"] = True
                 contest_creation_state[user_id]["step"] = 8
                 markup = get_cancel_and_home_markup("cmd_create")
-                text = "💬 أرسل لي الآن **النص المراد إرساله أو حفظه عند دخول الشخص** (مثال: انضم إلى المسابقة بنجاح! 🔥):"
+                text = "💬 أرسل لي الآن **النص المراد حفظه عند دخول الشخص** (مثال: انضم إلى المسابقة بنجاح! 🔥):"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "join_msg_no":
@@ -367,7 +367,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_flag = state_data.get("msg_mention", True)
     
-    # حفظ النص والمنشن داخل التوكن بدقة
     payload_token = generate_random_token(6)
     active_contests_payloads[payload_token] = {
         "join_msg": join_msg_text,
