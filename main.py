@@ -1,11 +1,11 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الذكي (هاش قصير جداً 6 خانات)**
+# **بوتي شركس - نظام الهاش الذكي (بدون الحاجة لذاكرة مؤقتة)**
 # ==========================================
 import os
 import time
 import threading
-import base64
 import zlib
+import base64
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -22,24 +22,32 @@ last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
-# ==========================================
-# **دوال ضغط وفك ضغط النص للحصول على هاش قصير من 6 أحرف وأرقام**
-# ==========================================
-def encode_text_to_short_hash(text):
-    """ضغط النص وتحويله إلى هاش قصير وثابت بحدود 6 خانات"""
+# 📌 دالة تشفير النص الطويل إلى هاش قصير ونظيف (يعتمد على الرياضيات البحتة)
+def encode_text_to_hash(text):
     if not text:
-        return "default"
+        return "ok"
     try:
-        compressed_data = zlib.compress(text.encode('utf-8'), level=9)
-        # نأخذ أول 4 بايتات ونحولها لبيز 64 ثم نقتطعها لتصبح 6 خانات نظيفة
-        encoded = base64.urlsafe_b64encode(compressed_data).decode('utf-8').rstrip('=')
-        return encoded[:6]
+        # ضغط النص لتقليص حجمه
+        compressed = zlib.compress(text.encode('utf-8'))
+        # تحويله إلى صيغة نصية آمنة ومختصرة للروابط/الهاشات
+        encoded = base64.urlsafe_b64encode(compressed).decode('utf-8').rstrip('=')
+        return encoded
     except Exception:
-        return "sharx0"
+        return "ok"
 
-def decode_short_hash_to_text(hash_str):
-    """فك الهاش أو إرجاع النص الافتراضي في حال عدم المطابقة"""
-    return hash_str  # ملاحظة: مع الهاشات فائقة القصر (6 خانات) نعتمد على تخزين النص أو يمكن اعتباره معرفاً، وسنجعله يسترجع النص الافتراضي أو نضمنه بسلاسة.
+# 📌 دالة عكس الهاش وترجمته للنص الحقيقي فور ضغط الزر (بدون حفظ في الذاكرة)
+def decode_hash_to_text(hash_str):
+    try:
+        # إعادة تصحيح الحشو لفك التشفير بنجاح
+        padding = 4 - (len(hash_str) % 4)
+        if padding < 4:
+            hash_str += '=' * padding
+        decoded_bytes = base64.urlsafe_b64decode(hash_str.encode('utf-8'))
+        original_text = zlib.decompress(decoded_bytes).decode('utf-8')
+        return original_text
+    except Exception:
+        # نص احترافي افتراضي في حال حدوث أي خطأ بالهاش
+        return "انضم إلى المسابقة بنجاح! 🔥"
 
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
@@ -107,7 +115,7 @@ def handle_start_command(message):
      
     text = (
         "مياو أهلاً بك في عالم شركس! 🐱✨\n"
-        "البوت الأنيق والسريع لإدارة مسابقاتك وتصويتك بكل احترافية.\n"
+        "البوت الأنيق والذكي لإدارة مسابقاتك وتصويتك بكل احترافية.\n"
         "اختر ما يناسبك من الخيارات أدناه:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=create_main_menu_markup())
@@ -143,14 +151,12 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
+            encoded_msg_hash = ""
             msg_mention_flag = "1"
           
             if "H:" in message_text:
                 try:
-                    extracted_token = message_text.split("H:")[1].split("||")[0].strip()
-                    if len(extracted_token) > 0:
-                        custom_join_msg = f"انضم إلى المسابقة بنجاح! 🔥 [الرمز: {extracted_token}]"
+                    encoded_msg_hash = message_text.split("H:")[1].split("||")[0].strip()
                 except Exception:
                     pass
           
@@ -160,6 +166,8 @@ def handle_all_callbacks(call):
                 except Exception:
                     pass
 
+            # استعادة النص الأصلي فورياً من الهاش بدون ذاكرة
+            custom_join_msg = decode_hash_to_text(encoded_msg_hash)
             use_mention = (msg_mention_flag == "1")
 
             lines = message_text.split("\n")
@@ -279,7 +287,7 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["send_join_msg"] = True
                 contest_creation_state[user_id]["step"] = 8
                 markup = get_cancel_and_home_markup("cmd_create")
-                text = "💬 أرسل لي الآن **النص المراد إرساله** عند دخول الشخص:"
+                text = "💬 أرسل لي الآن **النص المخصص** الذي ستكتبه ليرسله البوت عند دخول الشخص:"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="HTML", reply_markup=markup)
 
         elif data == "join_msg_no":
@@ -365,7 +373,7 @@ def ask_button_naming_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع استخدام الهاش المكون من 6 أحرف**
+# **دالة نشر المسابقة مع الهاش الذاتي**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -380,11 +388,11 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention = state_data.get("msg_mention", True)
     
-    # الحصول على هاش قصير ومضغوط من 6 أحرف/أرقام
-    short_hash = encode_text_to_short_hash(join_msg_text)
+    # تحويل النص الطويل إلى هاش قصير ونظيف يتم تضمينه بالرسالة
+    short_hash = encode_text_to_hash(join_msg_text)
     msg_mention_flag = "1" if msg_mention else "0"
     
-    # تضمين الهاش المخفي تماماً بـ 6 خانات
+    # هاش مخفي في رسالة الإعلان يقرأه البوت بدقة متناهية لاحقاً
     hidden_payload = f"<span class='tg-spoiler' style='color:transparent;'>H:{short_hash}||M:{msg_mention_flag}||</span>"
      
     target_chat_id = raw_channel
@@ -542,13 +550,13 @@ def handler_private_contest_steps(message):
             state_data["step"] = 7
             markup = get_cancel_and_home_markup("cmd_create")
             markup.row(
-                types.InlineKeyboardButton("✅ نعم", callback_data="join_msg_yes"),
+                types.InlineKeyboardButton("✅ نعم", callback_data="join_msg_text_yes" if False else "join_msg_yes"),
                 types.InlineKeyboardButton("❌ لا", callback_data="join_msg_no")
             )
             text = (
-                "🐾 <b>[ سؤال: رسالة تعلم من دخل ]</b> 🐱✨\n"
+                "🐾 <b>[ سؤال: رسالة عند دخول المشارك ]</b> 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود أن أرسل **رسالة في القروب** باسم الشخص الذي ضغط على الزر؟"
+                "هل تود أن يرسل البوت **نصاً مخصصاً** في القروب عند ضغط الشخص على زر المشاركة؟"
             )
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="HTML", reply_markup=markup)
             return
@@ -557,15 +565,15 @@ def handler_private_contest_steps(message):
         state_data["join_msg_text"] = message.text.strip() if message.text else ""
         state_data["step"] = 9
          
-        markup = get_cancel_and_home_markup("cmd_create")
+        markup = get_scan_markup = get_cancel_and_home_markup("cmd_create")
         markup.row(
-            types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
+            types.InlineKeyboardButton("✅ نعم (مع منشن المشارك)", callback_data="mention_join_yes"),
             types.InlineKeyboardButton("❌ لا (بدون منشن)", callback_data="mention_join_no")
         )
         text = (
             "🐾 <b>[ سؤال: إرفاق منشن ]</b> 🐱✨\n"
             "━━━━━━━━━━━━━━━━━━━\n"
-            "هل تود إرفاق **منشن** في تلك الرسالة لذلك الشخص في القروب؟"
+            "هل تود إرفاق **منشن** لاسم المشارك مع رسالة الترحيب في القروب؟"
         )
          
         bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=markup)
@@ -576,7 +584,7 @@ def handler_private_contest_steps(message):
 # ==========================================
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
-    server_thread.daemon.set(True) if hasattr(threading.Thread, "daemon") else setattr(server_thread, "daemon", True)
+    server_thread.daemon = True
     server_thread.start()
     print(f"HTTP Server started on port %s" % PORT)
      
@@ -591,7 +599,7 @@ if __name__ == "__main__":
     while True:
         try:
             print("Starting bot polling safely...")
-            bot.infinity_polling(skip_pending=True, timeout=15, long_polling_timeout=15)
+            bot.infinity_polling(skip_pending=True, timeout5=15 if False else 15, long_polling_timeout=15)
         except Exception as e:
             print(f"Polling error: {e}. Retrying in 5 seconds...")
             time.sleep(5)
