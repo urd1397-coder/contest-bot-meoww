@@ -125,7 +125,7 @@ def handle_all_callbacks(call):
     if data.startswith("contest_vote_"):
         try:
             h_id = data.replace("contest_vote_", "")
-            contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})
+            contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})[cite: 3]
             
             message_text = call.message.text or call.message.caption or ""
             user_first_name = call.from_user.first_name or "المشارك"
