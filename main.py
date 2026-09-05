@@ -7,7 +7,6 @@ import threading
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from hashids import Hashids
 import base64
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -18,8 +17,8 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# إعداد مكتبة Hashids لهاش قصير وفريد لتشفير الرسائل المخصصة
-hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
+# ضع هنا معرف حسابك الشخصي للتواصل (مثال: @YourUsername أو رابط)
+DEVELOPER_USERNAME = "@YourUsername" 
 
 last_panel_message = {}
 contest_creation_state = {}
@@ -103,7 +102,7 @@ def update_or_send_panel(chat_id, text, reply_markup, message_id=None):
 
 
 # ==========================================
-# **أمر البداية (Start) ومناداة البوت**
+# **أمر البداية (Start) ومناداة البوت في القروبات**
 # ==========================================
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
@@ -119,14 +118,14 @@ def handle_start_command(message):
     last_panel_message[message.chat.id] = sent.message_id
 
 
-@bot.message_handler(func=lambda message: message.text and "شركس" in message.text)
+@bot.message_handler(func=lambda message: message.text and ("شركس" in message.text or "Sharx" in message.text))
 def handle_bot_mention(message):
     if message.chat.type in ["group", "supergroup"]:
         text = (
-        "🐾 *مياو! شركس هنا بخدمتكم في القروب* 🐱✨\n"
-        "البوت الجاهز لإدارة مسابقاتكم بحماس وسرعة.\n"
-        "اختر ما يناسبك لإدارتها هنا:"
-    )
+            "🐾 *مياو! شركس القط هنا لخدمتكم في القروب* 🐱✨\n"
+            "البوت جاهز لإدارة مسابقاتكم وتصويتاتكم بكل حماس.\n"
+            "اختر ما يناسبك أدناه:"
+        )
         sent = bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=create_main_menu_markup())
         last_panel_message[message.chat.id] = sent.message_id
 
@@ -164,7 +163,6 @@ def handle_all_callbacks(call):
      
     if data.startswith("contest_vote_"):
         try:
-            # استخراج الهاش والبيانات من زر الـ callback مباشرة وبكل أمان ودون اعتماد على الذاكرة
             payload = data.replace("contest_vote_", "")
             parts = payload.split("_", 1)
             custom_code = parts[0]
@@ -321,8 +319,8 @@ def handle_all_callbacks(call):
                 text = (
                     "🐾 *[ السؤال 4: خانة التعليقات ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "هل تود إضافة خانة أو مساحة تعليقات للمنشور؟\n"
-                    "اكتب تفاصيلها أو اضغط على (تخطي)."
+                    "هل تود إضافة خانة التعليقات للمنشور؟\n"
+                    "اضغط (نعم) لإضافتها أو (تخطي) لتجاوزها."
                 )
                 update_or_send_panel(chat_id, text, markup, message_id)
 
@@ -335,26 +333,20 @@ def handle_all_callbacks(call):
                 text = (
                     "🐾 *[ السؤال 4: خانة التعليقات ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "هل تود إضافة خانة أو مساحة تعليقات للمنشور؟\n"
-                    "اكتب تفاصيلها أو اضغط على (تخطي)."
+                    "هل تود إضافة خانة التعليقات للمنشور؟\n"
+                    "اضغط (نعم) لإضافتها أو (تخطي) لتجاوزها."
                 )
                 update_or_send_panel(chat_id, text, markup, message_id)
+
+        elif data == "comments_yes":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["comments_box"] = "مفعلة ✅ (يمكن للأعضاء ترك تعليقاتهم هنا)"
+                proceed_to_question_5(user_id, chat_id, message_id)
 
         elif data == "skip_comments":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["comments_box"] = None
-                contest_creation_state[user_id]["step"] = 5
-                markup = get_cancel_and_home_markup("cmd_create")
-                markup.row(
-                    types.InlineKeyboardButton("✅ نعم", callback_data="btn_join_yes"),
-                    types.InlineKeyboardButton("❌ لا", callback_data="btn_join_no")
-                )
-                text = (
-                    "🐾 *[ السؤال 5: زر الاشتراك ]* 🐱✨\n"
-                    "━━━━━━━━━━━━━━━━━━━\n"
-                    "هل تود إضافة زر اشتراك/انضمام أسفل الرسالة؟"
-                )
-                update_or_send_panel(chat_id, text, markup, message_id)
+                proceed_to_question_5(user_id, chat_id, message_id)
 
         elif data == "btn_join_yes":
             if user_id in contest_creation_state:
@@ -448,14 +440,15 @@ def handle_all_callbacks(call):
 
         elif data == "cmd_developer":
             markup = get_back_and_home_markup("cmd_home")
+            markup.add(types.InlineKeyboardButton("💬 مراسلة المطور", url=f"https://t.me/{DEVELOPER_USERNAME.lstrip('@')}"))
             card_text = (
                 "🐾 *[ بطاقة مطور البوت - شركس القط ]* 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "• **اسم المطور:** صانع ومبتكر نظام شركس الذكي.\n"
-                "• **نبذة:** قط عبقري يهوى البرمجة، هندسة البوتات، وتأليف الأنظمة التفاعلية الملساء دون أخطاء أو تعقيد!\n"
-                "• **الحساب الشخصي:** يمكنك التواصل عبر معرف المطور أو القناة الرسمية.\n"
-                "🐾 *مبرمج خصيصاً لإدارة مسابقاتكم بحب واحترافية!*"
-            )
+                "• **صانع البوت:** قط عبقري يهوى هندسة البرمجيات.\n"
+                "• **المعرف الشخصي:** `{DEVELOPER_USERNAME}`\n"
+                "• **استفسار أو دعم:** انقر على الزر أدناه لمراسلتي مباشرة لأي مساعدة أو استفسار!\n"
+                "🐾 *شكراً لاستخدامكم بوت شركس!*"
+            ).replace("{DEVELOPER_USERNAME}", DEVELOPER_USERNAME)
             update_or_send_panel(chat_id, card_text, markup, message_id)
 
         elif data == "cmd_home":
@@ -471,9 +464,24 @@ def handle_all_callbacks(call):
     except Exception as e:
         print(f"Callback Error ({data}): {e}")
 
+def proceed_to_question_5(user_id, chat_id, message_id):
+    if user_id in contest_creation_state:
+        contest_creation_state[user_id]["step"] = 5
+        markup = get_cancel_and_home_markup("cmd_create")
+        markup.row(
+            types.InlineKeyboardButton("✅ نعم", callback_data="btn_join_yes"),
+            types.InlineKeyboardButton("❌ لا", callback_data="btn_join_no")
+        )
+        text = (
+            "🐾 *[ السؤال 5: زر الاشتراك ]* 🐱✨\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "هل تود إضافة زر اشتراك/انضمام أسفل الرسالة؟"
+        )
+        update_or_send_panel(chat_id, text, markup, message_id)
+
 
 # ==========================================
-# **دالة نشر المسابقة مع تضمين الهاش المعالج ذاتياً في الإعلان**
+# **دالة نشر المسابقة الفعلية في القناة/القروب المستهدف**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -488,7 +496,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     custom_join_text = state_data.get("custom_join_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
     
-    # ترجمة النص المخصص إلى كود هاش قصير وآمن يُحفظ في الإعلان مباشرة
     encoded_custom = encode_custom_text(custom_join_text if custom_join_text else "انضم إلى المسابقة بنجاح! 🔥")
     mention_flag = "1" if msg_mention_bool else "0"
     unique_hash = f"{encoded_custom}_{mention_flag}"
@@ -500,13 +507,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    # بناء نص الإعلان مع إخفاء أو تضمين الكود بدقة
     text_parts = [f"🎉 *مسابقة جديدة* `(كود: {encoded_custom})`\n", f"❓ *السؤال:*\n{announcement}"]
     
     if prize_media:
         text_parts.append(f"🎁 *الهدية/الصورة:* مرفقة")
     if comments_box:
-        text_parts.append(f"💬 *خانة التعليقات:* {comments_box}")
+        text_parts.append(f"💬 *خانة التعليقات:* مضافة (أكتب تعليقك هنا)")
         
     text_parts.extend([
         f"👥 عدد المسجلين: *0*",
@@ -532,14 +538,14 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
         update_or_send_panel(
             chat_id,
-            "✅ *تم نشر المسابقة وتثبيتها بنجاح تام وبدون أي اعتماد على الذاكرة!* 🐾",
+            "✅ *تم نشر المسابقة وتثبيتها بنجاح تام في القناة/القروب المستهدف!* 🐾",
             create_main_menu_markup(),
             message_id
         )
     except Exception as e:
         update_or_send_panel(
             chat_id,
-            f"⚠️ تعذر النشر، تأكد من صلاحيات البوت في القناة أو القروب: {e}",
+            f"⚠️ تعذر النشر، تأكد أن البوت مشرف وله صلاحيات النشر: {e}",
             create_main_menu_markup(),
             message_id
         )
@@ -549,7 +555,7 @@ def message_has_photo_id(media_val):
 
 
 # ==========================================
-# **معالجة خطوات الأسئلة السبعة في المحادثة الخاصة**
+# **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
@@ -640,28 +646,15 @@ def handler_private_contest_steps(message):
             
             state_data["step"] = 4
             markup = get_cancel_and_home_markup("step_back_q3")
-            markup.row(types.InlineKeyboardButton("⏩ تخطي هذه الخطوة", callback_data="skip_comments"))
-            text = (
-                "🐾 *[ السؤال 4: خانة التعليقات (اختياري) ]* 🐱✨\n"
-                "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود إضافة خانة أو مساحة تعليقات للمنشور؟\n"
-                "اكتب تفاصيلها أو اضغط على (تخطي)."
-            )
-            update_or_send_panel(chat_id, text, markup, target_message_id)
-            return
-
-        elif step == 4:
-            state_data["comments_box"] = text_content
-            state_data["step"] = 5
-            markup = get_cancel_and_home_markup("step_back_q4")
             markup.row(
-                types.InlineKeyboardButton("✅ نعم", callback_data="btn_join_yes"),
-                types.InlineKeyboardButton("❌ لا", callback_data="btn_join_no")
+                types.InlineKeyboardButton("✅ نعم (إضافة خانة التعليقات)", callback_data="comments_yes"),
+                types.InlineKeyboardButton("⏩ تخطي", callback_data="skip_comments")
             )
             text = (
-                "🐾 *[ السؤال 5: زر الاشتراك ]* 🐱✨\n"
+                "🐾 *[ السؤال 4: خانة التعليقات ]* 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود إضافة زر اشتراك/انضمام أسفل الرسالة؟"
+                "هل تود إضافة زر خانة تعليقات للمنشور؟\n"
+                "اضغط (نعم) لإضافتها أو (تخطي) لتجاوزها."
             )
             update_or_send_panel(chat_id, text, markup, target_message_id)
             return
