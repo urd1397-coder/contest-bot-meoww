@@ -95,12 +95,11 @@ def update_or_send_panel(chat_id, text, reply_markup):
 
 
 # ==========================================
-# **أمر البداية (Start) والتفاعل في القروبات**
+# **أمر البداية (Start)**
 # ==========================================
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
     if message.chat.type != "private":
-        bot.reply_to(message, "مياو! 🐱 أنا بوت شركس للإدارة والمسابقات. استخدم /start في المحادثة الخاصة لإنشاء مسابقة.")
         return
      
     text = (
@@ -125,7 +124,7 @@ def handle_all_callbacks(call):
      
     if data.startswith("contest_vote_"):
         try:
-            # استخراج الهاش القصير من زر الـ callback مباشرة وبكل أمان واسترجاع الرد
+            # استخراج الهاش القصير من زر الـ callback مباشرة وبكل أمان
             h_id = data.replace("contest_vote_", "")
             contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})
             
@@ -195,24 +194,23 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            if custom_join_msg:
-                if use_mention:
-                    announcement_to_send = f"{user_identity} {custom_join_msg}"
-                else:
-                    announcement_to_send = f"{custom_join_msg}"
-                 
+            if use_mention:
+                announcement_to_send = f"{user_identity} {custom_join_msg}"
+            else:
+                announcement_to_send = f"{custom_join_msg}"
+             
+            try:
+                sent_notif = bot.send_message(
+                    chat_id, 
+                    announcement_to_send, 
+                    parse_mode="Markdown"
+                )
                 try:
-                    sent_notif = bot.send_message(
-                        chat_id, 
-                        announcement_to_send, 
-                        parse_mode="Markdown"
-                    )
-                    try:
-                        bot.pin_chat_message(chat_id, sent_notif.message_id)
-                    except Exception:
-                        pass
-                except Exception as e:
-                    print(f"Error sending independent join notification: {e}")
+                    bot.pin_chat_message(chat_id, sent_notif.message_id)
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f"Error sending independent join notification: {e}")
 
             try:
                 bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك بنجاح يا {user_first_name}!", show_alert=True)
@@ -290,7 +288,6 @@ def handle_all_callbacks(call):
         elif data == "join_msg_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["send_join_msg"] = False
-                contest_creation_state[user_id]["join_msg_text"] = ""
                 contest_creation_state[user_id]["use_mention"] = False
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
@@ -382,13 +379,13 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    join_msg_text = state_data.get("join_msg_text", "")
+    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
     
     # توليد هاش قصير ونظيف باستخدام مكتبة Hashids
     unique_hash = hashids.encode(int(time.time()))
     
-    # حفظ خيارات المسابقة مرتبطة بالهاش في الذاكرة لتجنب أي مشاكل بالرسالة واسترجاعها بدقة
+    # حفظ خيارات المسابقة مرتبطة بالهاش في الذاكرة لتجنب أي مشاكل بالرسالة
     contest_storage[unique_hash] = {
         "join_msg": join_msg_text,
         "mention": msg_mention_bool
@@ -418,7 +415,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         )
 
     channel_markup = types.InlineKeyboardMarkup()
-    # دمج الهاش في الـ callback_data للزر بدقة تامة لضمان استرجاع الرد
+    # دمج الهاش في الـ callback_data للزر بدقة تامة
     channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=f"contest_vote_{unique_hash}"))
 
     try:
@@ -550,13 +547,12 @@ def handler_private_contest_steps(message):
             markup = get_cancel_and_home_markup("cmd_create")
             markup.row(
                 types.InlineKeyboardButton("✅ نعم", callback_data="join_msg_yes"),
-                types.InlineKeyboardButton("❌ لا (تخطي ونشر)", callback_data="join_msg_no")
+                types.InlineKeyboardButton("❌ لا", callback_data="join_msg_no")
             )
             text = (
-                "🐾 *[ سؤال: رسالة عند دخول الشخص ]* 🐱✨\n"
+                "🐾 *[ سؤال: رسالة تعلم من دخل ]* 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود أن أرسل **رسالة في القروب** باسم الشخص الذي ضغط على الزر؟\n"
-                "*(الضغط على 'لا' سيقوم بتخطي بقية الأسئلة ونشر المسابقة فوراً)*"
+                "هل تود أن أرسل **رسالة في القروب** باسم الشخص الذي ضغط على الزر (تعلم من دخل)؟"
             )
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
             return
