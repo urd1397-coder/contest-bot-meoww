@@ -286,7 +286,6 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["custom_join_msg"] = "انضم إلى المسابقة بنجاح! 🔥"
                 go_to_step7(user_id, chat_id, message_id)
 
-        # -- السؤال 7 والأخير: المنشن (تم الإصلاح لضمان عدم التعليق والنشر الفوري) --
         elif data == "mention_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["msg_mention"] = True
@@ -474,7 +473,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
 
 # ==========================================
-# **معالجة المدخلات والخطوات بدون أي تعليق**
+# **معالجة المدخلات والخطوات مع دعم الخطوة السابعة**
 # ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
@@ -588,6 +587,17 @@ def handler_private_contest_steps(message):
             state_data["custom_join_msg"] = text_content
             if target_message_id:
                 go_to_step7(user_id, chat_id, target_message_id)
+            return
+            
+        elif step == 7:
+            # معالجة لو كتب المستخدم نصاً بدلاً من الضغط على زر المنشن الأخير
+            if "نعم" in text_content or "yes" in text_content.lower():
+                state_data["msg_mention"] = True
+            else:
+                state_data["msg_mention"] = False
+                
+            if target_message_id:
+                finalize_and_publish_contest(bot, chat_id, target_message_id, user_id)
             return
          
 # ==========================================
