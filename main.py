@@ -247,13 +247,11 @@ def handle_all_callbacks(call):
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
 
-        # -- تخطي السؤال 3 (الصورة) --
         elif data == "skip_step3":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["image_media"] = None
                 go_to_step4(user_id, chat_id, message_id)
 
-        # -- تخطي السؤال 4 (التعليقات) --
         elif data == "skip_step4":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["comments_enabled"] = False
@@ -264,7 +262,6 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["comments_enabled"] = True
                 go_to_step5(user_id, chat_id, message_id)
 
-        # -- السؤال 5: زر الاشتراك --
         elif data == "sub_btn_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["has_sub_button"] = True
@@ -289,7 +286,7 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["custom_join_msg"] = "انضم إلى المسابقة بنجاح! 🔥"
                 go_to_step7(user_id, chat_id, message_id)
 
-        # -- السؤال 7 والأخير: المنشن --
+        # -- السؤال 7 والأخير: المنشن (تم الإصلاح لضمان عدم التعليق والنشر الفوري) --
         elif data == "mention_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["msg_mention"] = True
@@ -504,7 +501,6 @@ def handler_private_contest_steps(message):
         state_data = contest_creation_state[user_id]
         step = state_data.get("step", 1)
 
-        # -- معالجة الخطوة الأولى بأمان تام لتجنب أي تعليق --
         if step == 1:
             resolved_channel_id = text_content
             if "t.me/" in text_content:
@@ -556,13 +552,11 @@ def handler_private_contest_steps(message):
                     pass
             return
 
-        # حذف الرسالة المكتوبة في باقي الخطوات لتنظيف الشات
         try:
             bot.delete_message(chat_id, message.message_id)
         except Exception:
             pass
 
-        # -- السؤال 2: حفظ النص والانتقال للسؤال 3 (الصورة) --
         if step == 2:
             state_data["announcement"] = text_content
             state_data["step"] = 3
@@ -581,7 +575,6 @@ def handler_private_contest_steps(message):
                     pass
             return
 
-        # -- استقبال الصورة والانتقال للسؤال 4 --
         elif step == 3:
             if message.photo:
                 state_data["image_media"] = message.photo[-1].file_id
@@ -591,7 +584,6 @@ def handler_private_contest_steps(message):
                 go_to_step4(user_id, chat_id, target_message_id)
             return
 
-        # -- السؤال 6: استلام الرد المميز --
         elif step == 6:
             state_data["custom_join_msg"] = text_content
             if target_message_id:
