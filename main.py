@@ -1,5 +1,5 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الداخلي الذكي**
+# **بوتي شركس - نظام المسابقات والتصويت الذكي**
 # ==========================================
 import os
 import time
@@ -104,7 +104,7 @@ def handle_start_command(message):
      
     text = (
         "مياو! أهلاً بك في عالم شركس 🐱✨\n"
-        "البوت الأنيق والسريع لإدارة مسابقاتك وتصويتك بكل احترافية دون أي عشوائية.\n"
+        "البوت الأنيق والسريع لإدارة مسابقاتك وتصويتك بكل احترافية ودون أي عشوائية.\n"
         "اختر ما يناسبك من الخيارات أدناه:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=create_main_menu_markup())
@@ -233,7 +233,7 @@ def handle_all_callbacks(call):
                 text = (
                     "🐾 *[ السؤال 1: معرف القناة أو القروب ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن **معرف القناة أو القروب المستهدف أو رابطهما**.\n"
+                    "أرسل لي الآن **معرف القناة أو القروب المستهدف أو رابطهما**:\n"
                     "_(سيتم التحقق من هويتك كأدمن ووجود البوت بصلاحياته لتجنب العشوائية)_"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
@@ -274,7 +274,7 @@ def handle_all_callbacks(call):
                 text = (
                     "🐾 *[ السؤال 6: الرد المميز عند الضغط ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن **الرد المميز** من اختيارك (أو اضغط **تخطي** لاستخدام الرد التلقائي الجميل):"
+                    "أرسل لي الآن **الرد المميز** من اختيارك (أو اضغط **تخطي** لاستخدام الرد التلقائي):"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
 
@@ -429,7 +429,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     custom_join_msg = state_data.get("custom_join_msg", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
     
-    # تكوين الكود الفريد باستخدام Hashid والوقت[cite: 3]
     unique_hash = hashids.encode(int(time.time()))[cite: 3]
     
     contest_storage[unique_hash] = {
@@ -478,7 +477,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
 
 
 # ==========================================
-# **معالجة خطوات المدخلات والأسئلة الخاصة**
+# **معالجة المدخلات والخطوات بدون أي تعليق**
 # ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
@@ -486,15 +485,14 @@ def handler_private_contest_steps(message):
     user_id = message.from_user.id
     text_content = message.text.strip() if message.text else ""
 
-    try:
-        bot.delete_message(chat_id, message.message_id)
-    except Exception:
-        pass
-
     target_message_id = last_panel_message.get(chat_id)
 
     if user_id in end_contest_state:
         end_contest_state.pop(user_id, None)
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
         update_or_send_panel(
             chat_id,
             f"⛔ *تم إنهاء معالجة الطلب للقناة المحددة.* 🐾",
@@ -506,7 +504,7 @@ def handler_private_contest_steps(message):
         state_data = contest_creation_state[user_id]
         step = state_data.get("step", 1)
 
-        # -- السؤال 1: التحقق من المعرف والأدمنية والبوت --
+        # -- معالجة الخطوة الأولى بأمان تام لتجنب أي تعليق --
         if step == 1:
             resolved_channel_id = text_content
             if "t.me/" in text_content:
@@ -515,15 +513,24 @@ def handler_private_contest_steps(message):
                     resolved_channel_id = f"@{parts}"
 
             try:
+                bot.delete_message(chat_id, message.message_id)
+            except Exception:
+                pass
+
+            try:
                 chat_member = bot.get_chat_member(resolved_channel_id, bot.get_me().id)
                 if chat_member.status not in ["administrator", "creator"]:
                     raise Exception("Bot is not admin")
-            except Exception as e:
+            except Exception:
                 markup = get_back_and_home_markup("cmd_create")
-                bot.edit_message_text(
-                    "⚠️ **خطأ في الصلاحيات أو المعرف!**\nتأكد أن البوت مشرف ولديه الصلاحيات الكافية، وأنك أرسلت المعرف الصحيح لتجنب العشوائية.",
-                    chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup
-                )
+                if target_message_id:
+                    try:
+                        bot.edit_message_text(
+                            "⚠️ **خطأ في الصلاحيات أو المعرف!**\nتأكد أن البوت مشرف ولديه الصلاحيات، وأنك أرسلت المعرف الصحيح لتجنب العشوائية.",
+                            chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup
+                        )
+                    except Exception:
+                        pass
                 contest_creation_state.pop(user_id, None)
                 return
 
@@ -540,13 +547,23 @@ def handler_private_contest_steps(message):
             text = (
                 "🐾 *[ السؤال 2: نص المسابقة أو السؤال ]* 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن **نص اعلان المسابقة أو السؤال** المراد نشره (سيتم تضمين الهاش تلقائياً):"
+                "أرسل لي الآن **نص اعلان المسابقة أو السؤال** المراد نشره:"
             )
-            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+                except Exception:
+                    pass
             return
 
+        # حذف الرسالة المكتوبة في باقي الخطوات لتنظيف الشات
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except Exception:
+            pass
+
         # -- السؤال 2: حفظ النص والانتقال للسؤال 3 (الصورة) --
-        elif step == 2:
+        if step == 2:
             state_data["announcement"] = text_content
             state_data["step"] = 3
             
@@ -557,7 +574,11 @@ def handler_private_contest_steps(message):
                 "هل تود إرفاق **صورة** في أعلى منشور المسابقة للتميز؟\n"
                 "أرسل الصورة مباشرة أو انقر على زر **تخطي** أدناه."
             )
-            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+                except Exception:
+                    pass
             return
 
         # -- استقبال الصورة والانتقال للسؤال 4 --
@@ -566,13 +587,15 @@ def handler_private_contest_steps(message):
                 state_data["image_media"] = message.photo[-1].file_id
             else:
                 state_data["image_media"] = text_content
-            go_to_step4(user_id, chat_id, target_message_id)
+            if target_message_id:
+                go_to_step4(user_id, chat_id, target_message_id)
             return
 
         # -- السؤال 6: استلام الرد المميز --
         elif step == 6:
             state_data["custom_join_msg"] = text_content
-            go_to_step7(user_id, chat_id, target_message_id)
+            if target_message_id:
+                go_to_step7(user_id, chat_id, target_message_id)
             return
          
 # ==========================================
