@@ -1,5 +1,5 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الذكي**
+# **بوتي شركس - نظام المسابقات والتصويت الداخلي الذكي**
 # ==========================================
 import os
 import time
@@ -17,13 +17,19 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# إعداد مكتبة Hashids لهاش قصير وفريد
 hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
+
+# خزان داخلي لتخزين إعدادات المسابقات المرتبطة بالـ Hashid
 contest_storage = {}
 
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
+# ==========================================
+# **خادم الويب للحفاظ على نشاط البوت**
+# ==========================================
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -40,378 +46,9 @@ def run_server():
     server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
     server.serve_forever()
 
-def create_main_menu_markup():
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("🎯 إنشاء مسابقة / تصويت تفاعلي", callback_data="cmd_create"),
-        types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
-        types.InlineKeyboardButton("🧹 تنظيف شات البوت", callback_data="cmd_clean_chat"),
-        types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
-    )
-    return markup
-
-def get_back_and_home_markup(back_callback="cmd_home"):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("🔙 رجوع", callback_data=back_callback),
-        types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home")
-    )
-    return markup
-
-def get_skip_and_home_markup(skip_callback, back_callback="cmd_home"):
-    markup = types.InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        types.InlineKeyboardButton("⏭️ تخطي", callback_data=skip_callback),
-        types.InlineKeyboardButton("🏠 الرئيسية", callback_data=back_callback)
-    )
-    return markup
-
-@bot.message_handler(commands=["start"])
-def handle_start_command(message):
-    if message.chat.type != "private":
-        return
-    text = "مياو! أهلاً بك في عالم شركس 🐱✨\nاختر ما يناسبك من الخيارات أدناه:"
-    sent = bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=create_main_menu_markup())
-    last_panel_message[message.chat.id] = sent.message_id
-
-@bot.callback_query_handler(func=lambda call: True)
-def handle_all_callbacks(call):
-    chat_id = call.message.chat.id 
-    user_id = call.from_user.id
-    data = call.data
-    message_id = call.message.message_id
-    last_panel_message[chat_id] = message_id
-     
-    if data.startswith("contest_vote_"):
-        try:
-            h_id = data.replace("contest_vote_", "")
-            contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})
-            
-            message_text = call.message.text or call.message.caption or ""
-            user_first_name = call.from_user.first_name or "المشارك"
-            user_username = call.from_user.username
-             
-            if user_username:
-                user_identity = f"@{user_username}"
-            else:
-                user_identity = f"[{user_first_name}](tg://user?id={user_id})"
-
-            if user_identity in message_text:
-                try:
-                    bot.answer_callback_query(call.id, f"⚠️ عذراً يا {user_first_name} لقد قمت بالتسجيل مسبقاً!", show_alert=True)
-                except Exception:
-                    pass
-                return
-
-            custom_join_msg = contest_info.get("join_msg", "انضم إلى المسابقة بنجاح! 🔥")
-            use_mention = contest_info.get("mention", True)
-
-            lines = message_text.split("\n")
-            new_lines = []
-            current_count = 0
-            participants_line_idx = -1
-             
-            for i, line in enumerate(lines):
-                if "عدد المسجلين:" in line:
-                    import re
-                    nums = re.findall(r'\d+', line)
-                    if nums:
-                        current_count = int(nums[0])
-                    current_count += 1
-                    new_lines.append(f"👥 عدد المسجلين: *{current_count}*")
-                elif "قائمة المشاركين:" in line:
-                    participants_line_idx = i
-                    new_lines.append(line)
-                else:
-                    new_lines.append(line)
-
-            if participants_line_idx != -1:
-                old_text = lines[participants_line_idx].replace("📋 قائمة المشاركين:", "").strip()
-                updated_participants = user_identity if ("لا يوجد مشاركين" in old_text or not old_text) else f"{old_text}, {user_identity}"
-                new_lines[participants_line_idx] = f"📋 قائمة المشاركين: {updated_participants}"
-
-            updated_full_text = "\n".join(new_lines)
-
-            if call.message.photo:
-                bot.edit_message_caption(caption=updated_full_text, chat_id=chat_id, message_id=message_id, parse_mode="Markdown", reply_markup=call.message.reply_markup)
-            else:
-                bot.edit_message_text(text=updated_full_text, chat_id=chat_id, message_id=message_id, parse_mode="Markdown", reply_markup=call.message.reply_markup)
-
-            announcement_to_send = f"{user_identity} {custom_join_msg}" if use_mention else custom_join_msg
-             
-            try:
-                sent_notif = bot.send_message(chat_id, announcement_to_send, parse_mode="Markdown")
-                bot.pin_chat_message(chat_id, sent_notif.message_id)
-            except Exception:
-                pass
-
-            bot.answer_callback_query(call.id, f"✅ تم تسجيل مشاركتك يا {user_first_name}!", show_alert=True)
-        except Exception as e:
-            print(f"Error: {e}")
-        return
-
-    try:
-        bot.answer_callback_query(call.id)
-    except Exception:
-        pass
-         
-    try:
-        if data == "cmd_create":
-            contest_creation_state[user_id] = {"step": 1, "is_private": (call.message.chat.type == "private")}
-            if call.message.chat.type == "private":
-                markup = get_back_and_home_markup("cmd_home")
-                text = "🐾 *[ السؤال 1: معرف القناة أو القروب ]* 🐱✨\nأرسل لي معرف أو رابط القناة/القروب:"
-                bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-            else:
-                contest_creation_state[user_id]["channel"] = chat_id
-                contest_creation_state[user_id]["step"] = 2
-                markup = get_back_and_home_markup("cmd_home")
-                text = "🐾 *[ السؤال 2: نص المسابقة أو السؤال ]* 🐱✨\nأرسل لي نص إعلان المسابقة:"
-                bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-
-        elif data == "skip_step3":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["image_media"] = None
-                go_to_step4(user_id, chat_id, message_id)
-
-        elif data == "skip_step4":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["comments_enabled"] = False
-                go_to_step5(user_id, chat_id, message_id)
-
-        elif data == "comments_yes":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["comments_enabled"] = True
-                go_to_step5(user_id, chat_id, message_id)
-
-        elif data == "sub_btn_yes":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["has_sub_button"] = True
-                contest_creation_state[user_id]["step"] = 6
-                markup = get_skip_and_home_markup("skip_step6", "cmd_create")
-                text = "🐾 *[ السؤال 6: الرد المميز عند الضغط ]* 🐱✨\nأرسل الرد المميز أو اضغط تخطي:"
-                bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-
-        elif data == "sub_btn_no":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["has_sub_button"] = False
-                contest_creation_state[user_id]["custom_join_msg"] = "انضم إلى المسابقة بنجاح! 🔥"
-                go_to_step7(user_id, chat_id, message_id)
-
-        elif data == "skip_step6":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["custom_join_msg"] = "انضم إلى المسابقة بنجاح! 🔥"
-                go_to_step7(user_id, chat_id, message_id)
-
-        elif data == "mention_yes":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["msg_mention"] = True
-                finalize_and_publish_contest(bot, chat_id, message_id, user_id)
-
-        elif data == "mention_no":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["msg_mention"] = False
-                finalize_and_publish_contest(bot, chat_id, message_id, user_id)
-
-        elif data == "cmd_home":
-            contest_creation_state.pop(user_id, None)
-            update_or_send_panel(chat_id, "🏠 القائمة الرئيسية لشركس 🐱:", create_main_menu_markup())
-
-        elif data == "cmd_cancel":
-            contest_creation_state.pop(user_id, None)
-            bot.send_message(chat_id, "❌ تم إغلاق القائمة.", reply_markup=types.ReplyKeyboardRemove())
-            update_or_send_panel(chat_id, "أرسل /start لإظهار القائمة مجدداً.", create_main_menu_markup())
-
-    except Exception as e:
-        print(f"Error: {e}")
-
-def go_to_step4(user_id, chat_id, message_id):
-    if user_id in contest_creation_state:
-        contest_creation_state[user_id]["step"] = 4
-        markup = get_skip_and_home_markup("skip_step4", "cmd_create")
-        markup.row(types.InlineKeyboardButton("✅ نعم، أضف خانة تعليقات", callback_data="comments_yes"))
-        text = "🐾 *[ السؤال 4: خانة التعليقات ]* 🐱✨\nهل تود إضافة خانة تعليقات للمنشور؟"
-        try:
-            bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-        except Exception:
-            pass
-
-def go_to_step5(user_id, chat_id, message_id):
-    if user_id in contest_creation_state:
-        contest_creation_state[user_id]["step"] = 5
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(types.InlineKeyboardButton("✅ نعم", callback_data="sub_btn_yes"), types.InlineKeyboardButton("❌ لا", callback_data="sub_btn_no"))
-        markup.add(types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home"))
-        text = "🐾 *[ السؤال 5: زر الاشتراك ]* 🐱✨\nهل تود إضافة زر اشتراك أسفل الرسالة؟"
-        try:
-            bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-        except Exception:
-            pass
-
-def go_to_step7(user_id, chat_id, message_id):
-    if user_id in contest_creation_state:
-        contest_creation_state[user_id]["step"] = 7
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(types.InlineKeyboardButton("✅ نعم", callback_data="mention_yes"), types.InlineKeyboardButton("❌ لا", callback_data="mention_no"))
-        markup.add(types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home"))
-        text = "🐾 *[ السؤال 7 والأخير: تاغ أو منشن ]* 🐱✨\nهل تود عمل تاغ أو منشن للشخص عند الضغط؟"
-        try:
-            bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-        except Exception:
-            pass
-
-def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
-    state_data = contest_creation_state.pop(user_id, None)
-    if not state_data:
-        return
-         
-    raw_channel = state_data.get("channel", chat_id)
-    announcement = state_data.get("announcement", "مسابقة جديدة!")
-    image_media = state_data.get("image_media")
-    has_sub_button = state_data.get("has_sub_button", True)
-    custom_join_msg = state_data.get("custom_join_msg", "انضم إلى المسابقة بنجاح! 🔥")
-    msg_mention_bool = state_data.get("msg_mention", True)
-    
-    unique_hash = hashids.encode(int(time.time()))
-    contest_storage[unique_hash] = {"join_msg": custom_join_msg, "mention": msg_mention_bool}
-     
-    target_chat_id = raw_channel
-    try:
-        chat_obj = bot_instance.get_chat(raw_channel)
-        target_chat_id = chat_obj.id
-    except Exception:
-        pass
-
-    final_text = (
-        f"🎉 *مسابقة جديدة* (كود الهاش: `{unique_hash}`)\n\n"
-        f"❓ *السؤال:*\n{announcement}\n\n"
-        f"👥 عدد المسجلين: *0*\n"
-        f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
-    )
-
-    channel_markup = types.InlineKeyboardMarkup()
-    if has_sub_button:
-        channel_markup.add(types.InlineKeyboardButton("اشترك الآن 🏆", callback_data=f"contest_vote_{unique_hash}"))
-
-    try:
-        if image_media:
-            sent_msg = bot_instance.send_photo(target_chat_id, image_media, caption=final_text, parse_mode="Markdown", reply_markup=channel_markup)
-        else:
-            sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="Markdown", disable_web_page_preview=True, reply_markup=channel_markup)
-
-        try:
-            bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
-        except Exception:
-            pass
-
-        bot_instance.edit_message_text("✅ *تم نشر المسابقة وتثبيتها بنجاح تام!* 🐾🐱", chat_id, message_id, parse_mode="Markdown", reply_markup=create_main_menu_markup())
-    except Exception as e:
-        bot_instance.edit_message_text(f"⚠️ تعذر النشر، تأكد من صلاحيات البوت الإدارية: {e}", chat_id, message_id, parse_mode="Markdown", reply_markup=create_main_menu_markup())
-
-@bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
-def handler_private_contest_steps(message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    text_content = message.text.strip() if message.text else ""
-    target_message_id = last_panel_message.get(chat_id)
-
-    if user_id in contest_creation_state:
-        state_data = contest_creation_state[user_id]
-        step = state_data.get("step", 1)
-
-        try:
-            bot.delete_message(chat_id, message.message_id)
-        except Exception:
-            pass
-
-        if step == 1:
-            resolved_channel_id = text_content
-            if "t.me/" in text_content:
-                parts = text_content.split("t.me/")[-1].split("?")[0].strip("/")
-                if parts and not parts.startswith("+"):
-                    resolved_channel_id = f"@{parts}"
-            try:
-                chat_member = bot.get_chat_member(resolved_channel_id, bot.get_me().id)
-                if chat_member.status not in ["administrator", "creator"]:
-                    raise Exception()
-            except Exception:
-                if target_message_id:
-                    bot.edit_message_text("⚠️ **خطأ في الصلاحيات أو المعرف!** التأكد من أن البوت مشرف.", chat_id, target_message_id, parse_mode="Markdown", reply_markup=get_back_and_home_markup("cmd_create"))
-                contest_creation_state.pop(user_id, None)
-                return
-
-            try:
-                chat_obj = bot.get_chat(resolved_channel_id)
-                resolved_channel_id = chat_obj.id
-            except Exception:
-                pass
-
-            state_data["channel"] = resolved_channel_id
-            state_data["step"] = 2
-            if target_message_id:
-                bot.edit_message_text("🐾 *[ السؤال 2: نص المسابقة أو السؤال ]* 🐱✨\nأرسل لي نص الإعلان:", chat_id, target_message_id, parse_mode="Markdown", reply_markup=get_back_and_home_markup("cmd_create"))
-            return
-
-        elif step == 2:
-            state_data["announcement"] = text_content
-            state_data["step"] = 3
-            if target_message_id:
-                bot.edit_message_text("🐾 *[ السؤال 3: إرفاق صورة ]* 🐱✨\nأرسل الصورة أو اضغط تخطي:", chat_id, target_message_id, parse_mode="Markdown", reply_markup=get_skip_and_home_markup("skip_step3", "cmd_create"))
-            return
-
-        elif step == 3:
-            state_data["image_media"] = message.photo[-1].file_id if message.photo else text_content
-            if target_message_id:
-                go_to_step4(user_id, chat_id, target_message_id)
-            return
-
-        elif step == 6:
-            state_data["custom_join_msg"] = text_content
-            if target_message_id:
-                go_to_step7(user_id, chat_id, target_message_id)
-            return
-            
-        elif step == 7:
-            if "نعم" in text_content or "yes" in text_content.lower():
-                state_data["msg_mention"] = True
-            else:
-                state_data["msg_mention"] = False
-            if target_message_id:
-                finalize_and_publish_contest(bot, chat_id, target_message_id, user_id)
-            return
-
-if __name__ == "__main__":
-    server_thread = threading.Thread(target=run_server)
-    server_thread.daemon = True
-    server_thread.start()
-     
-    time.sleep(2)
-    try:
-        bot.remove_webhook()
-        bot.set_webhook(url="")
-    except Exception:
-        pass
-
-    while True:
-        try:
-            bot.infinity_polling(skip_pending=True, timeout=15, long_polling_timeout=15)
-        except Exception as e:
-            print(f"Polling error: {e}. Retrying...")
-            time.sleep(5)        self.end_headers()
-        self.wfile.write(b"Sharx Bot is active and running!")
-
-    def do_HEAD(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain")
-        self.end_headers()
-
-def run_server():
-    server = HTTPServer(("0.0.0.0", PORT), SimpleHandler)
-    server.serve_forever()
-
 
 # ==========================================
-# **لوحات الأزرار والقوائم (بطابع قططي ظريف)**
+# **لوحات الأزرار والقوائم الموحدة (بطابع شركس القططي)**
 # ==========================================
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -431,11 +68,11 @@ def get_back_and_home_markup(back_callback="cmd_home"):
     )
     return markup
 
-def get_skip_and_home_markup(skip_callback, back_callback="cmd_home"):
+def get_cancel_and_home_markup(back_callback="cmd_home"):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
-        types.InlineKeyboardButton("⏭️ تخطي", callback_data=skip_callback),
-        types.InlineKeyboardButton("🏠 الرئيسية", callback_data=back_callback)
+        types.InlineKeyboardButton("🔙 رجوع", callback_data=back_callback),
+        types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home")
     )
     return markup
 
@@ -466,8 +103,8 @@ def handle_start_command(message):
         return
      
     text = (
-        "مياو! أهلاً بك في عالم شركس 🐱✨\n"
-        "البوت الأنيق والسريع لإدارة مسابقاتك وتصويتك بكل احترافية ودون أي عشوائية.\n"
+        "مياو أهلاً بك في عالم شركس! 🐱✨\n"
+        "البوت الأنيق والسريع لإدارة مسابقاتك وتصويتك بكل احترافية.\n"
         "اختر ما يناسبك من الخيارات أدناه:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=create_main_menu_markup())
@@ -485,10 +122,12 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
+    # معالجة الضغط على زر المشاركة/التسجيل في المسابقة المنشورة
     if data.startswith("contest_vote_"):
         try:
             h_id = data.replace("contest_vote_", "")
-            contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})[cite: 3]
+            # استرجاع تفاصيل المسابقة والرسالة المخصصة والمنشن المرتبطة بالـ Hashid
+            contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})
             
             message_text = call.message.text or call.message.caption or ""
             user_first_name = call.from_user.first_name or "المشارك"
@@ -556,6 +195,7 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
+            # صياغة رسالة الرد بناءً على تفعيل المنشن وخيار المستخدم
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
@@ -592,69 +232,71 @@ def handle_all_callbacks(call):
         if data == "cmd_create":
             if call.message.chat.type == "private":
                 contest_creation_state[user_id] = {"step": 1, "is_private": True}
-                markup = get_back_and_home_markup("cmd_home")
+                markup = get_cancel_and_home_markup("cmd_home")
                 text = (
-                    "🐾 *[ السؤال 1: معرف القناة أو القروب ]* 🐱✨\n"
+                    "🐾 *[ إنشاء مسابقة شركس القط ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن **معرف القناة أو القروب المستهدف أو رابطهما**:\n"
-                    "_(سيتم التحقق من هويتك كأدمن ووجود البوت بصلاحياته لتجنب العشوائية)_"
+                    "أهلاً بك يا صديقي! 🐾\n"
+                    "1️⃣ أرسل لي الآن **معرف القناة أو القروب المستهدف أو الرابط**:"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
             else:
                 contest_creation_state[user_id] = {"step": 2, "is_private": False, "channel": chat_id}
-                markup = get_back_and_home_markup("cmd_home")
+                markup = get_cancel_and_home_markup("cmd_home")
                 text = (
-                    "🐾 *[ السؤال 2: نص المسابقة أو السؤال ]* 🐱✨\n"
+                    "🐾 *[ إنشاء مسابقة في هذا القروب ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن **نص اعلان المسابقة أو السؤال**:"
+                    "2️⃣ أرسل لي الآن **نص المسابقة أو السؤال**:"
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
 
-        elif data == "skip_step3":
+        # السؤال الثالث: تخطي أو إرسال صورة الهدية
+        elif data == "prize_yes":
             if user_id in contest_creation_state:
-                contest_creation_state[user_id]["image_media"] = None
-                go_to_step4(user_id, chat_id, message_id)
-
-        elif data == "skip_step4":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["comments_enabled"] = False
-                go_to_step5(user_id, chat_id, message_id)
-
-        elif data == "comments_yes":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["comments_enabled"] = True
-                go_to_step5(user_id, chat_id, message_id)
-
-        elif data == "sub_btn_yes":
-            if user_id in contest_creation_state:
-                contest_creation_state[user_id]["has_sub_button"] = True
-                contest_creation_state[user_id]["step"] = 6
-                
-                markup = get_skip_and_home_markup("skip_step6", "cmd_create")
-                text = (
-                    "🐾 *[ السؤال 6: الرد المميز عند الضغط ]* 🐱✨\n"
-                    "━━━━━━━━━━━━━━━━━━━\n"
-                    "أرسل لي الآن **الرد المميز** من اختيارك (أو اضغط **تخطي** لاستخدام الرد التلقائي):"
-                )
+                contest_creation_state[user_id]["step"] = 3
+                markup = get_cancel_and_home_markup("cmd_create")
+                text = "🎁 أرسل لي الآن **صورة الهدية أو رابطها** لتميز مسابقتك (أو اضغط رجوع للتخطي):"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
 
-        elif data == "sub_btn_no":
+        elif data == "prize_no":
             if user_id in contest_creation_state:
-                contest_creation_state[user_id]["has_sub_button"] = False
-                contest_creation_state[user_id]["custom_join_msg"] = "انضم إلى المسابقة بنجاح! 🔥"
-                go_to_step7(user_id, chat_id, message_id)
+                contest_creation_state[user_id]["prize_media"] = None
+                ask_comment_section_step(user_id, chat_id, message_id)
 
-        elif data == "skip_step6":
+        # السؤال الرابع: خيار خانة التعليقات (تخطي أو تفعيل)
+        elif data == "comment_yes" or data == "comment_no":
             if user_id in contest_creation_state:
-                contest_creation_state[user_id]["custom_join_msg"] = "انضم إلى المسابقة بنجاح! 🔥"
-                go_to_step7(user_id, chat_id, message_id)
+                contest_creation_state[user_id]["has_comments"] = (data == "comment_yes")
+                ask_join_button_step(user_id, chat_id, message_id)
 
-        elif data == "mention_yes":
+        # السؤال الخامس: هل تود إضافة زر اشتراك؟ (نعم / لا)
+        elif data == "btn_join_yes":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["step"] = 5
+                markup = get_cancel_and_home_markup("cmd_create")
+                text = "🔤 أرسل لي الآن **تسمية زر التسجيل/الانضمام** المرادة (مثال: اشترك الآن 🎁):"
+                bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
+
+        elif data == "btn_join_no":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["button_text"] = None
+                contest_creation_state[user_id]["join_msg_text"] = "انضم إلى المسابقة بنجاح! 🔥"
+                contest_creation_state[user_id]["msg_mention"] = True
+                finalize_and_publish_contest(bot, chat_id, message_id, user_id)
+
+        # السؤال السادس: رسالة الرد المخصصة عند الضغط على زر الاشتراك
+        elif data == "join_msg_skip":
+            if user_id in contest_creation_state:
+                contest_creation_state[user_id]["join_msg_text"] = "انضم إلى المسابقة بنجاح! 🔥"
+                ask_mention_step(user_id, chat_id, message_id)
+
+        # السؤال السابع والأخير: المنشن (نعم / لا)
+        elif data == "mention_join_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["msg_mention"] = True
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
-        elif data == "mention_no":
+        elif data == "mention_join_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["msg_mention"] = False
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
@@ -677,9 +319,9 @@ def handle_all_callbacks(call):
                     pass
             else:
                 end_contest_state[user_id] = {"step": 1}
-                markup = get_back_and_home_markup("cmd_home")
+                markup = get_cancel_and_home_markup("cmd_home")
                 text = (
-                    "🐾 *[ إنهاء مسابقة شركس ]* 🐱✨\n"
+                    "⛔ *[ إنهاء مسابقة شركس ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
                     "أرسل لي *معرف أو رابط القناة/القروب* المراد إنهاء مسابقتها:"
                 )
@@ -712,60 +354,45 @@ def handle_all_callbacks(call):
         print(f"Callback Error ({data}): {e}")
 
 
-# ==========================================
-# **دوال التنقل السلس بين خطوات الأسئلة**
-# ==========================================
-def go_to_step4(user_id, chat_id, message_id):
+def ask_comment_section_step(user_id, chat_id, message_id):
+    if user_id in contest_creation_state:
+        contest_creation_state[user_id]["step"] = 3.5
+        markup = get_cancel_and_home_markup("cmd_create")
+        markup.row(
+            types.InlineKeyboardButton("💬 نعم (تفعيل التعليقات)", callback_data="comment_yes"),
+            types.InlineKeyboardButton("⏭️ تخطي", callback_data="comment_no")
+        )
+        text = "💬 **السؤال الرابع:** هل تود إضافة خانة تعليقات للمنشور؟ (اختياري، يمكنك التخطي):"
+        try:
+            bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
+        except Exception:
+            sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
+
+def ask_join_button_step(user_id, chat_id, message_id):
     if user_id in contest_creation_state:
         contest_creation_state[user_id]["step"] = 4
-        markup = get_skip_and_home_markup("skip_step4", "cmd_create")
-        markup.row(types.InlineKeyboardButton("✅ نعم، أضف خانة تعليقات", callback_data="comments_yes"))
-        text = (
-            "🐾 *[ السؤال 4: خانة التعليقات للمنشور ]* 🐱✨\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "هل تود إضافة خانة تعليقات للمنشور؟\n"
-            "يمكنك النقر على زر **تخطي** أدناه إذا لم تكن بحاجة إليها."
+        markup = get_cancel_and_home_markup("cmd_create")
+        markup.row(
+            types.InlineKeyboardButton("✅ نعم", callback_data="btn_join_yes"),
+            types.InlineKeyboardButton("❌ لا", callback_data="btn_join_no")
         )
+        text = "🎯 **السؤال الخامس:** هل تود إضافة زر اشتراك/تسجيل أسفل الرسالة؟"
         try:
             bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
         except Exception:
             sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
             last_panel_message[chat_id] = sent.message_id
 
-def go_to_step5(user_id, chat_id, message_id):
-    if user_id in contest_creation_state:
-        contest_creation_state[user_id]["step"] = 5
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            types.InlineKeyboardButton("✅ نعم", callback_data="sub_btn_yes"),
-            types.InlineKeyboardButton("❌ لا", callback_data="sub_btn_no")
-        )
-        markup.add(types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home"))
-        text = (
-            "🐾 *[ السؤال 5: زر الاشتراك ]* 🐱✨\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "هل تود إضافة زر اشتراك أسفل رسالة المسابقة؟"
-        )
-        try:
-            bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-        except Exception:
-            sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
-            last_panel_message[chat_id] = sent.message_id
-
-def go_to_step7(user_id, chat_id, message_id):
+def ask_mention_step(user_id, chat_id, message_id):
     if user_id in contest_creation_state:
         contest_creation_state[user_id]["step"] = 7
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            types.InlineKeyboardButton("✅ نعم", callback_data="mention_yes"),
-            types.InlineKeyboardButton("❌ لا", callback_data="mention_no")
+        markup = get_cancel_and_home_markup("cmd_create")
+        markup.row(
+            types.InlineKeyboardButton("✅ نعم (مع منشن)", callback_data="mention_join_yes"),
+            types.InlineKeyboardButton("❌ لا (بدون منشن)", callback_data="mention_join_no")
         )
-        markup.add(types.InlineKeyboardButton("🏠 الرئيسية", callback_data="cmd_home"))
-        text = (
-            "🐾 *[ السؤال 7 والأخير: تاغ أو منشن للضاغط على الزر ]* 🐱✨\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            "هل تود عمل تاغ أو منشن للشخص عند الضغط على زر الاشتراك وإرسال الإشعار؟"
-        )
+        text = "🏷️ **السؤال الأخير:** هل تود عمل تاغ أو منشن للشخص الضاغط على زر الانضمام؟"
         try:
             bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
         except Exception:
@@ -774,7 +401,7 @@ def go_to_step7(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة النشر النهائي مع الهاش (Hashid) والجمالية**
+# **دالة نشر المسابقة مع توليد وتخزين Hashid**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -783,17 +410,19 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
          
     raw_channel = state_data.get("channel", chat_id)
     announcement = state_data.get("announcement", "مسابقة جديدة!")
-    image_media = state_data.get("image_media")
-    has_sub_button = state_data.get("has_sub_button", True)
-    custom_join_msg = state_data.get("custom_join_msg", "انضم إلى المسابقة بنجاح! 🔥")
+    button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
+    prize_media = state_data.get("prize_media") 
+     
+    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
     
-    unique_hash = hashids.encode(int(time.time()))[cite: 3]
+    # توليد هاش قصير ونظيف وتربيطه بالمعلومات الحقيقية في الذاكرة
+    unique_hash = hashids.encode(int(time.time()))
     
     contest_storage[unique_hash] = {
-        "join_msg": custom_join_msg,
+        "join_msg": join_msg_text,
         "mention": msg_mention_bool
-    }[cite: 3]
+    }
      
     target_chat_id = raw_channel
     try:
@@ -802,22 +431,28 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    final_text = (
-        f"🎉 *مسابقة جديدة* (كود الهاش: `{unique_hash}`)\n\n"
-        f"❓ *السؤال:*\n{announcement}\n\n"
-        f"👥 عدد المسجلين: *0*\n"
-        f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
-    )
+    if prize_media:
+        final_text = (
+            f"🎉 *مسابقة شركس الجديدة* (كود: `{unique_hash}`)\n\n"
+            f"❓ *السؤال:*\n{announcement}\n\n"
+            f"🎁 *الهدية:* {prize_media}\n\n"
+            f"👥 عدد المسجلين: *0*\n"
+            f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
+        )
+    else:
+        final_text = (
+            f"🎉 *مسابقة شركس الجديدة* (كود: `{unique_hash}`)\n\n"
+            f"❓ *السؤال:*\n{announcement}\n\n"
+            f"👥 عدد المسجلين: *0*\n"
+            f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
+        )
 
     channel_markup = types.InlineKeyboardMarkup()
-    if has_sub_button:
-        channel_markup.add(types.InlineKeyboardButton("اشترك الآن 🏆", callback_data=f"contest_vote_{unique_hash}"))
+    if button_text:
+        channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=f"contest_vote_{unique_hash}"))
 
     try:
-        if image_media:
-            sent_msg = bot_instance.send_photo(target_chat_id, image_media, caption=final_text, parse_mode="Markdown", reply_markup=channel_markup)
-        else:
-            sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="Markdown", disable_web_page_preview=True, reply_markup=channel_markup)
+        sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="Markdown", disable_web_page_preview=True, reply_markup=channel_markup)
 
         try:
             bot_instance.pin_chat_message(target_chat_id, sent_msg.message_id)
@@ -825,18 +460,18 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            "✅ *تم نشر المسابقة وتثبيتها بنجاح تام مع كود الهاش الجميل!* 🐾🐱",
+            "✅ *تم نشر المسابقة وتثبيتها بنجاح تام يا بطل!* 🐾🐱",
             chat_id, message_id, parse_mode="Markdown", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
         bot_instance.edit_message_text(
-            f"⚠️ تعذر النشر، تأكد من صلاحيات البوت الإدارية في القناة أو القروب: {e}",
+            f"⚠️ تعذر النشر، تأكد من صلاحيات البوت كمسؤول في القناة أو القروب: {e}",
             chat_id, message_id, parse_mode="Markdown", reply_markup=create_main_menu_markup()
         )
 
 
 # ==========================================
-# **معالجة المدخلات والخطوات مع دعم الخطوة السابعة**
+# **معالجة خطوات الأسئلة في المحادثة الخاصة**
 # ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
@@ -844,14 +479,27 @@ def handler_private_contest_steps(message):
     user_id = message.from_user.id
     text_content = message.text.strip() if message.text else ""
 
+    try:
+        bot.delete_message(chat_id, message.message_id)
+    except Exception:
+        pass
+
     target_message_id = last_panel_message.get(chat_id)
 
     if user_id in end_contest_state:
-        end_contest_state.pop(user_id, None)
+        resolved_channel_id = text_content
+        if "t.me/" in text_content:
+            parts = text_content.split("t.me/")[-1].split("?")[0].strip("/")
+            if parts and not (parts.startswith("+") or parts.startswith("joinchat/")):
+                resolved_channel_id = f"@{parts}"
+
         try:
-            bot.delete_message(chat_id, message.message_id)
-        except Exception:
-            pass
+            chat_obj = bot.get_chat(resolved_channel_id)
+            resolved_channel_id = chat_obj.id
+        except Exception as e:
+            print(f"Could not resolve channel for ending: {e}")
+
+        end_contest_state.pop(user_id, None)
         update_or_send_panel(
             chat_id,
             f"⛔ *تم إنهاء معالجة الطلب للقناة المحددة.* 🐾",
@@ -863,6 +511,7 @@ def handler_private_contest_steps(message):
         state_data = contest_creation_state[user_id]
         step = state_data.get("step", 1)
 
+        # الخطوة 1: استلام القناة والتحقق من صلاحيات المشرف
         if step == 1:
             resolved_channel_id = text_content
             if "t.me/" in text_content:
@@ -871,24 +520,15 @@ def handler_private_contest_steps(message):
                     resolved_channel_id = f"@{parts}"
 
             try:
-                bot.delete_message(chat_id, message.message_id)
-            except Exception:
-                pass
-
-            try:
                 chat_member = bot.get_chat_member(resolved_channel_id, bot.get_me().id)
                 if chat_member.status not in ["administrator", "creator"]:
                     raise Exception("Bot is not admin")
-            except Exception:
+            except Exception as e:
                 markup = get_back_and_home_markup("cmd_create")
-                if target_message_id:
-                    try:
-                        bot.edit_message_text(
-                            "⚠️ **خطأ في الصلاحيات أو المعرف!**\nتأكد أن البوت مشرف ولديه الصلاحيات، وأنك أرسلت المعرف الصحيح لتجنب العشوائية.",
-                            chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup
-                        )
-                    except Exception:
-                        pass
+                bot.edit_message_text(
+                    "⚠️ **خطأ في الصلاحيات أو المعرف!**\nتأكد أن البوت مشرف (Admin) في القناة/القروب ولديه صلاحيات النشر والتثبيت، ثم أرسل المعرف الصحيح.",
+                    chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup
+                )
                 contest_creation_state.pop(user_id, None)
                 return
 
@@ -901,68 +541,64 @@ def handler_private_contest_steps(message):
             state_data["channel"] = resolved_channel_id
             state_data["step"] = 2
 
-            markup = get_back_and_home_markup("cmd_create")
+            markup = get_cancel_and_home_markup("cmd_create")
             text = (
-                "🐾 *[ السؤال 2: نص المسابقة أو السؤال ]* 🐱✨\n"
+                "🐾 *[ السؤال الثاني: نص المسابقة ]* 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن **نص اعلان المسابقة أو السؤال** المراد نشره:"
+                "أرسل لي الآن **نص المسابقة أو سؤال التصويت** المراد نشره:"
             )
-            if target_message_id:
-                try:
-                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
-                except Exception:
-                    pass
+            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
             return
 
-        try:
-            bot.delete_message(chat_id, message.message_id)
-        except Exception:
-            pass
-
-        if step == 2:
+        # الخطوة 2: استلام نص المسابقة والانتقال لسؤال الهدية
+        elif step == 2:
             state_data["announcement"] = text_content
             state_data["step"] = 3
-            
-            markup = get_skip_and_home_markup("skip_step3", "cmd_create")
-            text = (
-                "🐾 *[ السؤال 3: إرفاق صورة (اختياري) ]* 🐱✨\n"
-                "━━━━━━━━━━━━━━━━━━━\n"
-                "هل تود إرفاق **صورة** في أعلى منشور المسابقة للتميز؟\n"
-                "أرسل الصورة مباشرة أو انقر على زر **تخطي** أدناه."
+            markup = get_cancel_and_home_markup("cmd_create")
+            markup.row(
+                types.InlineKeyboardButton("🎁 نعم (إرفاق صورة/رابط)", callback_data="prize_yes"),
+                types.InlineKeyboardButton("⏭️ تخطي", callback_data="prize_no")
             )
-            if target_message_id:
-                try:
-                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
-                except Exception:
-                    pass
+            text = (
+                "🐾 *[ السؤال الثالث: إرفاق هدية أو صورة ]* 🐱✨\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "هل تود إرفاق صورة أو رابط هدية للتميز؟ (يمكنك الضغط على تخطي للانتقال مباشرة)."
+            )
+            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
             return
 
+        # الخطوة 3: استلام الهدية والانتقال للتعليقات
         elif step == 3:
             if message.photo:
-                state_data["image_media"] = message.photo[-1].file_id
+                state_data["prize_media"] = message.photo[-1].file_id
             else:
-                state_data["image_media"] = text_content
-            if target_message_id:
-                go_to_step4(user_id, chat_id, target_message_id)
+                state_data["prize_media"] = text_content
+            ask_comment_section_step(user_id, chat_id, target_message_id)
             return
 
+        # الخطوة 5: استلام تسمية زر الاشتراك
+        elif step == 5:
+            state_data["button_text"] = text_content
+            state_data["step"] = 6
+            markup = get_cancel_and_home_markup("cmd_create")
+            markup.row(
+                types.InlineKeyboardButton("⏭️ تخطي واستخدام الرد التلقائي", callback_data="join_msg_skip")
+            )
+            text = (
+                "🐾 *[ السؤال السادس: رسالة الرد المميزة ]* 🐱✨\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "أرسل لي الآن **نص الرد المخصص** عند ضغط المستخدم على الزر (أو اضغط تخطي لاستخدام الرد التلقائي)."
+            )
+            bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+            return
+
+        # الخطوة 6: استلام نص الرد المخصص والانتقال للمنشن
         elif step == 6:
-            state_data["custom_join_msg"] = text_content
-            if target_message_id:
-                go_to_step7(user_id, chat_id, target_message_id)
+            state_data["join_msg_text"] = text_content
+            ask_mention_step(user_id, chat_id, target_message_id)
             return
-            
-        elif step == 7:
-            # معالجة لو كتب المستخدم نصاً بدلاً من الضغط على زر المنشن الأخير
-            if "نعم" in text_content or "yes" in text_content.lower():
-                state_data["msg_mention"] = True
-            else:
-                state_data["msg_mention"] = False
-                
-            if target_message_id:
-                finalize_and_publish_contest(bot, chat_id, target_message_id, user_id)
-            return
-         
+
+
 # ==========================================
 # **التشغيل الأساسي للبوت والخادم**
 # ==========================================
