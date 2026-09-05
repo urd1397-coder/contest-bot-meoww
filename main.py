@@ -4,6 +4,7 @@
 import os
 import time
 import threading
+import sqlite3
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -20,12 +21,46 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # إعداد مكتبة Hashids لهاش قصير وفريد
 hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
 
-# خزان داخلي لتخزين إعدادات المسابقات المرتبطة بالـ Hashid
-contest_storage = {}
-
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
+
+# ==========================================
+# **إعداد قاعدة بيانات SQLite الدائمة**
+# ==========================================
+def init_db():
+    conn = sqlite3.connect("sharx_contests.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contests (
+            hash_id TEXT PRIMARY KEY,
+            join_msg TEXT,
+            mention INTEGER
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def save_contest_to_db(hash_id, join_msg, mention):
+    conn = sqlite3.connect("sharx_contests.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO contests (hash_id, join_msg, mention) VALUES (?, ?, ?)", 
+                   (hash_id, join_msg, 1 if mention else 0))
+    conn.commit()
+    conn.close()
+
+def get_contest_from_db(hash_id):
+    conn = sqlite3.connect("sharx_contests.db", check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute("SELECT join_msg, mention FROM contests WHERE hash_id = ?", (hash_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {"join_msg": row[0], "mention": bool(row[1])}
+    return None
+
 
 # ==========================================
 # **خادم الويب للحفاظ على نشاط البوت**
@@ -122,12 +157,18 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # معالجة الضغط على زر المشاركة/التسجيل في المسابقة المنشورة
+    # معالجة الضغط على زر المشاركة وقراءة الهاش من قاعدة البيانات SQLite
     if data.startswith("contest_vote_"):
         try:
             h_id = data.replace("contest_vote_", "")
-            # استرجاع تفاصيل المسابقة والرسالة المخصصة والمنشن المرتبطة بالـ Hashid
-            contest_info = contest_storage.get(h_id, {"join_msg": "انضم إلى المسابقة بنجاح! 🔥", "mention": True})
+            
+            # جلب تفاصيل المسابقة من قاعدة البيانات الدائمة
+            contest_info = get_contest_from_db(h_id)
+            if not contest_info:
+                contest_info = {
+                    "join_msg": f"انضم إلى المسابقة بنجاح! 🔥 (كود: {h_id})",
+                    "mention": True
+                }
             
             message_text = call.message.text or call.message.caption or ""
             user_first_name = call.from_user.first_name or "المشارك"
@@ -195,7 +236,6 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # صياغة رسالة الرد بناءً على تفعيل المنشن وخيار المستخدم
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
@@ -250,7 +290,6 @@ def handle_all_callbacks(call):
                 )
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
 
-        # السؤال الثالث: تخطي أو إرسال صورة الهدية
         elif data == "prize_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 3
@@ -263,13 +302,11 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["prize_media"] = None
                 ask_comment_section_step(user_id, chat_id, message_id)
 
-        # السؤال الرابع: خيار خانة التعليقات (تخطي أو تفعيل)
         elif data == "comment_yes" or data == "comment_no":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["has_comments"] = (data == "comment_yes")
                 ask_join_button_step(user_id, chat_id, message_id)
 
-        # السؤال الخامس: هل تود إضافة زر اشتراك؟ (نعم / لا)
         elif data == "btn_join_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 5
@@ -284,13 +321,11 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["msg_mention"] = True
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
-        # السؤال السادس: رسالة الرد المخصصة عند الضغط على زر الاشتراك
         elif data == "join_msg_skip":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["join_msg_text"] = "انضم إلى المسابقة بنجاح! 🔥"
                 ask_mention_step(user_id, chat_id, message_id)
 
-        # السؤال السابع والأخير: المنشن (نعم / لا)
         elif data == "mention_join_yes":
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["msg_mention"] = True
@@ -401,7 +436,7 @@ def ask_mention_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# **دالة نشر المسابقة مع توليد وتخزين Hashid**
+# **دالة نشر المسابقة مع حفظ الهاش في SQLite**
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -416,13 +451,11 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
     
-    # توليد هاش قصير ونظيف وتربيطه بالمعلومات الحقيقية في الذاكرة
+    # توليد هاش قصير وفريد
     unique_hash = hashids.encode(int(time.time()))
     
-    contest_storage[unique_hash] = {
-        "join_msg": join_msg_text,
-        "mention": msg_mention_bool
-    }
+    # حفظ الإعدادات في قاعدة بيانات SQLite الدائمة
+    save_contest_to_db(unique_hash, join_msg_text, msg_mention_bool)
      
     target_chat_id = raw_channel
     try:
@@ -460,7 +493,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            "✅ *تم نشر المسابقة وتثبيتها بنجاح تام يا بطل!* 🐾🐱",
+            f"✅ *تم نشر المسابقة وتثبيتها بنجاح تام!*\n🔑 كود الهاش: `{unique_hash}` 🐾",
             chat_id, message_id, parse_mode="Markdown", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -511,7 +544,6 @@ def handler_private_contest_steps(message):
         state_data = contest_creation_state[user_id]
         step = state_data.get("step", 1)
 
-        # الخطوة 1: استلام القناة والتحقق من صلاحيات المشرف
         if step == 1:
             resolved_channel_id = text_content
             if "t.me/" in text_content:
@@ -550,7 +582,6 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
             return
 
-        # الخطوة 2: استلام نص المسابقة والانتقال لسؤال الهدية
         elif step == 2:
             state_data["announcement"] = text_content
             state_data["step"] = 3
@@ -567,7 +598,6 @@ def handler_private_contest_steps(message):
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
             return
 
-        # الخطوة 3: استلام الهدية والانتقال للتعليقات
         elif step == 3:
             if message.photo:
                 state_data["prize_media"] = message.photo[-1].file_id
@@ -576,7 +606,6 @@ def handler_private_contest_steps(message):
             ask_comment_section_step(user_id, chat_id, target_message_id)
             return
 
-        # الخطوة 5: استلام تسمية زر الاشتراك
         elif step == 5:
             state_data["button_text"] = text_content
             state_data["step"] = 6
@@ -587,12 +616,11 @@ def handler_private_contest_steps(message):
             text = (
                 "🐾 *[ السؤال السادس: رسالة الرد المميزة ]* 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن **نص الرد المخصص** عند ضغط المستخدم على الزر (أو اضغط تخطي لاستخدام الرد التلقائي)."
+                "أرسل لي الآن **نص الرد المخصص** عند ضغط المستخدم على الزر (أو اضغط تخطي لاستخدام الرد التلقائي المبرمج):"
             )
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
             return
 
-        # الخطوة 6: استلام نص الرد المخصص والانتقال للمنشن
         elif step == 6:
             state_data["join_msg_text"] = text_content
             ask_mention_step(user_id, chat_id, target_message_id)
