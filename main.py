@@ -25,6 +25,9 @@ contest_creation_state = {}
 end_contest_state = {}
 
 
+# ==========================================
+# 1. خادم الويب المصغر (Keep-Alive Server)
+# ==========================================
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -42,6 +45,9 @@ def run_server():
     server.serve_forever()
 
 
+# ==========================================
+# 2. دوال إنشاء الأزرار والقوائم (Keyboards)
+# ==========================================
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -68,6 +74,10 @@ def get_cancel_and_home_markup(back_callback="cmd_home"):
     )
     return markup
 
+
+# ==========================================
+# 3. دوال إدارة واجهة التحكم والتحديث
+# ==========================================
 def update_or_send_panel(chat_id, text, reply_markup):
     if chat_id in last_panel_message:
         try:
@@ -86,6 +96,9 @@ def update_or_send_panel(chat_id, text, reply_markup):
     last_panel_message[chat_id] = sent.message_id
 
 
+# ==========================================
+# 4. استقبال أمر البدء (Start Command)
+# ==========================================
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
     if message.chat.type != "private":
@@ -100,6 +113,9 @@ def handle_start_command(message):
     last_panel_message[message.chat.id] = sent.message_id
 
 
+# ==========================================
+# 5. معالج الأزرار الشفافة والأوامر (Callback Handler)
+# ==========================================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
     chat_id = call.message.chat.id 
@@ -108,10 +124,9 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
+    # معالجة تفاعل التصويت وتسجيل المشاركين
     if data.startswith("vote_"):
         try:
-            # نستخرج الإعدادات المدمجة مباشرة داخل زر الـ Callback لتجنب كتابة أي شيفراً نصية مزعجة بالعرض
-            # الصيغة: vote_HASH_MENTION(0/1)_CUSTOMTEXT
             parts = data.split("_", 3)
             h_id = parts[1]
             use_mention = (parts[2] == "1")
@@ -333,6 +348,9 @@ def handle_all_callbacks(call):
         print(f"Callback Error ({data}): {e}")
 
 
+# ==========================================
+# 6. خطوات إعداد وإنشاء المسابقة (Steps Functions)
+# ==========================================
 def ask_comment_section_step(user_id, chat_id, message_id):
     if user_id in contest_creation_state:
         contest_creation_state[user_id]["step"] = 3.5
@@ -379,6 +397,9 @@ def ask_mention_step(user_id, chat_id, message_id):
             last_panel_message[chat_id] = sent.message_id
 
 
+# ==========================================
+# 7. دالة نشر المسابقة النهائية (Finalize & Publish)
+# ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
     if not state_data:
@@ -388,6 +409,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     announcement = state_data.get("announcement", "مسابقة جديدة!")
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
+    has_comments = state_data.get("has_comments", False)
      
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
@@ -401,7 +423,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    # النص يظهر نظيفاً 100% وخالياً من أي أسطر شيفرات غريبة
     if prize_media:
         final_text = (
             f"🎉 *مسابقة شركس الجديدة* (كود: `{unique_hash}`)\n\n"
@@ -418,12 +439,17 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
         )
 
-    # نقوم بتمرير البيانات الحقيقية داخل زر الـ Callback بأمان وتشفير نظيف
     mention_flag = "1" if msg_mention_bool else "0"
     sanitized_msg = join_msg_text.replace(" ", "__")
     callback_payload = f"vote_{unique_hash}_{mention_flag}_{sanitized_msg}"
 
     channel_markup = types.InlineKeyboardMarkup()
+
+    # 1️⃣ زر التعليقات يضاف أولاً (في الأعلى وقبل زر اشتراك المسابقة)
+    if has_comments:
+        channel_markup.add(types.InlineKeyboardButton("💬 أضف تعليقك ✍️", url="https://t.me/YourChannelDiscussion"))
+
+    # 2️⃣ زر التسجيل/الانضمام يضاف ثانياً (تحت زر التعليقات)
     if button_text:
         channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=callback_payload))
 
@@ -446,6 +472,9 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         )
 
 
+# ==========================================
+# 8. معالج المحادثات الخاصة والخطوات (Private Messages Handler)
+# ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
     chat_id = message.chat.id
@@ -567,6 +596,9 @@ def handler_private_contest_steps(message):
             return
 
 
+# ==========================================
+# 9. نقطة تشغيل البوت الأساسية (Main Execution)
+# ==========================================
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
