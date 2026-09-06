@@ -1,5 +1,5 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات بدون قواعد بيانات (معتمد على نص الرسالة)**
+# **بوتي شركس - نظام الهاش الذكي (بدون قواعد بيانات وبدون ظهور أي شيفرة)**
 # ==========================================
 import os
 import time
@@ -17,6 +17,7 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# نستخدم هاش قصير وفريد
 hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
 
 last_panel_message = {}
@@ -29,7 +30,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
-        self.wfile.write(b"Sharx Bot (No-DB Mode) is active and running!")
+        self.wfile.write(b"Sharx Bot Clean Mode is active!")
 
     def do_HEAD(self):
         self.send_response(200)
@@ -92,7 +93,7 @@ def handle_start_command(message):
      
     text = (
         "مياو أهلاً بك في عالم شركس! 🐱✨\n"
-        "البوت الذكي بدون قواعد بيانات - يعتمد كلياً على محتوى الرسالة.\n"
+        "البوت الذكي - نظيف تماماً وخالي من الرموز الظاهرة.\n"
         "اختر ما يناسبك من الخيارات أدناه:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=create_main_menu_markup())
@@ -107,9 +108,15 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    if data.startswith("contest_vote_"):
+    if data.startswith("vote_"):
         try:
-            h_id = data.replace("contest_vote_", "")
+            # نستخرج الإعدادات المدمجة مباشرة داخل زر الـ Callback لتجنب كتابة أي شيفراً نصية مزعجة بالعرض
+            # الصيغة: vote_HASH_MENTION(0/1)_CUSTOMTEXT
+            parts = data.split("_", 3)
+            h_id = parts[1]
+            use_mention = (parts[2] == "1")
+            custom_join_msg = parts[3].replace("__", " ") if len(parts) > 3 else "انضم إلى المسابقة بنجاح! 🔥"
+
             message_text = call.message.text or call.message.caption or ""
             user_first_name = call.from_user.first_name or "المشارك"
             user_username = call.from_user.username
@@ -125,15 +132,6 @@ def handle_all_callbacks(call):
                 except Exception:
                     pass
                 return
-
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
-            use_mention = True
-
-            for line in message_text.split("\n"):
-                if line.startswith("💡_msg:"):
-                    custom_join_msg = line.replace("💡_msg:", "").strip()
-                elif line.startswith("🏷️_mention:"):
-                    use_mention = (line.replace("🏷️_mention:", "").strip() == "True")
 
             lines = message_text.split("\n")
             new_lines = []
@@ -403,8 +401,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
-    hidden_data = f"\n💡_msg:{join_msg_text}\n🏷️_mention:{msg_mention_bool}"
-
+    # النص يظهر نظيفاً 100% وخالياً من أي أسطر شيفرات غريبة
     if prize_media:
         final_text = (
             f"🎉 *مسابقة شركس الجديدة* (كود: `{unique_hash}`)\n\n"
@@ -412,7 +409,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"🎁 *الهدية:* {prize_media}\n\n"
             f"👥 عدد المسجلين: *0*\n"
             f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
-            f"{hidden_data}"
         )
     else:
         final_text = (
@@ -420,12 +416,16 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"❓ *السؤال:*\n{announcement}\n\n"
             f"👥 عدد المسجلين: *0*\n"
             f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
-            f"{hidden_data}"
         )
+
+    # نقوم بتمرير البيانات الحقيقية داخل زر الـ Callback بأمان وتشفير نظيف
+    mention_flag = "1" if msg_mention_bool else "0"
+    sanitized_msg = join_msg_text.replace(" ", "__")
+    callback_payload = f"vote_{unique_hash}_{mention_flag}_{sanitized_msg}"
 
     channel_markup = types.InlineKeyboardMarkup()
     if button_text:
-        channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=f"contest_vote_{unique_hash}"))
+        channel_markup.add(types.InlineKeyboardButton(button_text, callback_data=callback_payload))
 
     try:
         sent_msg = bot_instance.send_message(target_chat_id, final_text, parse_mode="Markdown", disable_web_page_preview=True, reply_markup=channel_markup)
@@ -436,7 +436,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            f"✅ *تم نشر المسابقة وتثبيتها بنجاح تام بدون أي قاعدة بيانات!*\n🔑 كود الهاش: `{unique_hash}` 🐾",
+            f"✅ *تم نشر المسابقة وتثبيتها بنجاح تام وبشكل نظيف!*\n🔑 كود الهاش: `{unique_hash}` 🐾",
             chat_id, message_id, parse_mode="Markdown", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
