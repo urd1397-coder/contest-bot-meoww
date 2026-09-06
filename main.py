@@ -1,10 +1,9 @@
 # ==========================================
-# **بوتي شركس - نظام المسابقات والتصويت الداخلي الذكي**
+# **بوتي شركس - نظام المسابقات بدون قواعد بيانات (معتمد على نص الرسالة)**
 # ==========================================
 import os
 import time
 import threading
-import sqlite3
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -18,59 +17,19 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# إعداد مكتبة Hashids لهاش قصير وفريد
 hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
 
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
-# ==========================================
-# **إعداد قاعدة بيانات SQLite الدائمة**
-# ==========================================
-def init_db():
-    conn = sqlite3.connect("sharx_contests.db", check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS contests (
-            hash_id TEXT PRIMARY KEY,
-            join_msg TEXT,
-            mention INTEGER
-        )
-    """)
-    conn.commit()
-    conn.close()
 
-init_db()
-
-def save_contest_to_db(hash_id, join_msg, mention):
-    conn = sqlite3.connect("sharx_contests.db", check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO contests (hash_id, join_msg, mention) VALUES (?, ?, ?)", 
-                   (hash_id, join_msg, 1 if mention else 0))
-    conn.commit()
-    conn.close()
-
-def get_contest_from_db(hash_id):
-    conn = sqlite3.connect("sharx_contests.db", check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute("SELECT join_msg, mention FROM contests WHERE hash_id = ?", (hash_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return {"join_msg": row[0], "mention": bool(row[1])}
-    return None
-
-
-# ==========================================
-# **خادم الويب للحفاظ على نشاط البوت**
-# ==========================================
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/plain")
         self.end_headers()
-        self.wfile.write(b"Sharx Bot is active and running!")
+        self.wfile.write(b"Sharx Bot (No-DB Mode) is active and running!")
 
     def do_HEAD(self):
         self.send_response(200)
@@ -82,9 +41,6 @@ def run_server():
     server.serve_forever()
 
 
-# ==========================================
-# **لوحات الأزرار والقوائم الموحدة (بطابع شركس القططي)**
-# ==========================================
 def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -129,9 +85,6 @@ def update_or_send_panel(chat_id, text, reply_markup):
     last_panel_message[chat_id] = sent.message_id
 
 
-# ==========================================
-# **أمر البداية (Start)**
-# ==========================================
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
     if message.chat.type != "private":
@@ -139,16 +92,13 @@ def handle_start_command(message):
      
     text = (
         "مياو أهلاً بك في عالم شركس! 🐱✨\n"
-        "البوت الأنيق والسريع لإدارة مسابقاتك وتصويتك بكل احترافية.\n"
+        "البوت الذكي بدون قواعد بيانات - يعتمد كلياً على محتوى الرسالة.\n"
         "اختر ما يناسبك من الخيارات أدناه:"
     )
     sent = bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=create_main_menu_markup())
     last_panel_message[message.chat.id] = sent.message_id
 
 
-# ==========================================
-# **معالجة الأزرار التفاعلية (Callbacks)**
-# ==========================================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
     chat_id = call.message.chat.id 
@@ -157,19 +107,9 @@ def handle_all_callbacks(call):
     message_id = call.message.message_id
     last_panel_message[chat_id] = message_id
      
-    # معالجة الضغط على زر المشاركة وقراءة الهاش من قاعدة البيانات SQLite
     if data.startswith("contest_vote_"):
         try:
             h_id = data.replace("contest_vote_", "")
-            
-            # جلب تفاصيل المسابقة من قاعدة البيانات الدائمة
-            contest_info = get_contest_from_db(h_id)
-            if not contest_info:
-                contest_info = {
-                    "join_msg": f"انضم إلى المسابقة بنجاح! 🔥 (كود: {h_id})",
-                    "mention": True
-                }
-            
             message_text = call.message.text or call.message.caption or ""
             user_first_name = call.from_user.first_name or "المشارك"
             user_username = call.from_user.username
@@ -186,8 +126,14 @@ def handle_all_callbacks(call):
                     pass
                 return
 
-            custom_join_msg = contest_info.get("join_msg", "انضم إلى المسابقة بنجاح! 🔥")
-            use_mention = contest_info.get("mention", True)
+            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
+            use_mention = True
+
+            for line in message_text.split("\n"):
+                if line.startswith("💡_msg:"):
+                    custom_join_msg = line.replace("💡_msg:", "").strip()
+                elif line.startswith("🏷️_mention:"):
+                    use_mention = (line.replace("🏷️_mention:", "").strip() == "True")
 
             lines = message_text.split("\n")
             new_lines = []
@@ -435,9 +381,6 @@ def ask_mention_step(user_id, chat_id, message_id):
             last_panel_message[chat_id] = sent.message_id
 
 
-# ==========================================
-# **دالة نشر المسابقة مع حفظ الهاش في SQLite**
-# ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
     if not state_data:
@@ -451,11 +394,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
     
-    # توليد هاش قصير وفريد
     unique_hash = hashids.encode(int(time.time()))
-    
-    # حفظ الإعدادات في قاعدة بيانات SQLite الدائمة
-    save_contest_to_db(unique_hash, join_msg_text, msg_mention_bool)
      
     target_chat_id = raw_channel
     try:
@@ -464,6 +403,8 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     except Exception as e:
         print(f"Error resolving target chat ID in publish: {e}")
 
+    hidden_data = f"\n💡_msg:{join_msg_text}\n🏷️_mention:{msg_mention_bool}"
+
     if prize_media:
         final_text = (
             f"🎉 *مسابقة شركس الجديدة* (كود: `{unique_hash}`)\n\n"
@@ -471,6 +412,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"🎁 *الهدية:* {prize_media}\n\n"
             f"👥 عدد المسجلين: *0*\n"
             f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
+            f"{hidden_data}"
         )
     else:
         final_text = (
@@ -478,6 +420,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"❓ *السؤال:*\n{announcement}\n\n"
             f"👥 عدد المسجلين: *0*\n"
             f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
+            f"{hidden_data}"
         )
 
     channel_markup = types.InlineKeyboardMarkup()
@@ -493,7 +436,7 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             print(f"Pin message error: {pin_err}")
 
         bot_instance.edit_message_text(
-            f"✅ *تم نشر المسابقة وتثبيتها بنجاح تام!*\n🔑 كود الهاش: `{unique_hash}` 🐾",
+            f"✅ *تم نشر المسابقة وتثبيتها بنجاح تام بدون أي قاعدة بيانات!*\n🔑 كود الهاش: `{unique_hash}` 🐾",
             chat_id, message_id, parse_mode="Markdown", reply_markup=create_main_menu_markup()
         )
     except Exception as e:
@@ -503,9 +446,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         )
 
 
-# ==========================================
-# **معالجة خطوات الأسئلة في المحادثة الخاصة**
-# ==========================================
 @bot.message_handler(chat_types=["private"], content_types=["text", "photo"])
 def handler_private_contest_steps(message):
     chat_id = message.chat.id
@@ -627,9 +567,6 @@ def handler_private_contest_steps(message):
             return
 
 
-# ==========================================
-# **التشغيل الأساسي للبوت والخادم**
-# ==========================================
 if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server)
     server_thread.daemon = True
