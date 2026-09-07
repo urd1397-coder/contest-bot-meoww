@@ -134,13 +134,16 @@ def handle_start_command(message):
 # ==========================================
 # معالج الرسائل في القروبات لخطوات إنشاء المسابقة والردود
 # ==========================================
+# ==========================================
+# معالج الرسائل في القروبات لخطوات إنشاء المسابقة والردود (نسخة نهائية وآمنة)
+# ==========================================
 @bot.message_handler(chat_types=["supergroup", "group"], content_types=["text", "photo"])
 def handle_group_messages(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
     text_content = message.text.strip() if message.text else ""
 
-    # 1. معالجة استجابة البوت عند مناداته باسمه (شركس / Sharx / شاركس)
+    # 1. الاستجابة لنداء اسم البوت في القروب
     if not user_id in contest_creation_state and text_content and any(name in text_content for name in ["شركس", "Sharx", "شاركس"]):
         if not is_user_admin(chat_id, user_id):
             try:
@@ -172,17 +175,17 @@ def handle_group_messages(message):
                 print(f"Error sending user info: {e}")
             return
 
-        sent = bot.send_message(chat_id, "مياو! أهلاً بك يا مشرفنا العزيز 🐱✨\nإليك قائمة التحكم الخاصة بالمسابقات:", parse_mode="Markdown", reply_markup=create_main_menu_markup())
+        sent = bot.send_message(chat_id, "مياو! أهلاً بك يا مشرفنا العزيز 🐱✨\nإليك قائمة التحكم الخاصة بالمسابقات:", reply_markup=create_main_menu_markup())
         last_panel_message[chat_id] = sent.message_id
         return
 
-    # 2. متابعة خطوات إنشاء المسابقة داخل القروب إذا كان المستخدم مشرفاً وفي وضع الإنشاء
+    # 2. متابعة خطوات إنشاء المسابقة مباشرة داخل القروب بسلاسة
     if user_id in contest_creation_state:
         if not is_user_admin(chat_id, user_id):
             return
 
         state_data = contest_creation_state[user_id]
-        step = state_data.get("step", 1)
+        step = state_data.get("step", 2)
         target_message_id = last_panel_message.get(chat_id)
 
         try:
@@ -199,17 +202,17 @@ def handle_group_messages(message):
                 types.InlineKeyboardButton("⏭️ تخطي", callback_data="prize_no")
             )
             text = (
-                "🐾 *[ السؤال الثالث: إرفاق هدية أو صورة ]* 🐱✨\n"
+                "🐾 [ السؤال الثالث: إرفاق هدية أو صورة ] 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
                 "هل تود إرفاق صورة أو رابط هدية لتميز مسابقتك؟ (اضغط تخطي للانتقال مباشرة)."
             )
             if target_message_id:
                 try:
-                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+                    bot.edit_message_text(text, chat_id, target_message_id, reply_markup=markup)
                     return
                 except Exception:
                     pass
-            sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+            sent = bot.send_message(chat_id, text, reply_markup=markup)
             last_panel_message[chat_id] = sent.message_id
             return
 
@@ -229,17 +232,17 @@ def handle_group_messages(message):
                 types.InlineKeyboardButton("⏭️ تخطي واستخدام الرد التلقائي", callback_data="join_msg_skip")
             )
             text = (
-                "🐾 *[ السؤال الخامس: رسالة الرد المميزة ]* 🐱✨\n"
+                "🐾 [ السؤال الخامس: رسالة الرد المميزة ] 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن **نص الرد المخصص** عند ضغط المستخدم على الزر (أو اضغط تخطي):"
+                "أرسل لي الآن نص الرد المخصص عند ضغط المستخدم على الزر (أو اضغط تخطي):"
             )
             if target_message_id:
                 try:
-                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+                    bot.edit_message_text(text, chat_id, target_message_id, reply_markup=markup)
                     return
                 except Exception:
                     pass
-            sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+            sent = bot.send_message(chat_id, text, reply_markup=markup)
             last_panel_message[chat_id] = sent.message_id
             return
 
