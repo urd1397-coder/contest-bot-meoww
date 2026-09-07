@@ -131,46 +131,123 @@ def handle_start_command(message):
 # ==========================================
 # 6. الاستجابة لنداء اسم البوت في القروبات
 # ==========================================
-@bot.message_handler(func=lambda msg: msg.chat.type != "private" and ("شركس" in msg.text or "Sharx" in msg.text or "شاركس" in msg.text))
-def handle_group_mentions(message):
+# ==========================================
+# معالج الرسائل في القروبات لخطوات إنشاء المسابقة والردود
+# ==========================================
+@bot.message_handler(chat_types=["supergroup", "group"], content_types=["text", "photo"])
+def handle_group_messages(message):
     chat_id = message.chat.id
     user_id = message.from_user.id
+    text_content = message.text.strip() if message.text else ""
 
-    if not is_user_admin(chat_id, user_id):
+    # 1. معالجة استجابة البوت عند مناداته باسمه (شركس / Sharx / شاركس)
+    if not user_id in contest_creation_state and text_content and any(name in text_content for name in ["شركس", "Sharx", "شاركس"]):
+        if not is_user_admin(chat_id, user_id):
+            try:
+                bot.reply_to(message, "⚠️ عذراً يا صديقي، الأوامر مخصصة للمشرفين فقط لتجنب العشوائية! 🐾")
+            except Exception:
+                pass
+            return
+
+        # جلب معلومات الحساب عند الرد على رسالة
+        if message.reply_to_message:
+            target_user = message.reply_to_message.from_user
+            target_id = target_user.id
+            target_first = target_user.first_name or "غير معروف"
+            target_username = f"@{target_user.username}" if target_user.username else "لا يوجد"
+            account_type = "🤖 بوت" if target_user.is_bot else "👤 شخص حقيقي (مستخدم)"
+
+            info_text = (
+                "🐱 **بطاقة معلومات الحساب - شركس القط** 🐾\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 **الاسم:** [{target_first}](tg://user?id={target_id})\n"
+                f"🏷️ **المعرف (Username):** {target_username}\n"
+                f"🆔 **الآيدي (Account ID):** `{target_id}`\n"
+                f"📊 **نوع الحساب:** {account_type}\n"
+                "━━━━━━━━━━━━━━━━━━━"
+            )
+            try:
+                bot.reply_to(message, info_text, parse_mode="Markdown")
+            except Exception as e:
+                print(f"Error sending user info: {e}")
+            return
+
+        sent = bot.send_message(chat_id, "مياو! أهلاً بك يا مشرفنا العزيز 🐱✨\nإليك قائمة التحكم الخاصة بالمسابقات:", parse_mode="Markdown", reply_markup=create_main_menu_markup())
+        last_panel_message[chat_id] = sent.message_id
+        return
+
+    # 2. متابعة خطوات إنشاء المسابقة داخل القروب إذا كان المستخدم مشرفاً وفي وضع الإنشاء
+    if user_id in contest_creation_state:
+        if not is_user_admin(chat_id, user_id):
+            return
+
+        state_data = contest_creation_state[user_id]
+        step = state_data.get("step", 1)
+        target_message_id = last_panel_message.get(chat_id)
+
         try:
-            bot.reply_to(message, "⚠️ عذراً يا صديقي، الأوامر مخصصة للمشرفين فقط لتجنب العشوائية! 🐾")
+            bot.delete_message(chat_id, message.message_id)
         except Exception:
             pass
-        return
 
-    # جلب معلومات الحساب عند الرد على رسالة
-    if message.reply_to_message:
-        target_user = message.reply_to_message.from_user
-        target_id = target_user.id
-        target_first = target_user.first_name or "غير معروف"
-        target_username = f"@{target_user.username}" if target_user.username else "لا يوجد"
-        account_type = "🤖 بوت" if target_user.is_bot else "👤 شخص حقيقي (مستخدم)"
+        if step == 2:
+            state_data["announcement"] = text_content
+            state_data["step"] = 3
+            markup = get_cancel_and_home_markup("cmd_create")
+            markup.row(
+                types.InlineKeyboardButton("🎁 نعم (إرفاق صورة/رابط)", callback_data="prize_yes"),
+                types.InlineKeyboardButton("⏭️ تخطي", callback_data="prize_no")
+            )
+            text = (
+                "🐾 *[ السؤال الثالث: إرفاق هدية أو صورة ]* 🐱✨\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "هل تود إرفاق صورة أو رابط هدية لتميز مسابقتك؟ (اضغط تخطي للانتقال مباشرة)."
+            )
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+            sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
+            return
 
-        info_text = (
-            "🐱 **بطاقة معلومات الحساب - شركس القط** 🐾\n"
-            "━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 **الاسم:** [{target_first}](tg://user?id={target_id})\n"
-            f"🏷️ **المعرف (Username):** {target_username}\n"
-            f"🆔 **الآيدي (Account ID):** `{target_id}`\n"
-            f"📊 **نوع الحساب:** {account_type}\n"
-            "━━━━━━━━━━━━━━━━━━━"
-        )
-        try:
-            bot.reply_to(message, info_text, parse_mode="Markdown")
-        except Exception as e:
-            print(f"Error sending user info: {e}")
-        return
+        elif step == 3:
+            if message.photo:
+                state_data["prize_media"] = message.photo[-1].file_id
+            else:
+                state_data["prize_media"] = text_content
+            ask_join_button_step(user_id, chat_id, target_message_id)
+            return
 
-    text = "مياو! أهلاً بك يا مشرفنا العزيز 🐱✨\nإليك قائمة التحكم الخاصة بالمسابقات:"
-    sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=create_main_menu_markup())
-    last_panel_message[chat_id] = sent.message_id
+        elif step == 5:
+            state_data["button_text"] = text_content
+            state_data["step"] = 6
+            markup = get_cancel_and_home_markup("cmd_create")
+            markup.row(
+                types.InlineKeyboardButton("⏭️ تخطي واستخدام الرد التلقائي", callback_data="join_msg_skip")
+            )
+            text = (
+                "🐾 *[ السؤال الخامس: رسالة الرد المميزة ]* 🐱✨\n"
+                "━━━━━━━━━━━━━━━━━━━\n"
+                "أرسل لي الآن **نص الرد المخصص** عند ضغط المستخدم على الزر (أو اضغط تخطي):"
+            )
+            if target_message_id:
+                try:
+                    bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
+                    return
+                except Exception:
+                    pass
+            sent = bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+            last_panel_message[chat_id] = sent.message_id
+            return
 
-
+        elif step == 6:
+            state_data["join_msg_text"] = text_content
+            ask_mention_step(user_id, chat_id, target_message_id)
+            return
+            
 # ==========================================
 # 7. معالج الأزرار الشفافة والأوامر (Callback Handler)
 # ==========================================
