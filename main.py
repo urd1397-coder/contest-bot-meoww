@@ -25,7 +25,7 @@ last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
 
-# ذاكرة ديناميكية لتخزين المجموعات والقنوات التي يخدمها البوت
+# ذاكرة لتخزين القنوات والمجموعات التي يخدمها البوت تلقائياً
 served_chats = set()
 
 
@@ -57,8 +57,8 @@ def create_main_menu_markup():
     markup.add(
         types.InlineKeyboardButton("🎯 إنشاء مسابقة / تصويت تفاعلي", callback_data="cmd_create"),
         types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
-        types.InlineKeyboardButton("💻 مطور البوت", callback_data="cmd_developer"),
         types.InlineKeyboardButton("⚙️ لوحة المطور السرية", callback_data="cmd_dev_panel"),
+        types.InlineKeyboardButton("💻 مطور البوت", callback_data="cmd_developer"),
         types.InlineKeyboardButton("🧹 تنظيف شات البوت", callback_data="cmd_clean_chat"),
         types.InlineKeyboardButton("❌ إغلاق القائمة", callback_data="cmd_cancel")
     )
@@ -192,7 +192,7 @@ def unmute_all_command(message):
 
 
 # ==========================================
-# 8. معالج الرسائل في القروبات (استجابة شركس الكلمة المجردة + الكاشف + الخطوات)
+# 8. معالج الرسائل في القروبات (استجابة كلمة "شركس" + كاشف البيانات)
 # ==========================================
 @bot.message_handler(chat_types=["supergroup", "group"], content_types=["text", "photo"])
 def handle_group_messages(message):
@@ -200,12 +200,12 @@ def handle_group_messages(message):
     user_id = message.from_user.id
     text_content = message.text.strip() if message.text else ""
 
-    # 1. الاستجابة لمناداة "شركس" (الكلمة مجردة تماماً + للمشرفين والمطور فقط)
+    # الاستجابة عند مناداة "شركس" الكلمة مجردة فقط (وللمشرفين/المطور حصراً)
     if not user_id in contest_creation_state and text_content in ["شركس", "Sharx", "شاركس"]:
         if not is_user_admin(chat_id, user_id):
             return
 
-        # جلب معلومات الحساب عند الرد على رسالة أو توجيه رسالة
+        # جلب معلومات الحساب عند الرد على رسالة
         if message.reply_to_message:
             target_user = message.reply_to_message.from_user
             target_id = target_user.id
@@ -232,7 +232,7 @@ def handle_group_messages(message):
         last_panel_message[chat_id] = sent.message_id
         return
 
-    # 2. متابعة خطوات إنشاء المسابقة مباشرة داخل القروب
+    # متابعة خطوات إنشاء المسابقة مباشرة داخل القروب
     if user_id in contest_creation_state:
         if not is_user_admin(chat_id, user_id):
             return
@@ -324,7 +324,7 @@ def handle_all_callbacks(call):
                 pass
             return
 
-    # معالجة تفاعل التصويت وتسجيل المشاركين
+    # تفاعل التصويت وتسجيل المشاركين
     if data.startswith("vote_"):
         try:
             parts = data.split("_", 3)
@@ -439,7 +439,7 @@ def handle_all_callbacks(call):
                     bot.answer_callback_query(call.id, "⚠️ عذراً، هذه الميزة للمشرفين فقط!", show_alert=True)
                     return
                 contest_creation_state[user_id] = {"step": 2, "is_private": False, "channel": chat_id}
-                markup = get_cancel_and_home_markup("cmd_home")
+                markup = get_cancel_and_home_markup("cmd_create")
                 text = (
                     "🐾 *[ السؤال الثاني: نص المسابقة ]* 🐱✨\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
@@ -488,6 +488,38 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["msg_mention"] = False
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
+        # ⚙️ لوحة تحكم المطور السرية
+        elif data == "cmd_dev_panel":
+            if not is_dev(user_id):
+                bot.answer_callback_query(call.id, "⚠️ هذه القائمة خاصة بالمطور فقط!", show_alert=True)
+                return
+            
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(
+                types.InlineKeyboardButton("📊 القروبات والقنوات التي يخدمها البوت", callback_data="dev_chats"),
+                types.InlineKeyboardButton("🔙 رجوع للقائمة الرئيسية", callback_data="cmd_home")
+            )
+            bot.edit_message_text("⚙️ **أهلاً بك في لوحة تحكم المطور السرية** 🛠️\nاختر الخيار المطلوب:", chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
+
+        elif data == "dev_chats":
+            if not is_dev(user_id):
+                return
+            
+            count = len(served_chats)
+            msg = f"📊 **المجموعات والقنوات النشطة حالياً ({count}):**\n\n"
+            for cid in served_chats:
+                try:
+                    c_info = bot.get_chat(cid)
+                    msg += f"• **{c_info.title}** (`{cid}`)\n"
+                except Exception:
+                    msg += f"• المحادثة: `{cid}`\n"
+            
+            if count == 0:
+                msg += "_لا توجد مجموعات مسجلة حالياً._"
+
+            bot.edit_message_text(msg, chat_id, message_id, parse_mode="Markdown", reply_markup=get_back_and_home_markup("cmd_dev_panel"))
+
+        # 💻 كارت المطور
         elif data == "cmd_developer":
             try:
                 dev_user = bot.get_chat(DEV_ID)
@@ -503,7 +535,7 @@ def handle_all_callbacks(call):
                     f"🆔 **الآيدي:** `{DEV_ID}`\n"
                     f"📝 **البايو:** {dev_bio}\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "✨ مطور بوتات تليجرام الذكية والأنظمة التفاعلية."
+                    "✨ المبرمج والمسؤول عن تطوير أنظمة شركس الذكية."
                 )
                 
                 markup = get_back_and_home_markup("cmd_home")
@@ -515,38 +547,10 @@ def handle_all_callbacks(call):
                 fallback_text = (
                     "💻 **معلومات مطور بوت شركس القط** 🐾\n"
                     "━━━━━━━━━━━━━━━━━━━\n"
-                    "👤 **المطور:** [@z7xxq](https://t.me/z7xxq)\n"
-                    f"🆔 **الآيدي:** `{DEV_ID}`\n"
+                    f"🆔 **آيدي المطور:** `{DEV_ID}`\n"
                     "✨ المبرمج والمسؤول عن تطوير أنظمة شركس الذكية."
                 )
                 bot.edit_message_text(fallback_text, chat_id, message_id, parse_mode="Markdown", reply_markup=get_back_and_home_markup("cmd_home"), disable_web_page_preview=True)
-
-        elif data == "cmd_dev_panel":
-            if not is_dev(user_id):
-                bot.answer_callback_query(call.id, "⚠️ غير مصرح لك بالوصول لقائمة المطور السرية!", show_alert=True)
-                return
-            
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton("📊 المجموعات والقنوات التي يخدمها البوت", callback_data="dev_chats"),
-                types.InlineKeyboardButton("❌ إلغاء العملية والعودة", callback_data="cmd_home")
-            )
-            bot.edit_message_text("⚙️ **أهلاً بك في لوحة تحكم المطور السرية** 🛠️", chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
-
-        elif data == "dev_chats":
-            if not is_dev(user_id):
-                return
-            
-            count = len(served_chats)
-            msg = f"📊 **المجموعات والقنوات النشطة حالياً ({count}):**\n\n"
-            for cid in served_chats:
-                try:
-                    c_info = bot.get_chat(cid)
-                    msg += f"• **{c_info.title}** (`{cid}`)\n"
-                except Exception:
-                    msg += f"• المحادثة: `{cid}`\n"
-            
-            bot.edit_message_text(msg, chat_id, message_id, parse_mode="Markdown", reply_markup=get_back_and_home_markup("cmd_dev_panel"))
 
         elif data == "cmd_end":
             if call.message.chat.type != "private":
@@ -733,14 +737,12 @@ def handler_private_contest_steps(message):
                 if parts and not (parts.startswith("+") or parts.startswith("joinchat/")):
                     resolved_channel_id = f"@{parts}"
 
-            # التحقق الدقيق: هل المستخدم مشرف في المكان المحدّد وهل البوت مشرف أيضاً؟
+            # التحقق الدقيق من صلاحيات المشرف والبوت
             try:
-                # 1. فحص هل المستخدم الحالي مشرف في تلك القناة/القروب
                 user_member = bot.get_chat_member(resolved_channel_id, user_id)
                 if user_member.status not in ["creator", "administrator"] and not is_dev(user_id):
                     raise Exception("User is not admin")
 
-                # 2. فحص هل البوت مشرف ولديه الصلاحيات
                 bot_member = bot.get_chat_member(resolved_channel_id, bot.get_me().id)
                 if bot_member.status not in ["administrator", "creator"]:
                     raise Exception("Bot is not admin")
@@ -748,7 +750,7 @@ def handler_private_contest_steps(message):
                 markup = get_back_and_home_markup("cmd_create")
                 bot.edit_message_text(
                     "⚠️ **عذراً، فشل التحقق من الصلاحيات!**\n"
-                    "1. تأكد أنك أنت (المستخدم) مشرف فعلي في القناة/القروب المستهدف.\n"
+                    "1. تأكد أنك أنت مشرف فعلي في القناة/القروب المستهدف.\n"
                     "2. تأكد أن البوت مشرف ولديه صلاحيات النشر والتثبيت.\n"
                     "ثم أرسل المعرف أو الرابط الصحيح مجدداً:",
                     chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup
