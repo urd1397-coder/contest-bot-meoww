@@ -277,7 +277,7 @@ def handle_group_messages(message):
             ask_join_button_step(user_id, chat_id, target_message_id)
             return
 
-elif step == 5:
+        elif step == 5:
             state_data["button_text"] = text_content
             state_data["step"] = 6
             markup = get_cancel_and_home_markup("cmd_create")
@@ -285,9 +285,9 @@ elif step == 5:
                 types.InlineKeyboardButton("⏭️ تخطي واستخدام الرد التلقائي", callback_data="join_msg_skip")
             )
             text = (
-                "🐾 [ السؤال الخامس: نص زر الانضمام ] 🐱✨\n"
+                "🐾 [ السؤال السادس: رسالة الرد ] 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن **النص الذي سيظهر على الزر البارز** أسفل المسابقة (مثال: انضم الآن 🔥):"
+                "أرسل لي الآن **رسالة الرد** التي تظهر للمستخدم فور ضغطه على الزر (مثال: تم تسجيل اسمك في المسابقة بنجاح! 🔥):"
             )
             if target_message_id:
                 try:
@@ -463,7 +463,7 @@ def handle_all_callbacks(call):
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["step"] = 5
                 markup = get_cancel_and_home_markup("cmd_create")
-                text = "🔤 *[ السؤال الخامس ]*\nأرسل لي الآن **نص الرد المميز** الذي يظهر عند ضغط المستخدم على الزر:"
+                text = "🔤 *[ السؤال الخامس: تسمية الزر ]*\nأرسل لي الآن **تسمية الزر** (مثال: انضم الآن 🔥):"
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
 
         elif data == "btn_join_no":
@@ -808,9 +808,9 @@ def handler_private_contest_steps(message):
                 types.InlineKeyboardButton("⏭️ تخطي واستخدام الرد التلقائي", callback_data="join_msg_skip")
             )
             text = (
-                "🐾 *[ السؤال الخامس: رسالة الرد المميزة ]* 🐱✨\n"
+                "🐾 *[ السؤال السادس: رسالة الرد ]* 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن **نص الرد المخصص** عند ضغط المستخدم على الزر (أو اضغط تخطي):"
+                "أرسل لي الآن **رسالة الرد** التي تظهر للمستخدم فور ضغطه على الزر (مثال: تم تسجيل اسمك في المسابقة بنجاح! 🔥):"
             )
             bot.edit_message_text(text, chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup)
             return
