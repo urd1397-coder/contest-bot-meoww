@@ -277,7 +277,7 @@ def handle_group_messages(message):
             ask_join_button_step(user_id, chat_id, target_message_id)
             return
 
-        elif step == 5:
+elif step == 5:
             state_data["button_text"] = text_content
             state_data["step"] = 6
             markup = get_cancel_and_home_markup("cmd_create")
@@ -285,9 +285,9 @@ def handle_group_messages(message):
                 types.InlineKeyboardButton("⏭️ تخطي واستخدام الرد التلقائي", callback_data="join_msg_skip")
             )
             text = (
-                "🐾 [ السؤال الخامس: رسالة الرد المميزة ] 🐱✨\n"
+                "🐾 [ السؤال الخامس: نص زر الانضمام ] 🐱✨\n"
                 "━━━━━━━━━━━━━━━━━━━\n"
-                "أرسل لي الآن نص الرد المخصص عند ضغط المستخدم على الزر (أو اضغط تخطي):"
+                "أرسل لي الآن **النص الذي سيظهر على الزر البارز** أسفل المسابقة (مثال: انضم الآن 🔥):"
             )
             if target_message_id:
                 try:
