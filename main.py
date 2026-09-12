@@ -324,13 +324,12 @@ def handle_all_callbacks(call):
                 pass
             return
 
-    # تفاعل التصويت وتسجيل المشاركين
+    # تفاعل التصويت وتسجيل المشاركين (خفيف ونظيف بدون حشو في الزر)
     if data.startswith("vote_"):
         try:
-            parts = data.split("_", 3)
+            parts = data.split("_")
             h_id = parts[1]
-            use_mention = (parts[2] == "1")
-            custom_join_msg = parts[3].replace("__", " ") if len(parts) > 3 else "انضم إلى المسابقة بنجاح! 🔥"
+            use_mention = (parts[2] == "1") if len(parts) > 2 else True
 
             message_text = call.message.text or call.message.caption or ""
             user_first_name = call.from_user.first_name or "المشارك"
@@ -395,6 +394,8 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
+            # رسالة الرد الافتراضية الثابتة أو المخصصة للمسابقات
+            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
@@ -638,7 +639,7 @@ def ask_mention_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# 11. دالة نشر المسابقة النهائية (Finalize & Publish)
+# 11. دالة نشر المسابقة النهائية (Finalize & Publish) - نظيفة وخالية من الحشو
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -650,7 +651,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     button_text = state_data.get("button_text", "تسجيل / انضمام 🏆")
     prize_media = state_data.get("prize_media") 
      
-    join_msg_text = state_data.get("join_msg_text", "انضم إلى المسابقة بنجاح! 🔥")
     msg_mention_bool = state_data.get("msg_mention", True)
     
     unique_hash = hashids.encode(int(time.time()))
@@ -679,8 +679,9 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         )
 
     mention_flag = "1" if msg_mention_bool else "0"
-    sanitized_msg = join_msg_text.replace(" ", "__")
-    callback_payload = f"vote_{unique_hash}_{mention_flag}_{sanitized_msg}"
+    
+    # تمرير الهاش ومعرف المنشن فقط في الزر بكل بساطة ونظافة
+    callback_payload = f"vote_{unique_hash}_{mention_flag}"
 
     channel_markup = types.InlineKeyboardMarkup()
     if button_text:
