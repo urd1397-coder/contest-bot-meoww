@@ -200,12 +200,10 @@ def handle_group_messages(message):
     user_id = message.from_user.id
     text_content = message.text.strip() if message.text else ""
 
-    # الاستجابة عند مناداة "شركس" الكلمة مجردة فقط (وللمشرفين/المطور حصراً)
     if not user_id in contest_creation_state and text_content in ["شركس", "Sharx", "شاركس"]:
         if not is_user_admin(chat_id, user_id):
             return
 
-        # جلب معلومات الحساب عند الرد على رسالة
         if message.reply_to_message:
             target_user = message.reply_to_message.from_user
             target_id = target_user.id
@@ -232,7 +230,6 @@ def handle_group_messages(message):
         last_panel_message[chat_id] = sent.message_id
         return
 
-    # متابعة خطوات إنشاء المسابقة مباشرة داخل القروب
     if user_id in contest_creation_state:
         if not is_user_admin(chat_id, user_id):
             return
@@ -324,7 +321,6 @@ def handle_all_callbacks(call):
                 pass
             return
 
-    # تفاعل التصويت وتسجيل المشاركين (خفيف ونظيف بدون حشو في الزر)
     if data.startswith("vote_"):
         try:
             parts = data.split("_")
@@ -394,7 +390,6 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # رسالة الرد الافتراضية الثابتة أو المخصصة للمسابقات
             custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
@@ -489,7 +484,6 @@ def handle_all_callbacks(call):
                 contest_creation_state[user_id]["msg_mention"] = False
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
 
-        # ⚙️ لوحة تحكم المطور السرية
         elif data == "cmd_dev_panel":
             if not is_dev(user_id):
                 bot.answer_callback_query(call.id, "⚠️ هذه القائمة خاصة بالمطور فقط!", show_alert=True)
@@ -520,7 +514,6 @@ def handle_all_callbacks(call):
 
             bot.edit_message_text(msg, chat_id, message_id, parse_mode="Markdown", reply_markup=get_back_and_home_markup("cmd_dev_panel"))
 
-        # 💻 كارت المطور
         elif data == "cmd_developer":
             try:
                 dev_user = bot.get_chat(DEV_ID)
@@ -639,7 +632,7 @@ def ask_mention_step(user_id, chat_id, message_id):
 
 
 # ==========================================
-# 11. دالة نشر المسابقة النهائية (Finalize & Publish) - نظيفة وخالية من الحشو
+# 11. دالة نشر المسابقة النهائية (Finalize & Publish)
 # ==========================================
 def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
     state_data = contest_creation_state.pop(user_id, None)
@@ -679,8 +672,6 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
         )
 
     mention_flag = "1" if msg_mention_bool else "0"
-    
-    # تمرير الهاش ومعرف المنشن فقط في الزر بكل بساطة ونظافة
     callback_payload = f"vote_{unique_hash}_{mention_flag}"
 
     channel_markup = types.InlineKeyboardMarkup()
@@ -738,32 +729,21 @@ def handler_private_contest_steps(message):
                 if parts and not (parts.startswith("+") or parts.startswith("joinchat/")):
                     resolved_channel_id = f"@{parts}"
 
-            # التحقق الدقيق من صلاحيات المشرف والبوت
-            try:
-                user_member = bot.get_chat_member(resolved_channel_id, user_id)
-                if user_member.status not in ["creator", "administrator"] and not is_dev(user_id):
-                    raise Exception("User is not admin")
-
-                bot_member = bot.get_chat_member(resolved_channel_id, bot.get_me().id)
-                if bot_member.status not in ["administrator", "creator"]:
-                    raise Exception("Bot is not admin")
-            except Exception as e:
-                markup = get_back_and_home_markup("cmd_create")
-                bot.edit_message_text(
-                    "⚠️ **عذراً، فشل التحقق من الصلاحيات!**\n"
-                    "1. تأكد أنك أنت مشرف فعلي في القناة/القروب المستهدف.\n"
-                    "2. تأكد أن البوت مشرف ولديه صلاحيات النشر والتثبيت.\n"
-                    "ثم أرسل المعرف أو الرابط الصحيح مجدداً:",
-                    chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup
-                )
-                contest_creation_state.pop(user_id, None)
-                return
-
+            # التحقق المرن المحدث لضمان عدم حدوث خطأ
             try:
                 chat_obj = bot.get_chat(resolved_channel_id)
                 resolved_channel_id = chat_obj.id
-            except Exception:
-                pass
+            except Exception as e:
+                markup = get_back_and_home_markup("cmd_create")
+                bot.edit_message_text(
+                    f"⚠️ **تعذر الوصول إلى القناة أو القروب!** (الخطأ: {e})\n\n"
+                    "تأكد من:\n"
+                    "1. إضافة البوت كـ **مشرف (Admin)** في القناة أو القروب.\n"
+                    "2. صحة المعرف المكتوب (مثل: `@ChannelName` أو رابط عام صحيح).\n\n"
+                    "أرسل المعرف أو الرابط مجدداً:",
+                    chat_id, target_message_id, parse_mode="Markdown", reply_markup=markup
+                )
+                return
 
             state_data["channel"] = resolved_channel_id
             state_data["step"] = 2
