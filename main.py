@@ -21,6 +21,65 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # هاش قصير وفريد
 hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
 
+# ==========================================
+# ترميز رد المسابقة داخل نص المسابقة
+# ==========================================
+# الفكرة:
+# الهاش القصير الموجود في زر المسابقة يحدد الرد،
+# بينما بيانات الرد نفسها تُضمَّن داخل نص الرسالة بشكل مخفي.
+# لذلك لا نحتاج MongoDB أو JSON أو Dictionary لتخزين الردود.
+import base64
+import re
+
+RESPONSE_MARKER = "\u200b"  # Zero-width space
+
+def encode_join_response(text):
+    """تحويل الرد إلى Base64 URL-safe لإخفائه داخل نص المسابقة."""
+    raw = text.encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+def decode_join_response(encoded):
+    """فك الرد المخفي وإعادته كنص UTF-8."""
+    padding = "=" * (-len(encoded) % 4)
+    return base64.urlsafe_b64decode(encoded + padding).decode("utf-8")
+
+def build_hidden_response(hash_id, response_text):
+    """
+    يضع بيانات الرد في نهاية نص المسابقة باستخدام محارف Zero-Width.
+    الهاش هو المعرف الظاهر، والبيانات المخفية مرتبطة به.
+    """
+    encoded = encode_join_response(response_text)
+    payload = f"{hash_id}:{encoded}"
+    hidden = RESPONSE_MARKER.join(payload)
+    return f"\n{RESPONSE_MARKER}{hidden}{RESPONSE_MARKER}"
+
+def extract_join_response(message_text, hash_id):
+    """استخراج الرد المرتبط بهاش المسابقة من نص الرسالة."""
+    if not message_text:
+        return None
+
+    # ابحث عن كتلة البيانات المخفية.
+    pattern = re.escape(RESPONSE_MARKER) + r"(.*?)" + re.escape(RESPONSE_MARKER)
+    matches = re.findall(pattern, message_text, flags=re.DOTALL)
+
+    for hidden_payload in matches:
+        # بسبب استخدام Zero-Width Space بين كل حرف، نعيد النص الأصلي.
+        payload = hidden_payload.replace(RESPONSE_MARKER, "")
+        if ":" not in payload:
+            continue
+
+        stored_hash, encoded = payload.split(":", 1)
+        if stored_hash != hash_id:
+            continue
+
+        try:
+            return decode_join_response(encoded)
+        except Exception:
+            return None
+
+    return None
+
+
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
@@ -390,11 +449,15 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
+            # استخراج الرد المخصص من نفس رسالة المسابقة بواسطة الهاش.
+            custom_join_msg = extract_join_response(message_text, h_id)
+            if not custom_join_msg:
+                custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
+
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
-                announcement_to_send = f"{custom_join_msg}"
+                announcement_to_send = custom_join_msg
              
             try:
                 sent_notif = bot.send_message(chat_id, announcement_to_send, parse_mode="Markdown")
@@ -670,6 +733,14 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"👥 عدد المسجلين: *0*\n"
             f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
         )
+
+    # الرد المخصص يُربط بالهاش ويُضمّن داخل نص المسابقة نفسه.
+    # لا يوجد تخزين خارجي للرد.
+    join_response = state_data.get(
+        "join_msg_text", "انضم إلى المسابقة بنجاح! 🔥"
+    )
+    hidden_response = build_hidden_response(unique_hash, join_response)
+    final_text += hidden_response
 
     mention_flag = "1" if msg_mention_bool else "0"
     callback_payload = f"vote_{unique_hash}_{mention_flag}"
