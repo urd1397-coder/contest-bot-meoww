@@ -4,6 +4,8 @@
 import os
 import time
 import threading
+import base64
+import re
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -21,68 +23,53 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # هاش قصير وفريد
 hashids = Hashids(salt="sharx_secure_salt_2026", min_length=4)
 
-# ==========================================
-# ترميز رد المسابقة داخل نص المسابقة
-# ==========================================
-# الفكرة:
-# الهاش القصير الموجود في زر المسابقة يحدد الرد،
-# بينما بيانات الرد نفسها تُضمَّن داخل نص الرسالة بشكل مخفي.
-# لذلك لا نحتاج MongoDB أو JSON أو Dictionary لتخزين الردود.
-import base64
-import re
 
-RESPONSE_MARKER = "\u200b"  # Zero-width space
+# ==========================================
+# نظام رد المسابقة المضمّن داخل رسالة المسابقة
+# لا يحتاج MongoDB أو JSON أو قاعدة بيانات خارجية
+# ==========================================
+RESPONSE_MARKER = "\u200b"
 
 def encode_join_response(text):
-    """تحويل الرد إلى Base64 URL-safe لإخفائه داخل نص المسابقة."""
-    raw = text.encode("utf-8")
+    raw = (text or "").encode("utf-8")
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
 def decode_join_response(encoded):
-    """فك الرد المخفي وإعادته كنص UTF-8."""
-    padding = "=" * (-len(encoded) % 4)
-    return base64.urlsafe_b64decode(encoded + padding).decode("utf-8")
+    try:
+        padded = encoded + "=" * (-len(encoded) % 4)
+        return base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+    except Exception:
+        return None
 
 def build_hidden_response(hash_id, response_text):
-    """
-    يضع بيانات الرد في نهاية نص المسابقة باستخدام محارف Zero-Width.
-    الهاش هو المعرف الظاهر، والبيانات المخفية مرتبطة به.
-    """
-    encoded = encode_join_response(response_text)
-    payload = f"{hash_id}:{encoded}"
+    payload = f"{hash_id}:{encode_join_response(response_text)}"
     hidden = RESPONSE_MARKER.join(payload)
     return f"\n{RESPONSE_MARKER}{hidden}{RESPONSE_MARKER}"
 
 def extract_join_response(message_text, hash_id):
-    """استخراج الرد المرتبط بهاش المسابقة من نص الرسالة."""
     if not message_text:
         return None
-
-    # ابحث عن كتلة البيانات المخفية.
     pattern = re.escape(RESPONSE_MARKER) + r"(.*?)" + re.escape(RESPONSE_MARKER)
     matches = re.findall(pattern, message_text, flags=re.DOTALL)
-
-    for hidden_payload in matches:
-        # بسبب استخدام Zero-Width Space بين كل حرف، نعيد النص الأصلي.
-        payload = hidden_payload.replace(RESPONSE_MARKER, "")
+    for block in matches:
+        payload = block.replace(RESPONSE_MARKER, "")
         if ":" not in payload:
             continue
-
-        stored_hash, encoded = payload.split(":", 1)
-        if stored_hash != hash_id:
-            continue
-
-        try:
+        saved_hash, encoded = payload.split(":", 1)
+        if saved_hash == hash_id:
             return decode_join_response(encoded)
-        except Exception:
-            return None
-
     return None
 
+def escape_markdown_v2_text(text):
+    # Not used for the main contest text; kept available for custom replies.
+    if not text:
+        return ""
+    return re.sub(r'([_*\[\]()~`>#+\-=|{}.!])', r'\\\1', text)
 
 last_panel_message = {}
 contest_creation_state = {}
 end_contest_state = {}
+template_state = {}
 
 # ذاكرة لتخزين القنوات والمجموعات التي يخدمها البوت تلقائياً
 served_chats = set()
@@ -115,6 +102,7 @@ def create_main_menu_markup():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🎯 إنشاء مسابقة / تصويت تفاعلي", callback_data="cmd_create"),
+        types.InlineKeyboardButton("🖼️ قوالب المنشورات", callback_data="cmd_templates"),
         types.InlineKeyboardButton("⛔ إنهاء المسابقة الحالية", callback_data="cmd_end"),
         types.InlineKeyboardButton("⚙️ لوحة المطور السرية", callback_data="cmd_dev_panel"),
         types.InlineKeyboardButton("💻 مطور البوت", callback_data="cmd_developer"),
@@ -289,6 +277,58 @@ def handle_group_messages(message):
         last_panel_message[chat_id] = sent.message_id
         return
 
+    if user_id in template_state:
+        state = template_state[user_id]
+        step = state.get("step")
+
+        if step == "destination":
+            resolved = text_content
+            if "t.me/" in resolved:
+                parts = resolved.split("t.me/")[-1].split("?")[0].strip("/")
+                if parts and not (parts.startswith("+") or parts.startswith("joinchat/")):
+                    resolved = f"@{parts}"
+            try:
+                chat_obj = bot.get_chat(resolved)
+                if not is_user_admin(chat_obj.id, user_id):
+                    bot.edit_message_text(
+                        "⚠️ يجب أن تكون مشرفاً في الوجهة المحددة.",
+                        chat_id, target_message_id,
+                        reply_markup=get_back_and_home_markup("cmd_templates")
+                    )
+                    return
+                state["destination"] = chat_obj.id
+                template_ask_photo(user_id, chat_id, target_message_id)
+            except Exception as e:
+                bot.edit_message_text(
+                    f"⚠️ تعذر الوصول إلى الوجهة.\n`{e}`",
+                    chat_id, target_message_id, parse_mode="Markdown",
+                    reply_markup=get_back_and_home_markup("cmd_templates")
+                )
+            return
+
+        if step == "photo":
+            if not message.photo:
+                bot.edit_message_text(
+                    "🖼️ أرسل صورة فعلية من فضلك.",
+                    chat_id, target_message_id,
+                    reply_markup=get_back_and_home_markup("cmd_templates")
+                )
+                return
+            state["photo"] = message.photo[-1].file_id
+            template_ask_text(user_id, chat_id, target_message_id)
+            return
+
+        if step == "text":
+            state["text"] = text_content
+            state["step"] = "preview"
+            bot.edit_message_text(
+                template_preview_text(state),
+                chat_id, target_message_id,
+                parse_mode="Markdown",
+                reply_markup=create_template_finish_markup()
+            )
+            return
+
     if user_id in contest_creation_state:
         if not is_user_admin(chat_id, user_id):
             return
@@ -359,6 +399,161 @@ def handle_group_messages(message):
             state_data["join_msg_text"] = text_content
             ask_mention_step(user_id, chat_id, target_message_id)
             return
+
+
+# ==========================================
+# 9. نظام قوالب المنشورات
+# ==========================================
+def create_template_size_markup():
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("🖼️ كبير", callback_data="tpl_size_large"),
+        types.InlineKeyboardButton("🖼️ متوسط", callback_data="tpl_size_medium"),
+        types.InlineKeyboardButton("🖼️ صغير", callback_data="tpl_size_small"),
+        types.InlineKeyboardButton("🔙 رجوع", callback_data="cmd_home"),
+    )
+    return markup
+
+def create_template_target_markup():
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("📢 قناة", callback_data="tpl_target_channel"),
+        types.InlineKeyboardButton("👥 قروب", callback_data="tpl_target_group"),
+        types.InlineKeyboardButton("🔙 رجوع", callback_data="cmd_templates"),
+    )
+    return markup
+
+def create_template_finish_markup():
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        types.InlineKeyboardButton("✏️ تعديل النص", callback_data="tpl_edit_text"),
+        types.InlineKeyboardButton("🚀 نشر", callback_data="tpl_publish"),
+    )
+    markup.add(
+        types.InlineKeyboardButton("🔙 رجوع", callback_data="cmd_templates"),
+        types.InlineKeyboardButton("❌ إلغاء", callback_data="cmd_cancel"),
+    )
+    return markup
+
+def template_preview_text(state):
+    size_names = {"large": "كبير", "medium": "متوسط", "small": "صغير"}
+    target_names = {"channel": "قناة", "group": "قروب"}
+    size = size_names.get(state.get("size"), "غير محدد")
+    target = target_names.get(state.get("target"), "غير محدد")
+    body = state.get("text", "") or "لم تتم إضافة نص بعد."
+    return (
+        "🖼️ *معاينة قالب شركس* 🐾\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        f"📐 الحجم: *{size}*\n"
+        f"📍 الوجهة: *{target}*\n\n"
+        f"{body}"
+    )
+
+def show_templates_menu(chat_id, message_id):
+    markup = get_back_and_home_markup("cmd_home")
+    markup.add(types.InlineKeyboardButton("➕ إنشاء قالب جديد", callback_data="tpl_new"))
+    try:
+        bot.edit_message_text(
+            "🖼️ *قوالب المنشورات* 🐾\n"
+            "━━━━━━━━━━━━━━━━━━━\n"
+            "أنشئ منشوراً بصورة ونص، واختر الحجم والوجهة ثم انشره.\n\n"
+            "اختر إنشاء قالب جديد للبدء:",
+            chat_id, message_id, parse_mode="Markdown", reply_markup=markup
+        )
+    except Exception:
+        sent = bot.send_message(
+            chat_id,
+            "🖼️ *قوالب المنشورات* 🐾\nاختر إنشاء قالب جديد للبدء:",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+        last_panel_message[chat_id] = sent.message_id
+
+def show_template_size(chat_id, message_id):
+    bot.edit_message_text(
+        "📐 *اختر حجم القالب*:\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
+        "كبير = عرض أكبر\nمتوسط = الحجم المعتاد\nصغير = عرض مختصر",
+        chat_id, message_id, parse_mode="Markdown",
+        reply_markup=create_template_size_markup()
+    )
+
+def start_template(user_id, chat_id, message_id):
+    template_state[user_id] = {
+        "step": "size",
+        "size": None,
+        "target": None,
+        "text": None,
+        "photo": None,
+        "destination": None,
+    }
+    show_template_size(chat_id, message_id)
+
+def template_ask_target(user_id, chat_id, message_id):
+    template_state[user_id]["step"] = "target"
+    bot.edit_message_text(
+        "📍 *أين تريد نشر القالب؟*",
+        chat_id, message_id, parse_mode="Markdown",
+        reply_markup=create_template_target_markup()
+    )
+
+def template_ask_photo(user_id, chat_id, message_id):
+    template_state[user_id]["step"] = "photo"
+    bot.edit_message_text(
+        "🖼️ *أرسل صورة القالب الآن.*\n\n"
+        "بعدها سأطلب منك النص الذي سيظهر معها.",
+        chat_id, message_id, parse_mode="Markdown",
+        reply_markup=get_back_and_home_markup("cmd_templates")
+    )
+
+def template_ask_text(user_id, chat_id, message_id):
+    template_state[user_id]["step"] = "text"
+    bot.edit_message_text(
+        "✏️ *أرسل نص المنشور الآن.*",
+        chat_id, message_id, parse_mode="Markdown",
+        reply_markup=get_back_and_home_markup("cmd_templates")
+    )
+
+def template_publish(user_id, chat_id, message_id):
+    state = template_state.get(user_id)
+    if not state:
+        return
+
+    destination = state.get("destination")
+    target = state.get("target")
+    photo = state.get("photo")
+    body = state.get("text") or ""
+    if not destination or not photo or not body:
+        bot.send_message(chat_id, "⚠️ بيانات القالب غير مكتملة.")
+        return
+
+    # الحجم هنا يحدد تنسيق النص المختصر/الموسع، بينما Telegram نفسه
+    # لا يوفر بارامتر "حجم صورة" للرسالة؛ لذلك لا يتم تغيير أبعاد الملف الأصلي.
+    caption = body
+    try:
+        sent = bot.send_photo(
+            destination,
+            photo,
+            caption=caption,
+            parse_mode=None
+        )
+        try:
+            bot.pin_chat_message(destination, sent.message_id)
+        except Exception:
+            pass
+
+        template_state.pop(user_id, None)
+        bot.edit_message_text(
+            "✅ *تم نشر القالب بنجاح.* 🐾",
+            chat_id, message_id, parse_mode="Markdown",
+            reply_markup=create_main_menu_markup()
+        )
+    except Exception as e:
+        bot.edit_message_text(
+            f"⚠️ *تعذر نشر القالب.*\n`{e}`",
+            chat_id, message_id, parse_mode="Markdown",
+            reply_markup=create_main_menu_markup()
+        )
 
 
 # ==========================================
@@ -449,11 +644,9 @@ def handle_all_callbacks(call):
                     reply_markup=call.message.reply_markup
                 )
 
-            # استخراج الرد المخصص من نفس رسالة المسابقة بواسطة الهاش.
             custom_join_msg = extract_join_response(message_text, h_id)
             if not custom_join_msg:
                 custom_join_msg = "انضم إلى المسابقة بنجاح! 🔥"
-
             if use_mention:
                 announcement_to_send = f"{user_identity} {custom_join_msg}"
             else:
@@ -546,6 +739,49 @@ def handle_all_callbacks(call):
             if user_id in contest_creation_state:
                 contest_creation_state[user_id]["msg_mention"] = False
                 finalize_and_publish_contest(bot, chat_id, message_id, user_id)
+
+        elif data == "cmd_templates":
+            show_templates_menu(chat_id, message_id)
+
+        elif data == "tpl_new":
+            start_template(user_id, chat_id, message_id)
+
+        elif data.startswith("tpl_size_"):
+            if user_id not in template_state:
+                start_template(user_id, chat_id, message_id)
+            else:
+                template_state[user_id]["size"] = data.replace("tpl_size_", "")
+                template_ask_target(user_id, chat_id, message_id)
+
+        elif data == "tpl_target_channel":
+            if user_id in template_state:
+                template_state[user_id]["target"] = "channel"
+                template_state[user_id]["step"] = "destination"
+                bot.edit_message_text(
+                    "📢 أرسل الآن *معرف القناة أو رابطها العام*.\n"
+                    "يجب أن يكون البوت مشرفاً فيها.",
+                    chat_id, message_id, parse_mode="Markdown",
+                    reply_markup=get_back_and_home_markup("cmd_templates")
+                )
+
+        elif data == "tpl_target_group":
+            if user_id in template_state:
+                template_state[user_id]["target"] = "group"
+                template_state[user_id]["step"] = "destination"
+                bot.edit_message_text(
+                    "👥 أرسل الآن *معرف القروب أو رابط المجموعة*.\n"
+                    "يجب أن يكون البوت مشرفاً فيها.",
+                    chat_id, message_id, parse_mode="Markdown",
+                    reply_markup=get_back_and_home_markup("cmd_templates")
+                )
+
+        elif data == "tpl_edit_text":
+            if user_id in template_state:
+                template_ask_text(user_id, chat_id, message_id)
+
+        elif data == "tpl_publish":
+            if user_id in template_state:
+                template_publish(user_id, chat_id, message_id)
 
         elif data == "cmd_dev_panel":
             if not is_dev(user_id):
@@ -645,11 +881,13 @@ def handle_all_callbacks(call):
         elif data == "cmd_home":
             contest_creation_state.pop(user_id, None)
             end_contest_state.pop(user_id, None)
+            template_state.pop(user_id, None)
             update_or_send_panel(chat_id, "🏠 أهلاً بك مجدداً في القائمة الرئيسية لشركس 🐱:", create_main_menu_markup())
 
         elif data == "cmd_cancel":
             contest_creation_state.pop(user_id, None)
             end_contest_state.pop(user_id, None)
+            template_state.pop(user_id, None)
             try:
                 bot.send_message(chat_id, "❌ تم إغلاق القائمة.", reply_markup=types.ReplyKeyboardRemove())
             except Exception:
@@ -734,13 +972,12 @@ def finalize_and_publish_contest(bot_instance, chat_id, message_id, user_id):
             f"📋 قائمة المشاركين: _لا يوجد مشاركين حتى الآن_"
         )
 
-    # الرد المخصص يُربط بالهاش ويُضمّن داخل نص المسابقة نفسه.
-    # لا يوجد تخزين خارجي للرد.
+    # نخزن الرد نفسه داخل رسالة المسابقة بشكل غير ظاهر،
+    # والهاش الموجود في الزر يحدد أي رد يتم استخراجه.
     join_response = state_data.get(
         "join_msg_text", "انضم إلى المسابقة بنجاح! 🔥"
     )
-    hidden_response = build_hidden_response(unique_hash, join_response)
-    final_text += hidden_response
+    final_text += build_hidden_response(unique_hash, join_response)
 
     mention_flag = "1" if msg_mention_bool else "0"
     callback_payload = f"vote_{unique_hash}_{mention_flag}"
