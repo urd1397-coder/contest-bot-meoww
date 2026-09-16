@@ -281,8 +281,11 @@ def handle_group_messages(message):
         state = template_state[user_id]
         step = state.get("step")
 
-        if step == "destination":
-            resolved = text_content
+        if step == "destination" or step == "target":
+            resolved = text_content.strip()
+            # دعم @username والروابط العامة واسم المستخدم بدون @
+            if resolved and not resolved.startswith(("@", "-", "+")) and "t.me/" not in resolved:
+                resolved = "@" + resolved
             if "t.me/" in resolved:
                 parts = resolved.split("t.me/")[-1].split("?")[0].strip("/")
                 if parts and not (parts.startswith("+") or parts.startswith("joinchat/")):
