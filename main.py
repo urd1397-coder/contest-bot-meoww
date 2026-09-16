@@ -297,6 +297,12 @@ def handle_group_messages(message):
                     )
                     return
                 state["destination"] = chat_obj.id
+                # احذف رسالة المستخدم التي تحتوي على رابط/معرف الوجهة بعد قراءتها
+                # حتى يبقى شات البوت نظيفاً ولا تظهر بيانات القناة/القروب في المحادثة.
+                try:
+                    bot.delete_message(chat_id, message.message_id)
+                except Exception:
+                    pass
                 template_ask_photo(user_id, chat_id, target_message_id)
             except Exception as e:
                 bot.edit_message_text(
@@ -870,13 +876,23 @@ def handle_all_callbacks(call):
                 bot.edit_message_text(text, chat_id, message_id, parse_mode="Markdown", reply_markup=markup)
 
         elif data == "cmd_clean_chat":
+            # لا نترك المحادثة الخاصة فارغة؛ نمسح الرسائل القديمة ثم ننشئ
+            # رسالة قائمة جديدة حتى يبقى شات البوت ظاهراً في قائمة المحادثات.
             for m_id in range(message_id, max(0, message_id - 50), -1):
                 try:
                     bot.delete_message(chat_id, m_id)
                 except Exception:
                     pass
-            sent = bot.send_message(chat_id, "🧹 *تم تنظيف الشات بنجاح!* 🐱✨", parse_mode="Markdown", reply_markup=create_main_menu_markup())
-            last_panel_message[chat_id] = sent.message_id
+            try:
+                sent = bot.send_message(
+                    chat_id,
+                    "🧹 *تم تنظيف الشات بنجاح!* 🐱✨\n\nاضغط أي خيار من القائمة للمتابعة.",
+                    parse_mode="Markdown",
+                    reply_markup=create_main_menu_markup()
+                )
+                last_panel_message[chat_id] = sent.message_id
+            except Exception as e:
+                print(f"Clean chat send error: {e}")
 
         elif data == "cmd_home":
             contest_creation_state.pop(user_id, None)
