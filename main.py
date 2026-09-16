@@ -280,6 +280,11 @@ def handle_group_messages(message):
     if user_id in template_state:
         state = template_state[user_id]
         step = state.get("step")
+        target_message_id = last_panel_message.get(chat_id)
+        if not target_message_id:
+            sent = bot.send_message(chat_id, "🖼️ نكمل إعداد القالب من هنا.", reply_markup=create_main_menu_markup())
+            target_message_id = sent.message_id
+            last_panel_message[chat_id] = target_message_id
 
         if step == "destination" or step == "target":
             resolved = text_content.strip()
