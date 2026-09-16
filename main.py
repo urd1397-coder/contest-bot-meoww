@@ -185,6 +185,11 @@ def update_or_send_panel(chat_id, text, reply_markup):
 # ==========================================
 @bot.message_handler(commands=["start"])
 def handle_start_command(message):
+    # /start يبدأ جلسة جديدة ونظيفة دائماً.
+    contest_creation_state.pop(message.from_user.id, None)
+    end_contest_state.pop(message.from_user.id, None)
+    template_state.pop(message.from_user.id, None)
+
     if message.chat.type != "private":
         if not is_user_admin(message.chat.id, message.from_user.id):
             return
@@ -1044,6 +1049,84 @@ def handler_private_contest_steps(message):
         pass
 
     target_message_id = last_panel_message.get(chat_id)
+    if not target_message_id:
+        sent = bot.send_message(chat_id, "🐾 نكمل من هنا.", reply_markup=create_main_menu_markup())
+        target_message_id = sent.message_id
+        last_panel_message[chat_id] = target_message_id
+
+    # ==========================
+    # خطوات القوالب داخل الخاص
+    # ==========================
+    if user_id in template_state:
+        state = template_state[user_id]
+        step = state.get("step")
+
+        if step in ("destination", "target"):
+            resolved = text_content.strip()
+            if resolved and not resolved.startswith(("@", "-", "+")) and "t.me/" not in resolved:
+                resolved = "@" + resolved
+            if "t.me/" in resolved:
+                parts = resolved.split("t.me/", 1)[1].split("?", 1)[0].strip("/")
+                if parts and not (parts.startswith("+") or parts.startswith("joinchat/")):
+                    resolved = "@" + parts
+
+            try:
+                chat_obj = bot.get_chat(resolved)
+                if not is_user_admin(chat_obj.id, user_id):
+                    bot.edit_message_text(
+                        "⚠️ يجب أن تكون مشرفاً في الوجهة المحددة.\n\n"
+                        "تأكد أن البوت موجود فيها كمشرف أيضاً.",
+                        chat_id, target_message_id,
+                        reply_markup=get_back_and_home_markup("cmd_templates")
+                    )
+                    return
+
+                state["destination"] = chat_obj.id
+                try:
+                    bot.delete_message(chat_id, message.message_id)
+                except Exception:
+                    pass
+
+                template_ask_photo(user_id, chat_id, target_message_id)
+            except Exception as e:
+                bot.edit_message_text(
+                    "⚠️ لم أستطع الوصول إلى هذه القناة/المجموعة.\n\n"
+                    "أرسل @المعرف أو الرابط العام الصحيح مرة أخرى.",
+                    chat_id, target_message_id,
+                    reply_markup=get_back_and_home_markup("cmd_templates")
+                )
+            return
+
+        if step == "photo":
+            if not message.photo:
+                bot.edit_message_text(
+                    "🖼️ أرسل صورة القالب كصورة، وليس كنص.",
+                    chat_id, target_message_id,
+                    reply_markup=get_back_and_home_markup("cmd_templates")
+                )
+                return
+            state["photo"] = message.photo[-1].file_id
+            try:
+                bot.delete_message(chat_id, message.message_id)
+            except Exception:
+                pass
+            template_ask_text(user_id, chat_id, target_message_id)
+            return
+
+        if step == "text":
+            state["text"] = text_content
+            try:
+                bot.delete_message(chat_id, message.message_id)
+            except Exception:
+                pass
+            state["step"] = "preview"
+            bot.edit_message_text(
+                template_preview_text(state),
+                chat_id, target_message_id,
+                parse_mode="Markdown",
+                reply_markup=create_template_finish_markup()
+            )
+            return
 
     if user_id in end_contest_state:
         end_contest_state.pop(user_id, None)
