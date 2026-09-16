@@ -6,6 +6,8 @@ import time
 import threading
 import base64
 import re
+from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -533,29 +535,126 @@ def template_ask_text(user_id, chat_id, message_id):
         reply_markup=get_back_and_home_markup("cmd_templates")
     )
 
+def _find_arabic_font(size):
+    candidates = [
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Medium.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+    ]
+    for path in candidates:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default()
+
+def _fit_text(draw, text, box_width, box_height):
+    # يضبط حجم الخط ويلف النص حتى يبقى بالكامل داخل الإطار الأسود.
+    words = text.split()
+    if not words:
+        return "", _find_arabic_font(20), 0
+
+    best_text = text
+    best_font = _find_arabic_font(20)
+    best_height = 0
+
+    for font_size in range(max(12, int(box_height)), 9, -1):
+        font = _find_arabic_font(font_size)
+        lines = []
+        current = ""
+        for word in words:
+            candidate = word if not current else current + " " + word
+            bbox = draw.textbbox((0, 0), candidate, font=font, direction="rtl")
+            if bbox[2] - bbox[0] <= box_width:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+
+        spacing = max(3, font_size // 6)
+        total_h = sum(draw.textbbox((0, 0), line, font=font, direction="rtl")[3] - draw.textbbox((0, 0), line, font=font, direction="rtl")[1] for line in lines) + spacing * (len(lines) - 1)
+        max_w = max((draw.textbbox((0, 0), line, font=font, direction="rtl")[2] - draw.textbbox((0, 0), line, font=font, direction="rtl")[0] for line in lines), default=0)
+        if max_w <= box_width and total_h <= box_height:
+            best_text = "\n".join(lines)
+            best_font = font
+            best_height = total_h
+            break
+
+    return best_text, best_font, best_height
+
+def render_template_image(photo_bytes, body, size_name):
+    # نحافظ على صورة القالب كصورة، ونضع النص داخل المساحة السوداء نفسها، لا كـ caption.
+    image = Image.open(BytesIO(photo_bytes)).convert("RGBA")
+
+    sizes = {
+        "large": 900,
+        "medium": 700,
+        "small": 500,
+    }
+    target_width = sizes.get(size_name, 700)
+    ratio = target_width / image.width
+    image = image.resize((target_width, int(image.height * ratio)), Image.Resampling.LANCZOS)
+
+    w, h = image.size
+    draw = ImageDraw.Draw(image)
+
+    # مساحة النص داخل المستطيل الأسود في قالب شركس؛ النسب تتكيف مع أي حجم.
+    left = int(w * 0.25)
+    right = int(w * 0.73)
+    top = int(h * 0.25)
+    bottom = int(h * 0.67)
+    box_w = right - left
+    box_h = bottom - top
+
+    final_text, font, text_h = _fit_text(draw, body.strip(), box_w - 18, box_h - 14)
+    center_x = (left + right) // 2
+    center_y = (top + bottom) // 2
+
+    # ظل خفيف ليبقى النص واضحاً فوق الخلفية السوداء، ثم النص نفسه.
+    y = center_y - text_h // 2
+    try:
+        draw.multiline_text(
+            (center_x + 2, y + 2), final_text, font=font, fill=(0, 0, 0, 210),
+            anchor="ma", align="center", spacing=max(3, font.size // 6), direction="rtl"
+        )
+        draw.multiline_text(
+            (center_x, y), final_text, font=font, fill=(255, 255, 255, 255),
+            anchor="ma", align="center", spacing=max(3, font.size // 6), direction="rtl"
+        )
+    except TypeError:
+        # توافق مع بيئات Pillow التي لا تدعم direction/anchor لبعض الخطوط.
+        draw.multiline_text(
+            (center_x, y), final_text, font=font, fill=(255, 255, 255, 255),
+            align="center", spacing=max(3, getattr(font, "size", 20) // 6)
+        )
+
+    output = BytesIO()
+    output.name = "sharx_template.png"
+    image.save(output, format="PNG", optimize=True)
+    output.seek(0)
+    return output
+
 def template_publish(user_id, chat_id, message_id):
     state = template_state.get(user_id)
     if not state:
         return
 
     destination = state.get("destination")
-    target = state.get("target")
     photo = state.get("photo")
     body = state.get("text") or ""
-    if not destination or not photo or not body:
+    size_name = state.get("size") or "medium"
+    if not destination or not photo or not body.strip():
         bot.send_message(chat_id, "⚠️ بيانات القالب غير مكتملة.")
         return
 
-    # الحجم هنا يحدد تنسيق النص المختصر/الموسع، بينما Telegram نفسه
-    # لا يوفر بارامتر "حجم صورة" للرسالة؛ لذلك لا يتم تغيير أبعاد الملف الأصلي.
-    caption = body
     try:
-        sent = bot.send_photo(
-            destination,
-            photo,
-            caption=caption,
-            parse_mode=None
-        )
+        file_info = bot.get_file(photo)
+        photo_bytes = bot.download_file(file_info.file_path)
+        rendered = render_template_image(photo_bytes, body, size_name)
+
+        # لا نرسل النص كـ caption؛ النص أصبح جزءاً من ملف PNG نفسه.
+        sent = bot.send_photo(destination, rendered, caption=None)
         try:
             bot.pin_chat_message(destination, sent.message_id)
         except Exception:
@@ -563,11 +662,12 @@ def template_publish(user_id, chat_id, message_id):
 
         template_state.pop(user_id, None)
         bot.edit_message_text(
-            "✅ *تم نشر القالب بنجاح.* 🐾",
+            "✅ *تم نشر القالب بالصورة والنص داخلها بنجاح.* 🐾",
             chat_id, message_id, parse_mode="Markdown",
             reply_markup=create_main_menu_markup()
         )
     except Exception as e:
+        print(f"Template publish error: {e}")
         bot.edit_message_text(
             f"⚠️ *تعذر نشر القالب.*\n`{e}`",
             chat_id, message_id, parse_mode="Markdown",
