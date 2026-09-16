@@ -546,8 +546,83 @@ def _find_arabic_font(size):
             return ImageFont.truetype(path, size)
     return ImageFont.load_default()
 
+# Arabic shaping without external libraries or libraqm.
+_ARABIC_FORMS = {
+    "ء": ("ﺀ", "ﺀ", "ﺀ", "ﺀ"),
+    "آ": ("ﺁ", "ﺂ", "ﺂ", "ﺂ"),
+    "أ": ("ﺃ", "ﺄ", "ﺄ", "ﺄ"),
+    "ؤ": ("ﺅ", "ﺆ", "ﺆ", "ﺆ"),
+    "إ": ("ﺇ", "ﺈ", "ﺈ", "ﺈ"),
+    "ئ": ("ﺉ", "ﺊ", "ﺋ", "ﺌ"),
+    "ا": ("ﺍ", "ﺎ", "ﺎ", "ﺎ"),
+    "ب": ("ﺏ", "ﺐ", "ﺑ", "ﺒ"),
+    "ة": ("ﺓ", "ﺔ", "ﺔ", "ﺔ"),
+    "ت": ("ﺕ", "ﺖ", "ﺗ", "ﺘ"),
+    "ث": ("ﺙ", "ﺚ", "ﺛ", "ﺜ"),
+    "ج": ("ﺝ", "ﺞ", "ﺟ", "ﺠ"),
+    "ح": ("ﺡ", "ﺢ", "ﺣ", "ﺤ"),
+    "خ": ("ﺥ", "ﺦ", "ﺧ", "ﺨ"),
+    "د": ("ﺩ", "ﺪ", "ﺪ", "ﺪ"),
+    "ذ": ("ﺫ", "ﺬ", "ﺬ", "ﺬ"),
+    "ر": ("ﺭ", "ﺮ", "ﺮ", "ﺮ"),
+    "ز": ("ﺯ", "ﺰ", "ﺰ", "ﺰ"),
+    "س": ("ﺱ", "ﺲ", "ﺳ", "ﺴ"),
+    "ش": ("ﺵ", "ﺶ", "ﺷ", "ﺸ"),
+    "ص": ("ﺹ", "ﺺ", "ﺻ", "ﺼ"),
+    "ض": ("ﺽ", "ﺾ", "ﺿ", "ﻀ"),
+    "ط": ("ﻁ", "ﻂ", "ﻃ", "ﻄ"),
+    "ظ": ("ﻅ", "ﻆ", "ﻇ", "ﻈ"),
+    "ع": ("ﻉ", "ﻊ", "ﻋ", "ﻌ"),
+    "غ": ("ﻍ", "ﻎ", "ﻏ", "ﻐ"),
+    "ف": ("ﻑ", "ﻒ", "ﻓ", "ﻔ"),
+    "ق": ("ﻕ", "ﻖ", "ﻗ", "ﻘ"),
+    "ك": ("ﻙ", "ﻚ", "ﻛ", "ﻜ"),
+    "ل": ("ﻝ", "ﻞ", "ﻟ", "ﻠ"),
+    "م": ("ﻡ", "ﻢ", "ﻣ", "ﻤ"),
+    "ن": ("ﻥ", "ﻦ", "ﻧ", "ﻨ"),
+    "ه": ("ﻩ", "ﻪ", "ﻫ", "ﻬ"),
+    "و": ("ﻭ", "ﻮ", "ﻮ", "ﻮ"),
+    "ى": ("ﻯ", "ﻰ", "ﻰ", "ﻰ"),
+    "ي": ("ﻱ", "ﻲ", "ﻳ", "ﻴ"),
+    "پ": ("ﭖ", "ﭗ", "ﭘ", "ﭙ"),
+    "چ": ("ﭺ", "ﭻ", "ﭼ", "ﭽ"),
+    "ژ": ("ﮊ", "ﮋ", "ﮋ", "ﮋ"),
+    "گ": ("ﮒ", "ﮓ", "ﮔ", "ﮕ"),
+}
+_ARABIC_NON_CONNECT_RIGHT = set("ءآأؤإادذرزوژةى")
+
+def _can_connect_left(ch):
+    return ch in _ARABIC_FORMS and ch not in _ARABIC_NON_CONNECT_RIGHT
+
+def _can_connect_right(ch):
+    return ch in _ARABIC_FORMS
+
+def _shape_rtl(text):
+    """Shape common Arabic letters using Unicode presentation forms; no extra packages."""
+    chars = list(text)
+    out = []
+    for i, ch in enumerate(chars):
+        if ch not in _ARABIC_FORMS:
+            out.append(ch)
+            continue
+        prev = chars[i - 1] if i > 0 else ""
+        nxt = chars[i + 1] if i + 1 < len(chars) else ""
+        join_prev = _can_connect_left(ch) and _can_connect_right(prev)
+        join_next = _can_connect_left(nxt) and _can_connect_right(ch)
+        isolated, final, initial, medial = _ARABIC_FORMS[ch]
+        if join_prev and join_next:
+            out.append(medial)
+        elif join_prev:
+            out.append(final)
+        elif join_next:
+            out.append(initial)
+        else:
+            out.append(isolated)
+    # Pillow without libraqm lays text left-to-right; reverse the shaped RTL run.
+    return "".join(out)[::-1]
+
 def _fit_text(draw, text, box_width, box_height):
-    # يضبط حجم الخط ويلف النص حتى يبقى بالكامل داخل الإطار الأسود.
+    # يضبط حجم الخط ويلف النص، مع تشكيل العربية يدويًا بدل direction="rtl" حتى لا نحتاج libraqm.
     words = text.split()
     if not words:
         return "", _find_arabic_font(20), 0
@@ -562,7 +637,8 @@ def _fit_text(draw, text, box_width, box_height):
         current = ""
         for word in words:
             candidate = word if not current else current + " " + word
-            bbox = draw.textbbox((0, 0), candidate, font=font, direction="rtl")
+            shaped = _shape_rtl(candidate)
+            bbox = draw.textbbox((0, 0), shaped, font=font)
             if bbox[2] - bbox[0] <= box_width:
                 current = candidate
             else:
@@ -572,11 +648,18 @@ def _fit_text(draw, text, box_width, box_height):
         if current:
             lines.append(current)
 
+        shaped_lines = [_shape_rtl(line) for line in lines]
         spacing = max(3, font_size // 6)
-        total_h = sum(draw.textbbox((0, 0), line, font=font, direction="rtl")[3] - draw.textbbox((0, 0), line, font=font, direction="rtl")[1] for line in lines) + spacing * (len(lines) - 1)
-        max_w = max((draw.textbbox((0, 0), line, font=font, direction="rtl")[2] - draw.textbbox((0, 0), line, font=font, direction="rtl")[0] for line in lines), default=0)
+        heights = []
+        widths = []
+        for line in shaped_lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            widths.append(bbox[2] - bbox[0])
+            heights.append(bbox[3] - bbox[1])
+        total_h = sum(heights) + spacing * (len(shaped_lines) - 1)
+        max_w = max(widths, default=0)
         if max_w <= box_width and total_h <= box_height:
-            best_text = "\n".join(lines)
+            best_text = "\n".join(shaped_lines)
             best_font = font
             best_height = total_h
             break
@@ -616,11 +699,11 @@ def render_template_image(photo_bytes, body, size_name):
     try:
         draw.multiline_text(
             (center_x + 2, y + 2), final_text, font=font, fill=(0, 0, 0, 210),
-            anchor="ma", align="center", spacing=max(3, font.size // 6), direction="rtl"
+            anchor="ma", align="center", spacing=max(3, font.size // 6)
         )
         draw.multiline_text(
             (center_x, y), final_text, font=font, fill=(255, 255, 255, 255),
-            anchor="ma", align="center", spacing=max(3, font.size // 6), direction="rtl"
+            anchor="ma", align="center", spacing=max(3, font.size // 6)
         )
     except TypeError:
         # توافق مع بيئات Pillow التي لا تدعم direction/anchor لبعض الخطوط.
