@@ -3,3 +3,5 @@ requests
 beautifulsoup4
 hashids
 Pillow
+arabic-reshaper
+python-bidi
