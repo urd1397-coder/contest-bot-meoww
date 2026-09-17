@@ -8,6 +8,8 @@ import base64
 import re
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
+import arabic_reshaper
+from bidi.algorithm import get_display
 import telebot
 from telebot import types
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -536,93 +538,31 @@ def template_ask_text(user_id, chat_id, message_id):
     )
 
 def _find_arabic_font(size):
+    # خط عربي حقيقي؛ لا نستخدم ImageFont الافتراضي لأنه قد يحوّل العربية إلى مربعات.
     candidates = [
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Medium.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
     for path in candidates:
         if os.path.exists(path):
             return ImageFont.truetype(path, size)
     return ImageFont.load_default()
 
-# Arabic shaping without external libraries or libraqm.
-_ARABIC_FORMS = {
-    "ء": ("ﺀ", "ﺀ", "ﺀ", "ﺀ"),
-    "آ": ("ﺁ", "ﺂ", "ﺂ", "ﺂ"),
-    "أ": ("ﺃ", "ﺄ", "ﺄ", "ﺄ"),
-    "ؤ": ("ﺅ", "ﺆ", "ﺆ", "ﺆ"),
-    "إ": ("ﺇ", "ﺈ", "ﺈ", "ﺈ"),
-    "ئ": ("ﺉ", "ﺊ", "ﺋ", "ﺌ"),
-    "ا": ("ﺍ", "ﺎ", "ﺎ", "ﺎ"),
-    "ب": ("ﺏ", "ﺐ", "ﺑ", "ﺒ"),
-    "ة": ("ﺓ", "ﺔ", "ﺔ", "ﺔ"),
-    "ت": ("ﺕ", "ﺖ", "ﺗ", "ﺘ"),
-    "ث": ("ﺙ", "ﺚ", "ﺛ", "ﺜ"),
-    "ج": ("ﺝ", "ﺞ", "ﺟ", "ﺠ"),
-    "ح": ("ﺡ", "ﺢ", "ﺣ", "ﺤ"),
-    "خ": ("ﺥ", "ﺦ", "ﺧ", "ﺨ"),
-    "د": ("ﺩ", "ﺪ", "ﺪ", "ﺪ"),
-    "ذ": ("ﺫ", "ﺬ", "ﺬ", "ﺬ"),
-    "ر": ("ﺭ", "ﺮ", "ﺮ", "ﺮ"),
-    "ز": ("ﺯ", "ﺰ", "ﺰ", "ﺰ"),
-    "س": ("ﺱ", "ﺲ", "ﺳ", "ﺴ"),
-    "ش": ("ﺵ", "ﺶ", "ﺷ", "ﺸ"),
-    "ص": ("ﺹ", "ﺺ", "ﺻ", "ﺼ"),
-    "ض": ("ﺽ", "ﺾ", "ﺿ", "ﻀ"),
-    "ط": ("ﻁ", "ﻂ", "ﻃ", "ﻄ"),
-    "ظ": ("ﻅ", "ﻆ", "ﻇ", "ﻈ"),
-    "ع": ("ﻉ", "ﻊ", "ﻋ", "ﻌ"),
-    "غ": ("ﻍ", "ﻎ", "ﻏ", "ﻐ"),
-    "ف": ("ﻑ", "ﻒ", "ﻓ", "ﻔ"),
-    "ق": ("ﻕ", "ﻖ", "ﻗ", "ﻘ"),
-    "ك": ("ﻙ", "ﻚ", "ﻛ", "ﻜ"),
-    "ل": ("ﻝ", "ﻞ", "ﻟ", "ﻠ"),
-    "م": ("ﻡ", "ﻢ", "ﻣ", "ﻤ"),
-    "ن": ("ﻥ", "ﻦ", "ﻧ", "ﻨ"),
-    "ه": ("ﻩ", "ﻪ", "ﻫ", "ﻬ"),
-    "و": ("ﻭ", "ﻮ", "ﻮ", "ﻮ"),
-    "ى": ("ﻯ", "ﻰ", "ﻰ", "ﻰ"),
-    "ي": ("ﻱ", "ﻲ", "ﻳ", "ﻴ"),
-    "پ": ("ﭖ", "ﭗ", "ﭘ", "ﭙ"),
-    "چ": ("ﭺ", "ﭻ", "ﭼ", "ﭽ"),
-    "ژ": ("ﮊ", "ﮋ", "ﮋ", "ﮋ"),
-    "گ": ("ﮒ", "ﮓ", "ﮔ", "ﮕ"),
-}
-_ARABIC_NON_CONNECT_RIGHT = set("ءآأؤإادذرزوژةى")
+def _shape_arabic(text):
+    # Pillow وحده لا يضمن تشكيل/اتجاه العربية في كل بيئات Render.
+    try:
+        return get_display(arabic_reshaper.reshape(text))
+    except Exception:
+        return text
 
-def _can_connect_left(ch):
-    return ch in _ARABIC_FORMS and ch not in _ARABIC_NON_CONNECT_RIGHT
-
-def _can_connect_right(ch):
-    return ch in _ARABIC_FORMS
-
-def _shape_rtl(text):
-    """Shape common Arabic letters using Unicode presentation forms; no extra packages."""
-    chars = list(text)
-    out = []
-    for i, ch in enumerate(chars):
-        if ch not in _ARABIC_FORMS:
-            out.append(ch)
-            continue
-        prev = chars[i - 1] if i > 0 else ""
-        nxt = chars[i + 1] if i + 1 < len(chars) else ""
-        join_prev = _can_connect_left(ch) and _can_connect_right(prev)
-        join_next = _can_connect_left(nxt) and _can_connect_right(ch)
-        isolated, final, initial, medial = _ARABIC_FORMS[ch]
-        if join_prev and join_next:
-            out.append(medial)
-        elif join_prev:
-            out.append(final)
-        elif join_next:
-            out.append(initial)
-        else:
-            out.append(isolated)
-    # Pillow without libraqm lays text left-to-right; reverse the shaped RTL run.
-    return "".join(out)[::-1]
+def _prepare_lines(text):
+    # نعالج كل سطر على حدة حتى لا نكسر الأسطر التي كتبها المستخدم.
+    return [_shape_arabic(line) for line in text.splitlines() if line.strip()] or [_shape_arabic(text.strip())]
 
 def _fit_text(draw, text, box_width, box_height):
-    # يضبط حجم الخط ويلف النص، مع تشكيل العربية يدويًا بدل direction="rtl" حتى لا نحتاج libraqm.
+    # يضبط حجم الخط ويلف النص حتى يبقى بالكامل داخل المساحة المخصصة.
     words = text.split()
     if not words:
         return "", _find_arabic_font(20), 0
@@ -631,90 +571,84 @@ def _fit_text(draw, text, box_width, box_height):
     best_font = _find_arabic_font(20)
     best_height = 0
 
+    # نجرّب من الأكبر للأصغر.
     for font_size in range(max(12, int(box_height)), 9, -1):
         font = _find_arabic_font(font_size)
         lines = []
         current = ""
         for word in words:
-            candidate = word if not current else current + " " + word
-            shaped = _shape_rtl(candidate)
-            bbox = draw.textbbox((0, 0), shaped, font=font)
+            candidate_original = word if not current else current + " " + word
+            candidate = _shape_arabic(candidate_original)
+            bbox = draw.textbbox((0, 0), candidate, font=font)
             if bbox[2] - bbox[0] <= box_width:
-                current = candidate
+                current = candidate_original
             else:
                 if current:
-                    lines.append(current)
+                    lines.append(_shape_arabic(current))
                 current = word
         if current:
-            lines.append(current)
+            lines.append(_shape_arabic(current))
 
-        shaped_lines = [_shape_rtl(line) for line in lines]
         spacing = max(3, font_size // 6)
         heights = []
         widths = []
-        for line in shaped_lines:
+        for line in lines:
             bbox = draw.textbbox((0, 0), line, font=font)
             widths.append(bbox[2] - bbox[0])
             heights.append(bbox[3] - bbox[1])
-        total_h = sum(heights) + spacing * (len(shaped_lines) - 1)
+        total_h = sum(heights) + spacing * (len(lines) - 1)
         max_w = max(widths, default=0)
         if max_w <= box_width and total_h <= box_height:
-            best_text = "\n".join(shaped_lines)
+            best_text = "\n".join(lines)
             best_font = font
             best_height = total_h
             break
 
     return best_text, best_font, best_height
 
-def render_template_image(photo_bytes, body, size_name):
-    # نحافظ على صورة القالب كصورة، ونضع النص داخل المساحة السوداء نفسها، لا كـ caption.
+def render_template_sticker(photo_bytes, body, size_name):
+    # المصدر هو نفس صورة القالب التي رفعها المستخدم؛ لا ننشئ قالباً آخر.
     image = Image.open(BytesIO(photo_bytes)).convert("RGBA")
 
-    sizes = {
-        "large": 900,
-        "medium": 700,
-        "small": 500,
-    }
-    target_width = sizes.get(size_name, 700)
+    # أحجام مناسبة للملصق. Telegram سيعرض الملصق كـSticker وليس كـPhoto.
+    sizes = {"large": 512, "medium": 440, "small": 360}
+    target_width = min(512, sizes.get(size_name, 440))
     ratio = target_width / image.width
-    image = image.resize((target_width, int(image.height * ratio)), Image.Resampling.LANCZOS)
+    new_size = (target_width, max(1, int(image.height * ratio)))
+    image = image.resize(new_size, Image.Resampling.LANCZOS)
 
     w, h = image.size
     draw = ImageDraw.Draw(image)
 
-    # مساحة النص داخل المستطيل الأسود في قالب شركس؛ النسب تتكيف مع أي حجم.
-    left = int(w * 0.25)
-    right = int(w * 0.73)
-    top = int(h * 0.25)
-    bottom = int(h * 0.67)
+    # منطقة الكتابة داخل الإطار الأسود في قالب شركس.
+    left = int(w * 0.31)
+    right = int(w * 0.76)
+    top = int(h * 0.28)
+    bottom = int(h * 0.63)
     box_w = right - left
     box_h = bottom - top
 
-    final_text, font, text_h = _fit_text(draw, body.strip(), box_w - 18, box_h - 14)
+    final_text, font, text_h = _fit_text(draw, body.strip(), box_w - 14, box_h - 10)
     center_x = (left + right) // 2
     center_y = (top + bottom) // 2
-
-    # ظل خفيف ليبقى النص واضحاً فوق الخلفية السوداء، ثم النص نفسه.
     y = center_y - text_h // 2
-    try:
-        draw.multiline_text(
-            (center_x + 2, y + 2), final_text, font=font, fill=(0, 0, 0, 210),
-            anchor="ma", align="center", spacing=max(3, font.size // 6)
-        )
-        draw.multiline_text(
-            (center_x, y), final_text, font=font, fill=(255, 255, 255, 255),
-            anchor="ma", align="center", spacing=max(3, font.size // 6)
-        )
-    except TypeError:
-        # توافق مع بيئات Pillow التي لا تدعم direction/anchor لبعض الخطوط.
-        draw.multiline_text(
-            (center_x, y), final_text, font=font, fill=(255, 255, 255, 255),
-            align="center", spacing=max(3, getattr(font, "size", 20) // 6)
-        )
 
+    # النص جزء من الصورة نفسها، وليس Caption.
+    draw.multiline_text(
+        (center_x + 2, y + 2), final_text, font=font,
+        fill=(0, 0, 0, 190), anchor="ma", align="center",
+        spacing=max(3, getattr(font, "size", 20) // 6)
+    )
+    draw.multiline_text(
+        (center_x, y), final_text, font=font,
+        fill=(255, 255, 255, 255), anchor="ma", align="center",
+        spacing=max(3, getattr(font, "size", 20) // 6)
+    )
+
+    # Telegram static sticker: WebP مع الحفاظ على الشفافية الموجودة في PNG الأصلي.
     output = BytesIO()
-    output.name = "sharx_template.png"
-    image.save(output, format="PNG", optimize=True)
+    output.name = "sharx_template_sticker.webp"
+    image.save(output, format="WEBP", lossless=True, method=6)
     output.seek(0)
     return output
 
@@ -734,10 +668,10 @@ def template_publish(user_id, chat_id, message_id):
     try:
         file_info = bot.get_file(photo)
         photo_bytes = bot.download_file(file_info.file_path)
-        rendered = render_template_image(photo_bytes, body, size_name)
+        rendered = render_template_sticker(photo_bytes, body, size_name)
 
         # لا نرسل النص كـ caption؛ النص أصبح جزءاً من ملف PNG نفسه.
-        sent = bot.send_photo(destination, rendered, caption=None)
+        sent = bot.send_sticker(destination, rendered)
         try:
             bot.pin_chat_message(destination, sent.message_id)
         except Exception:
@@ -745,7 +679,7 @@ def template_publish(user_id, chat_id, message_id):
 
         template_state.pop(user_id, None)
         bot.edit_message_text(
-            "✅ *تم نشر القالب بالصورة والنص داخلها بنجاح.* 🐾",
+            "✅ *تم نشر القالب كملصق، والنص داخل الصورة بنجاح.* 🐾",
             chat_id, message_id, parse_mode="Markdown",
             reply_markup=create_main_menu_markup()
         )
