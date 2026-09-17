@@ -7,7 +7,7 @@ import threading
 import base64
 import re
 from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import arabic_reshaper
 from bidi.algorithm import get_display
 import telebot
@@ -538,11 +538,12 @@ def template_ask_text(user_id, chat_id, message_id):
     )
 
 def _find_arabic_font(size):
-    # خط عربي حقيقي؛ لا نستخدم ImageFont الافتراضي لأنه قد يحوّل العربية إلى مربعات.
+    # خطوط عربية موجودة عادةً على Render؛ نفضّل Noto Naskh Arabic.
     candidates = [
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Medium.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansArabic-Medium.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     ]
     for path in candidates:
@@ -551,11 +552,44 @@ def _find_arabic_font(size):
     return ImageFont.load_default()
 
 def _shape_arabic(text):
-    # Pillow وحده لا يضمن تشكيل/اتجاه العربية في كل بيئات Render.
     try:
         return get_display(arabic_reshaper.reshape(text))
     except Exception:
         return text
+
+def _remove_outer_background(image, tolerance=18):
+    # يجعل الخلفية الخارجية المتصلة بحواف الصورة شفافة، مع إبقاء محتوى القالب
+    # الأسود داخل الإطار كما هو. إذا كانت الصورة أصلًا شفافة لا نلمس ألفا.
+    image = image.convert("RGBA")
+    px = image.load()
+    w, h = image.size
+    corners = [px[0,0], px[w-1,0], px[0,h-1], px[w-1,h-1]]
+
+    def near(a,b):
+        return max(abs(a[i]-b[i]) for i in range(3)) <= tolerance and a[3] > 0
+
+    from collections import deque
+    q = deque()
+    seen = set()
+    for y in (0, h-1):
+        for x in range(w):
+            if (x,y) not in seen:
+                seen.add((x,y)); q.append((x,y))
+    for x in (0, w-1):
+        for y in range(h):
+            if (x,y) not in seen:
+                seen.add((x,y)); q.append((x,y))
+
+    while q:
+        x,y=q.popleft()
+        p=px[x,y]
+        if not any(near(p,c) for c in corners):
+            continue
+        px[x,y]=(p[0],p[1],p[2],0)
+        for nx,ny in ((x+1,y),(x-1,y),(x,y+1),(x,y-1)):
+            if 0 <= nx < w and 0 <= ny < h and (nx,ny) not in seen:
+                seen.add((nx,ny)); q.append((nx,ny))
+    return image
 
 def _prepare_lines(text):
     # نعالج كل سطر على حدة حتى لا نكسر الأسطر التي كتبها المستخدم.
@@ -607,50 +641,59 @@ def _fit_text(draw, text, box_width, box_height):
     return best_text, best_font, best_height
 
 def render_template_sticker(photo_bytes, body, size_name):
-    # المصدر هو نفس صورة القالب التي رفعها المستخدم؛ لا ننشئ قالباً آخر.
-    image = Image.open(BytesIO(photo_bytes)).convert("RGBA")
+    # نستخدم الصورة التي أرسلها المستخدم نفسها، بدون قلب أو عكس.
+    image = Image.open(BytesIO(photo_bytes))
+    image = ImageOps.exif_transpose(image).convert("RGBA")
 
-    # أحجام مناسبة للملصق. Telegram سيعرض الملصق كـSticker وليس كـPhoto.
+    # إزالة الخلفية الخارجية فقط إذا كانت خلفية صلبة؛ لا نمسح اللون الأسود داخل القالب.
+    if image.getextrema()[3] == (255, 255):
+        image = _remove_outer_background(image)
+
+    # نحافظ على نسبة أبعاد القالب تمامًا؛ نكبّر/نصغّر فقط مع جعل أطول ضلع 512.
     sizes = {"large": 512, "medium": 440, "small": 360}
-    target_width = min(512, sizes.get(size_name, 440))
-    ratio = target_width / image.width
-    new_size = (target_width, max(1, int(image.height * ratio)))
-    image = image.resize(new_size, Image.Resampling.LANCZOS)
+    max_side = sizes.get(size_name, 440)
+    scale = min(1.0, max_side / max(image.width, image.height))
+    if scale != 1.0:
+        image = image.resize(
+            (max(1, round(image.width * scale)), max(1, round(image.height * scale))),
+            Image.Resampling.LANCZOS
+        )
 
     w, h = image.size
     draw = ImageDraw.Draw(image)
 
-    # منطقة الكتابة داخل الإطار الأسود في قالب شركس.
+    # مساحة النص داخل الجزء الأسود، محسوبة من أبعاد القالب الأصلي بدون قلب الصورة.
     left = int(w * 0.31)
     right = int(w * 0.76)
     top = int(h * 0.28)
     bottom = int(h * 0.63)
-    box_w = right - left
-    box_h = bottom - top
+    box_w = max(20, right - left)
+    box_h = max(20, bottom - top)
 
     final_text, font, text_h = _fit_text(draw, body.strip(), box_w - 14, box_h - 10)
     center_x = (left + right) // 2
     center_y = (top + bottom) // 2
     y = center_y - text_h // 2
 
-    # النص جزء من الصورة نفسها، وليس Caption.
-    draw.multiline_text(
-        (center_x + 2, y + 2), final_text, font=font,
-        fill=(0, 0, 0, 190), anchor="ma", align="center",
-        spacing=max(3, getattr(font, "size", 20) // 6)
-    )
+    # النص جزء من الصورة نفسها.
     draw.multiline_text(
         (center_x, y), final_text, font=font,
         fill=(255, 255, 255, 255), anchor="ma", align="center",
         spacing=max(3, getattr(font, "size", 20) // 6)
     )
 
-    # Telegram static sticker: WebP مع الحفاظ على الشفافية الموجودة في PNG الأصلي.
-    output = BytesIO()
-    output.name = "sharx_template_sticker.webp"
-    image.save(output, format="WEBP", lossless=True, method=6)
-    output.seek(0)
-    return output
+    # نحفظ نسخة PNG شفافة أولًا. ثم نحولها إلى WEBP lossless فقط لأن sendSticker
+    # في Bot API يقبل رفع WEBP مباشرة؛ المظهر الشفاف كملصق يبقى نفسه.
+    png = BytesIO()
+    png.name = "sharx_template_sticker.png"
+    image.save(png, format="PNG", optimize=True)
+    png.seek(0)
+
+    webp = BytesIO()
+    webp.name = "sharx_template_sticker.webp"
+    image.save(webp, format="WEBP", lossless=True, method=6)
+    webp.seek(0)
+    return webp
 
 def template_publish(user_id, chat_id, message_id):
     state = template_state.get(user_id)
@@ -1363,4 +1406,3 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Polling error: {e}. Retrying in 5 seconds...")
             time.sleep(5)
-            
