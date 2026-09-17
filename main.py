@@ -450,6 +450,7 @@ def create_template_finish_markup():
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton("✏️ تعديل النص", callback_data="tpl_edit_text"),
+        types.InlineKeyboardButton("👀 معاينة", callback_data="tpl_preview"),
         types.InlineKeyboardButton("🚀 نشر", callback_data="tpl_publish"),
     )
     markup.add(
@@ -622,10 +623,15 @@ def _prepare_lines(text):
     return [_shape_arabic(line) for line in text.splitlines() if line.strip()] or [_shape_arabic(text.strip())]
 
 def _fit_text(draw, text, box_width, box_height):
-    # يضبط حجم الخط ويلف النص، مع الحفاظ على RTL الحقيقي للعربي.
-    words = text.split()
-    if not words:
-        return "", _find_arabic_font(20), 0
+    """Find the largest readable font that fits the whole text in the box.
+
+    The available font size is derived from the actual template dimensions and
+    the amount of text. Explicit newlines are respected; other text is wrapped
+    automatically. Arabic is shaped once and rendered RTL when RAQM is present.
+    """
+    text = (text or "").strip()
+    if not text:
+        return "", _find_arabic_font(20), 0, {}
 
     has_arabic = any(
         "\u0600" <= ch <= "\u06ff" or
@@ -633,93 +639,120 @@ def _fit_text(draw, text, box_width, box_height):
         "\u08a0" <= ch <= "\u08ff"
         for ch in text
     )
-    use_raqm = False
+
     try:
         from PIL import features
         use_raqm = bool(features.check("raqm"))
     except Exception:
-        pass
+        use_raqm = False
 
     direction_kwargs = {"direction": "rtl", "language": "ar"} if has_arabic and use_raqm else {}
 
-    def shaped_for_measure(t):
+    def visual_text(t):
         shaped = _shape_arabic(t)
         if has_arabic and not use_raqm:
             shaped = _visual_fallback(shaped)
         return shaped
 
-    best_text = text
-    best_font = _find_arabic_font(20)
-    best_height = 0
+    paragraphs = [p.strip() for p in text.splitlines() if p.strip()]
+    if not paragraphs:
+        paragraphs = [text]
 
-    # نجرّب من الأكبر للأصغر.
-    for font_size in range(max(12, int(box_height)), 9, -1):
-        font = _find_arabic_font(font_size)
+    # Leave a small but proportional safety margin inside the template.
+    usable_w = max(20, int(box_width * 0.94))
+    usable_h = max(20, int(box_height * 0.92))
+
+    def make_lines(font):
         lines = []
-        current = ""
-
-        # نحافظ على الأسطر التي أرسلها المستخدم صراحة.
-        paragraphs = [p for p in text.splitlines() if p.strip()]
-        if not paragraphs:
-            paragraphs = [text.strip()]
-
         for paragraph in paragraphs:
+            words = paragraph.split()
+            if not words:
+                continue
             current = ""
-            for word in paragraph.split():
-                candidate_original = word if not current else current + " " + word
-                candidate = shaped_for_measure(candidate_original)
-                bbox = draw.textbbox((0, 0), candidate, font=font, **direction_kwargs)
-                if bbox[2] - bbox[0] <= box_width:
-                    current = candidate_original
+            for word in words:
+                candidate = word if not current else current + " " + word
+                visual = visual_text(candidate)
+                bbox = draw.textbbox((0, 0), visual, font=font, **direction_kwargs)
+                if bbox[2] - bbox[0] <= usable_w:
+                    current = candidate
                 else:
                     if current:
-                        lines.append(shaped_for_measure(current))
-                    current = word
+                        lines.append(visual_text(current))
+                        current = word
+                    else:
+                        # A single very long token: hard-wrap by characters.
+                        chunk = ""
+                        for ch in word:
+                            test = chunk + ch
+                            vb = draw.textbbox((0, 0), visual_text(test), font=font, **direction_kwargs)
+                            if vb[2] - vb[0] <= usable_w or not chunk:
+                                chunk = test
+                            else:
+                                lines.append(visual_text(chunk))
+                                chunk = ch
+                        current = chunk
             if current:
-                lines.append(shaped_for_measure(current))
+                lines.append(visual_text(current))
+        return lines
 
-        spacing = max(3, font_size // 6)
-        heights = []
-        widths = []
-        for line in lines:
-            bbox = draw.textbbox((0, 0), line, font=font, **direction_kwargs)
-            widths.append(bbox[2] - bbox[0])
-            heights.append(bbox[3] - bbox[1])
+    # Start from a size based on the actual image/box, then binary-search the
+    # largest size that can contain all lines. This avoids unnecessarily tiny text.
+    high = max(12, min(220, int(usable_h * 0.78)))
+    low = 10
+    best = None
 
+    while low <= high:
+        mid = (low + high) // 2
+        font = _find_arabic_font(mid)
+        lines = make_lines(font)
+        spacing = max(4, mid // 5)
+        metrics = [draw.textbbox((0, 0), line, font=font, **direction_kwargs) for line in lines]
+        heights = [max(1, b[3] - b[1]) for b in metrics]
+        widths = [max(1, b[2] - b[0]) for b in metrics]
         total_h = sum(heights) + spacing * max(0, len(lines) - 1)
         max_w = max(widths, default=0)
 
-        if max_w <= box_width and total_h <= box_height:
-            best_text = "\n".join(lines)
-            best_font = font
-            best_height = total_h
-            break
+        if max_w <= usable_w and total_h <= usable_h:
+            best = ("\n".join(lines), font, total_h, direction_kwargs, spacing)
+            low = mid + 1
+        else:
+            high = mid - 1
 
-    return best_text, best_font, best_height, direction_kwargs
+    if best is None:
+        font = _find_arabic_font(10)
+        lines = make_lines(font)
+        spacing = 3
+        metrics = [draw.textbbox((0, 0), line, font=font, **direction_kwargs) for line in lines]
+        total_h = sum(max(1, b[3] - b[1]) for b in metrics) + spacing * max(0, len(lines) - 1)
+        return "\n".join(lines), font, total_h, direction_kwargs, spacing
+
+    return best
 
 def render_template_sticker(photo_bytes, body, size_name):
-    # نستخدم الصورة التي أرسلها المستخدم نفسها، بدون قلب أو عكس.
+    # Use the exact uploaded template. Never mirror/flip it.
     image = Image.open(BytesIO(photo_bytes))
     image = ImageOps.exif_transpose(image).convert("RGBA")
 
-    # إزالة الخلفية الخارجية فقط إذا كانت خلفية صلبة؛ لا نمسح اللون الأسود داخل القالب.
+    # Remove only a solid outer background when the uploaded file has no alpha.
     if image.getextrema()[3] == (255, 255):
         image = _remove_outer_background(image)
 
-    # نحافظ على نسبة أبعاد القالب تمامًا؛ نكبّر/نصغّر فقط مع جعل أطول ضلع 512.
-    sizes = {"large": 512, "medium": 440, "small": 360}
-    max_side = sizes.get(size_name, 440)
+    # Large templates are allowed to stay large; medium/small are sticker-sized.
+    sizes = {"large": 2048, "medium": 512, "small": 360}
+    max_side = sizes.get(size_name, 512)
     scale = min(1.0, max_side / max(image.width, image.height))
     if scale != 1.0:
         image = image.resize(
             (max(1, round(image.width * scale)), max(1, round(image.height * scale))),
-            Image.Resampling.LANCZOS
+            Image.Resampling.LANCZOS,
         )
 
     w, h = image.size
     draw = ImageDraw.Draw(image)
 
-    # مساحة النص داخل الجزء الأسود، محسوبة من أبعاد القالب الأصلي بدون قلب الصورة.
+    # Text area is proportional to the actual template dimensions.
+    # These ratios match the current frame: the black inner panel is not resized
+    # independently, so the template's proportions remain intact.
     left = int(w * 0.31)
     right = int(w * 0.76)
     top = int(h * 0.28)
@@ -727,35 +760,71 @@ def render_template_sticker(photo_bytes, body, size_name):
     box_w = max(20, right - left)
     box_h = max(20, bottom - top)
 
-    final_text, font, text_h, direction_kwargs = _fit_text(
-        draw, body.strip(), box_w - 14, box_h - 10
+    final_text, font, text_h, direction_kwargs, spacing = _fit_text(
+        draw, body, box_w, box_h
     )
+
     center_x = (left + right) // 2
     center_y = (top + bottom) // 2
     y = center_y - text_h // 2
 
-    # النص جزء من الصورة نفسها.
-    # للعربي: Pillow/RAQM يرسم النص RTL بالترتيب الطبيعي، بدون قلب الحروف.
     draw.multiline_text(
-        (center_x, y), final_text, font=font,
-        fill=(255, 255, 255, 255), anchor="ma",
+        (center_x, y),
+        final_text,
+        font=font,
+        fill=(255, 255, 255, 255),
+        anchor="ma",
         align="center",
-        spacing=max(3, getattr(font, "size", 20) // 6),
-        **direction_kwargs
+        spacing=spacing,
+        **direction_kwargs,
     )
 
-    # نحفظ نسخة PNG شفافة أولًا. ثم نحولها إلى WEBP lossless فقط لأن sendSticker
-    # في Bot API يقبل رفع WEBP مباشرة؛ المظهر الشفاف كملصق يبقى نفسه.
+    # Keep PNG as the rendered master. The publisher converts it to WEBP only
+    # when Telegram requires an actual sticker upload.
     png = BytesIO()
-    png.name = "sharx_template_sticker.png"
+    png.name = "sharx_template.png"
     image.save(png, format="PNG", optimize=True)
     png.seek(0)
+    return png
 
-    webp = BytesIO()
-    webp.name = "sharx_template_sticker.webp"
-    image.save(webp, format="WEBP", lossless=True, method=6)
-    webp.seek(0)
-    return webp
+def template_preview(user_id, chat_id, message_id, call):
+    state = template_state.get(user_id)
+    if not state:
+        bot.answer_callback_query(call.id, "انتهت جلسة القالب.", show_alert=True)
+        return
+
+    destination = state.get("destination")
+    photo = state.get("photo")
+    body = state.get("text") or ""
+    size_name = state.get("size") or "medium"
+    if not photo or not body.strip():
+        bot.answer_callback_query(call.id, "أرسل القالب والنص أولاً.", show_alert=True)
+        return
+
+    try:
+        file_info = bot.get_file(photo)
+        photo_bytes = bot.download_file(file_info.file_path)
+        rendered = render_template_sticker(photo_bytes, body, size_name)
+
+        if size_name == "large":
+            bot.send_photo(
+                chat_id, rendered,
+                caption="👀 معاينة القالب — لم يتم النشر بعد."
+            )
+        else:
+            webp = BytesIO()
+            webp.name = "sharx_template_preview.webp"
+            rendered.seek(0)
+            img = Image.open(rendered).convert("RGBA")
+            img.save(webp, format="WEBP", lossless=True, method=6)
+            webp.seek(0)
+            bot.send_sticker(chat_id, webp)
+            bot.send_message(chat_id, "👀 هذه معاينة القالب — لم يتم النشر بعد.")
+
+        bot.answer_callback_query(call.id, "تم إرسال المعاينة 👀")
+    except Exception as e:
+        print(f"Template preview error: {e}")
+        bot.answer_callback_query(call.id, "⚠️ تعذر إنشاء المعاينة.", show_alert=True)
 
 def template_publish(user_id, chat_id, message_id):
     state = template_state.get(user_id)
@@ -775,8 +844,21 @@ def template_publish(user_id, chat_id, message_id):
         photo_bytes = bot.download_file(file_info.file_path)
         rendered = render_template_sticker(photo_bytes, body, size_name)
 
-        # لا نرسل النص كـ caption؛ النص أصبح جزءاً من ملف PNG نفسه.
-        sent = bot.send_sticker(destination, rendered)
+        # الحجم الكبير = منشور صورة كبير، حتى يبقى النص الطويل مقروءاً.
+        # المتوسط والصغير = Sticker. النص دائماً جزء من الصورة وليس Caption.
+        if size_name == "large":
+            sent = bot.send_photo(destination, rendered)
+            success_text = "✅ *تم نشر القالب الكبير كمنشور صورة، والنص داخل القالب.* 🐾"
+        else:
+            webp = BytesIO()
+            webp.name = "sharx_template_sticker.webp"
+            rendered.seek(0)
+            img = Image.open(rendered).convert("RGBA")
+            img.save(webp, format="WEBP", lossless=True, method=6)
+            webp.seek(0)
+            sent = bot.send_sticker(destination, webp)
+            success_text = "✅ *تم نشر القالب كملصق، والنص داخل الصورة.* 🐾"
+
         try:
             bot.pin_chat_message(destination, sent.message_id)
         except Exception:
@@ -784,7 +866,7 @@ def template_publish(user_id, chat_id, message_id):
 
         template_state.pop(user_id, None)
         bot.edit_message_text(
-            "✅ *تم نشر القالب كملصق، والنص داخل الصورة بنجاح.* 🐾",
+            success_text,
             chat_id, message_id, parse_mode="Markdown",
             reply_markup=create_main_menu_markup()
         )
@@ -1019,6 +1101,10 @@ def handle_all_callbacks(call):
         elif data == "tpl_edit_text":
             if user_id in template_state:
                 template_ask_text(user_id, chat_id, message_id)
+
+        elif data == "tpl_preview":
+            if user_id in template_state:
+                template_preview(user_id, chat_id, message_id, call)
 
         elif data == "tpl_publish":
             if user_id in template_state:
