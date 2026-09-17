@@ -697,7 +697,7 @@ def _fit_text(draw, text, box_width, box_height):
 
     # Start from a size based on the actual image/box, then binary-search the
     # largest size that can contain all lines. This avoids unnecessarily tiny text.
-    high = max(12, min(220, int(usable_h * 0.78)))
+    high = max(12, min(420, int(usable_h * 0.82)))
     low = 10
     best = None
 
@@ -738,7 +738,8 @@ def render_template_sticker(photo_bytes, body, size_name):
         image = _remove_outer_background(image)
 
     # Large templates are allowed to stay large; medium/small are sticker-sized.
-    sizes = {"large": 2048, "medium": 512, "small": 360}
+    # أحجام إخراج الصورة. نرفع المتوسط/الصغير حتى لا يبدو النص مصغراً عند عرضه.
+    sizes = {"large": 2048, "medium": 1280, "small": 900}
     max_side = sizes.get(size_name, 512)
     scale = min(1.0, max_side / max(image.width, image.height))
     if scale != 1.0:
@@ -753,10 +754,12 @@ def render_template_sticker(photo_bytes, body, size_name):
     # Text area is proportional to the actual template dimensions.
     # These ratios match the current frame: the black inner panel is not resized
     # independently, so the template's proportions remain intact.
-    left = int(w * 0.31)
-    right = int(w * 0.76)
-    top = int(h * 0.28)
-    bottom = int(h * 0.63)
+    # منطقة النص داخل اللوحة الداخلية: أوسع وأعلى من النسخة السابقة،
+    # مع هامش أمان حتى لا يلمس الإطار.
+    left = int(w * 0.28)
+    right = int(w * 0.82)
+    top = int(h * 0.20)
+    bottom = int(h * 0.74)
     box_w = max(20, right - left)
     box_h = max(20, bottom - top)
 
@@ -779,8 +782,7 @@ def render_template_sticker(photo_bytes, body, size_name):
         **direction_kwargs,
     )
 
-    # Keep PNG as the rendered master. The publisher converts it to WEBP only
-    # when Telegram requires an actual sticker upload.
+    # Keep PNG as the final output so transparency is preserved around the design.
     png = BytesIO()
     png.name = "sharx_template.png"
     image.save(png, format="PNG", optimize=True)
@@ -806,20 +808,12 @@ def template_preview(user_id, chat_id, message_id, call):
         photo_bytes = bot.download_file(file_info.file_path)
         rendered = render_template_sticker(photo_bytes, body, size_name)
 
-        if size_name == "large":
-            bot.send_photo(
-                chat_id, rendered,
-                caption="👀 معاينة القالب — لم يتم النشر بعد."
-            )
-        else:
-            webp = BytesIO()
-            webp.name = "sharx_template_preview.webp"
-            rendered.seek(0)
-            img = Image.open(rendered).convert("RGBA")
-            img.save(webp, format="WEBP", lossless=True, method=6)
-            webp.seek(0)
-            bot.send_sticker(chat_id, webp)
-            bot.send_message(chat_id, "👀 هذه معاينة القالب — لم يتم النشر بعد.")
+        # المعاينة بنفس طريقة النشر: صورة PNG شفافة، وليس Sticker.
+        rendered.seek(0)
+        bot.send_photo(
+            chat_id, rendered,
+            caption="👀 معاينة القالب — لم يتم النشر بعد."
+        )
 
         bot.answer_callback_query(call.id, "تم إرسال المعاينة 👀")
     except Exception as e:
@@ -844,20 +838,12 @@ def template_publish(user_id, chat_id, message_id):
         photo_bytes = bot.download_file(file_info.file_path)
         rendered = render_template_sticker(photo_bytes, body, size_name)
 
-        # الحجم الكبير = منشور صورة كبير، حتى يبقى النص الطويل مقروءاً.
-        # المتوسط والصغير = Sticker. النص دائماً جزء من الصورة وليس Caption.
-        if size_name == "large":
-            sent = bot.send_photo(destination, rendered)
-            success_text = "✅ *تم نشر القالب الكبير كمنشور صورة، والنص داخل القالب.* 🐾"
-        else:
-            webp = BytesIO()
-            webp.name = "sharx_template_sticker.webp"
-            rendered.seek(0)
-            img = Image.open(rendered).convert("RGBA")
-            img.save(webp, format="WEBP", lossless=True, method=6)
-            webp.seek(0)
-            sent = bot.send_sticker(destination, webp)
-            success_text = "✅ *تم نشر القالب كملصق، والنص داخل الصورة.* 🐾"
+        # الوضع البديل: كل الأحجام تُنشر كصورة PNG شفافة.
+        # لا يوجد Caption للنص؛ كل النص مرسوم داخل الصورة نفسها.
+        # وبقاء الأطراف شفافة يعطي شكل "ملصق" بصرياً على خلفية تيليجرام.
+        rendered.seek(0)
+        sent = bot.send_photo(destination, rendered)
+        success_text = "✅ *تم نشر القالب كصورة شفافة بشكل ملصق، والنص داخل التصميم.* 🐾"
 
         try:
             bot.pin_chat_message(destination, sent.message_id)
