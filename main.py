@@ -733,9 +733,10 @@ def render_template_sticker(photo_bytes, body, size_name):
     image = Image.open(BytesIO(photo_bytes))
     image = ImageOps.exif_transpose(image).convert("RGBA")
 
-    # Remove only a solid outer background when the uploaded file has no alpha.
-    if image.getextrema()[3] == (255, 255):
-        image = _remove_outer_background(image)
+    # Always clean a solid outer background (including white) at the border.
+    # This is important when Telegram receives a PNG template that contains an
+    # opaque white canvas around an otherwise transparent/sticker-like design.
+    image = _remove_outer_background(image, tolerance=28)
 
     # Large templates are allowed to stay large; medium/small are sticker-sized.
     # أحجام إخراج الصورة. نرفع المتوسط/الصغير حتى لا يبدو النص مصغراً عند عرضه.
@@ -756,10 +757,10 @@ def render_template_sticker(photo_bytes, body, size_name):
     # independently, so the template's proportions remain intact.
     # منطقة النص داخل اللوحة الداخلية: أوسع وأعلى من النسخة السابقة،
     # مع هامش أمان حتى لا يلمس الإطار.
-    left = int(w * 0.28)
-    right = int(w * 0.82)
-    top = int(h * 0.20)
-    bottom = int(h * 0.74)
+    left = int(w * 0.16)
+    right = int(w * 0.94)
+    top = int(h * 0.27)
+    bottom = int(h * 0.91)
     box_w = max(20, right - left)
     box_h = max(20, bottom - top)
 
@@ -843,7 +844,7 @@ def template_publish(user_id, chat_id, message_id):
         # وبقاء الأطراف شفافة يعطي شكل "ملصق" بصرياً على خلفية تيليجرام.
         rendered.seek(0)
         sent = bot.send_photo(destination, rendered)
-        success_text = "✅ *تم نشر القالب كصورة شفافة بشكل ملصق، والنص داخل التصميم.* 🐾"
+        success_text = "✅ *تم نشر القالب كصورة PNG شفافة، والنص داخل التصميم.* 🐾"
 
         try:
             bot.pin_chat_message(destination, sent.message_id)
