@@ -552,17 +552,34 @@ def _find_arabic_font(size):
     return ImageFont.load_default()
 
 def _shape_arabic(text):
-    # Telegram/Pillow قد يعتبر الإيموجي أو الأرقام في بداية النص اتجاهًا LTR،
-    # فيظهر العربي بترتيب بصري معكوس. نحدد اتجاه RTL عندما يحتوي النص على عربي.
+    # مهم: لا نعكس ترتيب العربي هنا إذا كان Pillow مبنيًا مع libraqm.
+    # نعطي Pillow النص العربي بالترتيب الطبيعي ونجعله يرسمه RTL.
+    # إذا لم تتوفر libraqm على السيرفر، نستخدم get_display كخطة بديلة.
     try:
-        reshaped = arabic_reshaper.reshape(text)
-        has_arabic = any(
-            "\u0600" <= ch <= "\u06ff" or
-            "\u0750" <= ch <= "\u077f" or
-            "\u08a0" <= ch <= "\u08ff"
-            for ch in text
-        )
-        return get_display(reshaped, base_dir="R" if has_arabic else "L")
+        return arabic_reshaper.reshape(text)
+    except Exception:
+        return text
+
+def _text_direction_kwargs(text):
+    has_arabic = any(
+        "\u0600" <= ch <= "\u06ff" or
+        "\u0750" <= ch <= "\u077f" or
+        "\u08a0" <= ch <= "\u08ff"
+        for ch in text
+    )
+    if has_arabic:
+        try:
+            from PIL import features
+            if features.check("raqm"):
+                return {"direction": "rtl", "language": "ar"}
+        except Exception:
+            pass
+    return {}
+
+def _visual_fallback(text):
+    # يستخدم فقط عندما لا يدعم Pillow/الخادم RTL مباشرة.
+    try:
+        return get_display(text, base_dir="R")
     except Exception:
         return text
 
@@ -605,10 +622,31 @@ def _prepare_lines(text):
     return [_shape_arabic(line) for line in text.splitlines() if line.strip()] or [_shape_arabic(text.strip())]
 
 def _fit_text(draw, text, box_width, box_height):
-    # يضبط حجم الخط ويلف النص حتى يبقى بالكامل داخل المساحة المخصصة.
+    # يضبط حجم الخط ويلف النص، مع الحفاظ على RTL الحقيقي للعربي.
     words = text.split()
     if not words:
         return "", _find_arabic_font(20), 0
+
+    has_arabic = any(
+        "\u0600" <= ch <= "\u06ff" or
+        "\u0750" <= ch <= "\u077f" or
+        "\u08a0" <= ch <= "\u08ff"
+        for ch in text
+    )
+    use_raqm = False
+    try:
+        from PIL import features
+        use_raqm = bool(features.check("raqm"))
+    except Exception:
+        pass
+
+    direction_kwargs = {"direction": "rtl", "language": "ar"} if has_arabic and use_raqm else {}
+
+    def shaped_for_measure(t):
+        shaped = _shape_arabic(t)
+        if has_arabic and not use_raqm:
+            shaped = _visual_fallback(shaped)
+        return shaped
 
     best_text = text
     best_font = _find_arabic_font(20)
@@ -619,35 +657,45 @@ def _fit_text(draw, text, box_width, box_height):
         font = _find_arabic_font(font_size)
         lines = []
         current = ""
-        for word in words:
-            candidate_original = word if not current else current + " " + word
-            candidate = _shape_arabic(candidate_original)
-            bbox = draw.textbbox((0, 0), candidate, font=font)
-            if bbox[2] - bbox[0] <= box_width:
-                current = candidate_original
-            else:
-                if current:
-                    lines.append(_shape_arabic(current))
-                current = word
-        if current:
-            lines.append(_shape_arabic(current))
+
+        # نحافظ على الأسطر التي أرسلها المستخدم صراحة.
+        paragraphs = [p for p in text.splitlines() if p.strip()]
+        if not paragraphs:
+            paragraphs = [text.strip()]
+
+        for paragraph in paragraphs:
+            current = ""
+            for word in paragraph.split():
+                candidate_original = word if not current else current + " " + word
+                candidate = shaped_for_measure(candidate_original)
+                bbox = draw.textbbox((0, 0), candidate, font=font, **direction_kwargs)
+                if bbox[2] - bbox[0] <= box_width:
+                    current = candidate_original
+                else:
+                    if current:
+                        lines.append(shaped_for_measure(current))
+                    current = word
+            if current:
+                lines.append(shaped_for_measure(current))
 
         spacing = max(3, font_size // 6)
         heights = []
         widths = []
         for line in lines:
-            bbox = draw.textbbox((0, 0), line, font=font)
+            bbox = draw.textbbox((0, 0), line, font=font, **direction_kwargs)
             widths.append(bbox[2] - bbox[0])
             heights.append(bbox[3] - bbox[1])
-        total_h = sum(heights) + spacing * (len(lines) - 1)
+
+        total_h = sum(heights) + spacing * max(0, len(lines) - 1)
         max_w = max(widths, default=0)
+
         if max_w <= box_width and total_h <= box_height:
             best_text = "\n".join(lines)
             best_font = font
             best_height = total_h
             break
 
-    return best_text, best_font, best_height
+    return best_text, best_font, best_height, direction_kwargs
 
 def render_template_sticker(photo_bytes, body, size_name):
     # نستخدم الصورة التي أرسلها المستخدم نفسها، بدون قلب أو عكس.
@@ -679,16 +727,21 @@ def render_template_sticker(photo_bytes, body, size_name):
     box_w = max(20, right - left)
     box_h = max(20, bottom - top)
 
-    final_text, font, text_h = _fit_text(draw, body.strip(), box_w - 14, box_h - 10)
+    final_text, font, text_h, direction_kwargs = _fit_text(
+        draw, body.strip(), box_w - 14, box_h - 10
+    )
     center_x = (left + right) // 2
     center_y = (top + bottom) // 2
     y = center_y - text_h // 2
 
     # النص جزء من الصورة نفسها.
+    # للعربي: Pillow/RAQM يرسم النص RTL بالترتيب الطبيعي، بدون قلب الحروف.
     draw.multiline_text(
         (center_x, y), final_text, font=font,
-        fill=(255, 255, 255, 255), anchor="ma", align="center",
-        spacing=max(3, getattr(font, "size", 20) // 6)
+        fill=(255, 255, 255, 255), anchor="ma",
+        align="center",
+        spacing=max(3, getattr(font, "size", 20) // 6),
+        **direction_kwargs
     )
 
     # نحفظ نسخة PNG شفافة أولًا. ثم نحولها إلى WEBP lossless فقط لأن sendSticker
