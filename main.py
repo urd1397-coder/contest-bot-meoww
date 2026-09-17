@@ -552,8 +552,17 @@ def _find_arabic_font(size):
     return ImageFont.load_default()
 
 def _shape_arabic(text):
+    # Telegram/Pillow قد يعتبر الإيموجي أو الأرقام في بداية النص اتجاهًا LTR،
+    # فيظهر العربي بترتيب بصري معكوس. نحدد اتجاه RTL عندما يحتوي النص على عربي.
     try:
-        return get_display(arabic_reshaper.reshape(text))
+        reshaped = arabic_reshaper.reshape(text)
+        has_arabic = any(
+            "\u0600" <= ch <= "\u06ff" or
+            "\u0750" <= ch <= "\u077f" or
+            "\u08a0" <= ch <= "\u08ff"
+            for ch in text
+        )
+        return get_display(reshaped, base_dir="R" if has_arabic else "L")
     except Exception:
         return text
 
